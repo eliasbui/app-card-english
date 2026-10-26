@@ -36,6 +36,21 @@ jobs:
           $version = "$env:GITHUB_REF_NAME".TrimStart("v")
           Copy-Item target/release/card-english.exe "dist/CardEnglish.exe"
           Compress-Archive -Path dist/CardEnglish.exe -DestinationPath "dist/CardEnglish-$version-windows-x64.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-${{ runner.os }}
+          path: dist/*.zip
+          if-no-files-found: error
+
+  # One job publishes, so that the two builds never race to create the same release.
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
           files: dist/*.zip

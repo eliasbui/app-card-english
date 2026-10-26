@@ -79,7 +79,10 @@ scripts/release.sh 0.2.0
 
 Script tăng version, tạo tag và push. GitHub Actions build bản macOS (universal) và Windows x64 rồi đăng lên GitHub Releases; app sẽ tự thấy bản mới.
 
-Lưu ý khi cài: bản macOS chỉ ký ad-hoc, lần đầu mở cần chuột phải chọn Open. Bản Windows cần WebView2 (có sẵn trên Windows 10 và 11).
+Lưu ý khi cài:
+
+- macOS: app chỉ ký ad-hoc. Lần đầu mở, macOS sẽ chặn; vào System Settings > Privacy & Security, bấm Open Anyway (hoặc chạy `xattr -dr com.apple.quarantine "/Applications/Card English.app"`).
+- Windows: chưa ký số nên SmartScreen có thể cảnh báo, chọn More info > Run anyway. Cần WebView2, có sẵn trên Windows 10 và 11.
 
 ## Giấy phép dữ liệu
 

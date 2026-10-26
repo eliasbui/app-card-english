@@ -12,7 +12,8 @@ git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null && { echo "v$VERSION 
 
 sed -i.bak "1,/^version = /s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml && rm Cargo.toml.bak
 cargo update --workspace --offline -q
-git commit -q -m "Release $VERSION" Cargo.toml Cargo.lock
+# Releasing the version Cargo.toml already has leaves nothing to commit.
+git diff --quiet Cargo.toml Cargo.lock || git commit -q -m "Release $VERSION" Cargo.toml Cargo.lock
 git tag "v$VERSION"
 git push origin HEAD "v$VERSION"
 echo "pushed v$VERSION; the release workflow builds and publishes it"
