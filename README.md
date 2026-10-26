@@ -21,7 +21,7 @@ Chọn nguồn AI trong Cài đặt. Khi nguồn đang chọn lỗi hoặc hết
 | Nguồn | Cách dùng | Model |
 | --- | --- | --- |
 | Model trên máy | Tải về trong Cài đặt (Qwen2.5 0.5B, 498 MB), chạy offline | qwen2.5-0.5b-instruct |
-| ChatGPT | Bấm Continue with ChatGPT, đăng nhập trong trình duyệt; dùng hạn mức của gói ChatGPT | Lấy từ tài khoản (`GET /v1/models`) |
+| ChatGPT | Bấm Continue with ChatGPT, đăng nhập trong trình duyệt; dùng hạn mức của gói Plus hoặc Pro (gói Free không dùng được) | Lấy từ tài khoản (`GET /v1/models`) |
 | Gemini | API key miễn phí từ Google AI Studio | Lấy từ `models.list`, mặc định là bản flash mới nhất |
 | DeepSeek | API key, trả phí theo lượt | Lấy từ `GET /models` |
 

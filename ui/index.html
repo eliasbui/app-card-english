@@ -300,7 +300,7 @@
       <label>Dùng AI nào để giải thích nghĩa và gợi ý từ mới</label>
       <select id="s-ai_provider">
         <option value="local">Model trên máy (Qwen 0.5B): miễn phí, chạy offline</option>
-        <option value="chatgpt">ChatGPT: dùng gói ChatGPT của bạn</option>
+        <option value="chatgpt">ChatGPT: dùng gói Plus hoặc Pro của bạn</option>
         <option value="gemini">Gemini: API key miễn phí từ Google AI Studio</option>
         <option value="deepseek">DeepSeek: API key, trả phí theo lượt</option>
       </select>
@@ -1171,7 +1171,7 @@ function renderChatGPT() {
       <p class="muted">OpenAI hiện chưa cho app tự gia hạn phiên sau một thời gian không dùng (lỗi phía OpenAI đang được theo dõi). Đăng nhập lại chỉ cần chọn tài khoản, không phải cấp quyền lại.</p>
       <div class="row"><button class="btn chatgpt" data-act="cg-sign-in">Đăng nhập lại</button><button class="btn" data-act="cg-other">Dùng tài khoản ChatGPT khác</button></div>`;
   } else if (!c.signed_in) {
-    body = `<p class="muted">Dùng hạn mức có sẵn trong gói ChatGPT của bạn (Plus, Pro, Business...) cho các yêu cầu AI trong app, không cần API key và không mất thêm phí. Gói Plus có giới hạn 5 giờ dùng chung với các app khác.</p>
+    body = `<p class="muted">Dùng hạn mức có sẵn trong gói ChatGPT Plus hoặc Pro của bạn cho các yêu cầu AI trong app, không cần API key và không mất thêm phí. Gói Plus có giới hạn 5 giờ dùng chung với các app khác. Tài khoản ChatGPT Free không dùng được tính năng này; khi đó hãy dùng Gemini (API key miễn phí) hoặc model trên máy.</p>
       <button class="btn chatgpt" data-act="cg-sign-in">Continue with ChatGPT</button>`;
   } else {
     body = `<p>Đã đăng nhập: <b>${esc(c.email || "tài khoản ChatGPT")}</b></p>

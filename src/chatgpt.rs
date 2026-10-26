@@ -166,7 +166,9 @@ pub fn sign_in(db: &Connection, fresh: bool) -> Result<Session, String> {
     };
     SIGNING_IN.store(false, Ordering::SeqCst);
     result.map_err(|e| match e {
-        Refused::Grant(message) | Refused::Other(message) => message,
+        // Plan usage is for Plus and Pro: a Free account gets through registration and is refused here.
+        Refused::Grant(message) => format!("{message}. Nếu bạn dùng ChatGPT Free: gói Free không được dùng cho app khác, cần gói Plus hoặc Pro."),
+        Refused::Other(message) => message,
     })
 }
 
