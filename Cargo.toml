@@ -1,0 +1,50 @@
+[package]
+name = "app-card-english"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.89"
+publish = false
+
+[[bin]]
+name = "card-english"
+path = "src/main.rs"
+
+[dependencies]
+tao = "0.37"
+wry = "0.57"
+tray-icon = "0.26"
+notify-rust = "4"
+rusqlite = { version = "0.40", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+cpal = "0.15"
+candle-core = "0.9"
+candle-nn = "0.9"
+candle-transformers = "0.9"
+tokenizers = { version = "0.21", default-features = false, features = ["onig"] }
+png = "0.18"
+# Sign in with ChatGPT: PKCE and the random values of each attempt.
+sha2 = "0.10"
+base64 = "0.22"
+getrandom = "0.3"
+
+# The GPU of a Mac; other machines run on the CPU.
+[target.'cfg(target_os = "macos")'.dependencies]
+candle-core = { version = "0.9", features = ["metal"] }
+candle-nn = { version = "0.9", features = ["metal"] }
+candle-transformers = { version = "0.9", features = ["metal"] }
+
+[dev-dependencies]
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "ico"] }
+
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = true
+
+# candle is unusably slow without optimisation, even while developing.
+[profile.dev.package."*"]
+opt-level = 3

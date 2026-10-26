@@ -1,0 +1,1377 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>Card English</title>
+<script>document.documentElement.dataset.theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";</script>
+<style>
+  :root { color-scheme: light; --bg: #f5f7fb; --surface: #fff; --surface-2: #fafbfc; --hover: #f3f4f6; --text: #1f2937;
+          --muted: #6b7280; --line: #e5e7eb; --line-strong: #c7cdd6; --shadow: rgba(0, 0, 0, .06);
+          --accent: #2563eb; --accent-hover: #1d4ed8; --blue: #2563eb; --blue-soft: #e8efff;
+          --green: #15803d; --green-soft: #ecf8ef; --green-line: #b7e4c2; --red: #b91c1c; --red-soft: #fdecec;
+          --amber: #d97706; --amber-soft: #fff3dc; --orange: #f59e0b; --banner: #fff7e6; --banner-line: #f5d08a;
+          --skeleton-a: #f0f2f5; --skeleton-b: #e5e8ee; --fresh: #dcfce7; --toast-bg: #111827; --toast-text: #fff; }
+  :root[data-theme="dark"] { color-scheme: dark; --bg: #0b1220; --surface: #151e2e; --surface-2: #111a29; --hover: #1f2a3d;
+          --text: #e2e8f0; --muted: #94a3b8; --line: #2a364a; --line-strong: #3d4c66; --shadow: rgba(0, 0, 0, .4);
+          --blue: #7cb3ff; --blue-soft: #1c2f4d; --green: #4ade80; --green-soft: #12301f; --green-line: #1f5133;
+          --red: #f87171; --red-soft: #3a1717; --amber: #fbbf24; --amber-soft: #3a2a0c; --orange: #fbbf24;
+          --banner: #33260c; --banner-line: #6b4f12; --skeleton-a: #1b2536; --skeleton-b: #243045; --fresh: #14532d;
+          --toast-bg: #e2e8f0; --toast-text: #0f172a; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--text); background: var(--bg);
+         display: flex; height: 100vh; overflow: hidden; }
+  nav { width: 210px; background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 16px 10px; }
+  nav h1 { font-size: 17px; margin: 0 8px 4px; color: var(--blue); }
+  nav .level { margin: 0 8px 16px; font-size: 12px; color: var(--muted); }
+  nav .level .progress { margin-top: 4px; height: 6px; }
+  nav button { text-align: left; border: 0; background: none; padding: 9px 12px; border-radius: 8px; font-size: 14px; color: var(--text);
+               cursor: pointer; transition: background .15s, transform .15s; }
+  nav button:hover { background: var(--hover); transform: translateX(2px); }
+  nav button.active { background: var(--blue-soft); color: var(--blue); font-weight: 600; }
+  nav .foot { margin-top: auto; font-size: 12px; color: var(--muted); padding: 0 8px; }
+  #update-banner { display: none; background: var(--banner); border: 1px solid var(--banner-line); border-radius: 8px; padding: 8px; margin: 0 0 10px; font-size: 12px; }
+  main { flex: 1; overflow-y: auto; padding: 24px 32px; }
+  section { display: none; max-width: 880px; margin: 0 auto; }
+  section.active { display: block; animation: rise .35s ease; }
+  h2 { margin: 0 0 16px; font-size: 20px; }
+  h3 { margin: 22px 0 10px; font-size: 15px; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .grow { flex: 1; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 14px; }
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px; }
+  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; transition: transform .2s, box-shadow .2s; }
+  .stat:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(37, 99, 235, .10); }
+  .stat b { display: block; font-size: 26px; color: var(--blue); }
+  .stat span { color: var(--muted); font-size: 13px; }
+  .hero { display: grid; grid-template-columns: 150px 1fr; gap: 22px; align-items: center;
+          background: linear-gradient(135deg, #2563eb, #1e40af); color: #fff; border: 0; }
+  .hero .muted { color: #c7d7ff; }
+  .ring { position: relative; width: 150px; height: 150px; }
+  .ring svg { transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 12; }
+  .ring .track { stroke: rgba(255, 255, 255, .2); }
+  .ring .fill { stroke: #fff; stroke-linecap: round; transition: stroke-dashoffset 1.2s cubic-bezier(.2, .8, .2, 1); }
+  .ring .label { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .ring .label b { font-size: 28px; }
+  .ring.done .fill { stroke: #fde68a; }
+  .streak { font-size: 22px; font-weight: 700; }
+  .streak.hot { animation: glow 1.6s ease-in-out infinite; }
+  .quote { margin-top: 10px; font-style: italic; min-height: 22px; transition: opacity .4s; }
+  .week { display: flex; gap: 10px; align-items: flex-end; height: 110px; margin-top: 6px; }
+  .week .bar { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); height: 100%; justify-content: flex-end; }
+  .week .bar div { width: 100%; max-width: 40px; background: var(--blue-soft); border-radius: 6px 6px 3px 3px; height: 0; transition: height .9s cubic-bezier(.2, .8, .2, 1); }
+  .week .bar.goal div { background: var(--blue); }
+  .week .bar.today span { color: var(--blue); font-weight: 700; }
+  button.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 9px; padding: 7px 14px; font-size: 14px; cursor: pointer; color: var(--text);
+               transition: transform .12s, box-shadow .15s, background .15s, border-color .15s; }
+  button.btn:hover:not(:disabled) { border-color: var(--line-strong); transform: translateY(-1px); box-shadow: 0 3px 10px var(--shadow); }
+  button.btn:active:not(:disabled) { transform: scale(.97); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover:not(:disabled) { background: var(--accent-hover); }
+  button.big { padding: 12px 26px; font-size: 16px; border-radius: 12px; }
+  button.pulse { animation: pulse 2s infinite; }
+  button.danger { color: var(--red); }
+  button.small { padding: 3px 9px; font-size: 12px; }
+  button:disabled { opacity: .5; cursor: default; }
+  input, textarea, select { font: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; background: var(--surface); color: var(--text); }
+  input:focus, textarea:focus, select:focus { outline: 2px solid var(--blue-soft); border-color: var(--blue); }
+  textarea { width: 100%; resize: vertical; min-height: 38px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+  .grid2 input { width: 100%; }
+  .muted { color: var(--muted); }
+  .error { color: var(--red); }
+  .ok { color: var(--green); }
+  .tag { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 99px; background: var(--blue-soft); color: var(--blue); }
+  .tag.due { background: var(--red-soft); color: var(--red); }
+  .tag.new { background: var(--amber-soft); color: var(--amber); }
+  table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; background: var(--surface-2); }
+  /* Rows stay still when the list is drawn again; only a word just saved lights up once. */
+  tbody tr.fresh { animation: fresh 1.6s ease; }
+  td .acts { white-space: nowrap; }
+  .flash { text-align: center; padding: 34px 24px; min-height: 320px; perspective: 1000px; }
+  .flash .word { font-size: 42px; font-weight: 700; margin: 6px 0; }
+  .flash .ipa { font-size: 20px; color: var(--blue); }
+  .flash .meaning { font-size: 22px; margin: 14px 0 6px; font-weight: 600; }
+  .flash .example { font-style: italic; margin-top: 12px; }
+  .flip-out { animation: flipOut .18s ease-in forwards; }
+  .flip-in { animation: flipIn .25s ease-out; }
+  .slide-in { animation: slideIn .3s ease-out; }
+  .shake { animation: shake .45s; }
+  .pop { animation: pop .4s; }
+  .grades { display: flex; gap: 10px; justify-content: center; margin-top: 22px; }
+  .grades button { min-width: 110px; }
+  .progress { height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; }
+  .progress div { height: 100%; background: linear-gradient(90deg, var(--accent), #60a5fa); width: 0; transition: width .5s cubic-bezier(.2, .8, .2, 1); }
+  .combo { font-weight: 700; color: var(--orange); min-width: 120px; text-align: right; }
+  .meter { height: 12px; background: var(--line); border-radius: 99px; overflow: hidden; margin: 6px 0; }
+  .meter div { height: 100%; width: 0; border-radius: 99px; transition: width 1s cubic-bezier(.2, .8, .2, 1), background .3s; }
+  .score { font-size: 28px; font-weight: 700; }
+  .pron { margin-top: 16px; padding: 12px; border: 1px dashed var(--line); border-radius: 10px; text-align: left; }
+  .rec-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--red); margin-right: 6px; animation: blink 1s infinite; }
+  .options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+  .options button { padding: 14px; font-size: 15px; text-align: left; }
+  .options button:disabled { opacity: 1; }
+  .options button.right { border-color: var(--green); background: var(--green-soft); animation: pop .4s; }
+  .options button.wrong { border-color: var(--red); background: var(--red-soft); animation: shake .45s; }
+  .question { font-size: 22px; font-weight: 600; margin: 8px 0; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
+  .chips button { border: 1px solid var(--line); background: var(--surface); color: var(--text); border-radius: 99px; padding: 5px 13px; cursor: pointer; font-size: 13px; transition: all .15s; }
+  .chips button:hover { border-color: var(--blue); color: var(--blue); transform: translateY(-1px); }
+  .suggestions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .sugg { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: flex; gap: 8px; align-items: center; animation: rise .35s ease both; }
+  .sugg.added { background: var(--green-soft); border-color: var(--green-line); }
+  .skeleton { height: 54px; border-radius: 12px; background: linear-gradient(90deg, var(--skeleton-a) 25%, var(--skeleton-b) 50%, var(--skeleton-a) 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; }
+  .float-xp { position: fixed; z-index: 50; font-weight: 800; color: var(--orange); pointer-events: none; animation: floatUp 1.1s ease-out forwards; text-shadow: 0 1px 0 var(--bg); }
+  /* Not drawn at all until there is something to say. */
+  #toast { display: none; position: fixed; top: 18px; left: 50%; transform: translateX(-50%); background: var(--toast-bg); color: var(--toast-text); padding: 12px 20px;
+           border-radius: 12px; z-index: 60; box-shadow: 0 10px 30px rgba(0, 0, 0, .2); font-weight: 600; }
+  #toast.show { display: block; animation: toastIn .35s cubic-bezier(.2, .8, .2, 1); }
+  #confetti { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
+  a { color: var(--blue); }
+  .usage { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); font-size: 13px; }
+  .provider-head { display: flex; align-items: center; gap: 10px; }
+  .provider-head h3 { margin: 0; flex: 1; }
+  /* The sign-in button OpenAI asks for: black, with its label. */
+  button.chatgpt { background: #000; border-color: #000; color: #fff; font-weight: 600; padding: 9px 18px; }
+  :root[data-theme="dark"] button.chatgpt { background: #fff; border-color: #fff; color: #000; }
+  .modal { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); display: flex; align-items: center; justify-content: center; z-index: 70; }
+  .modal .dialog { background: var(--surface); border-radius: 16px; padding: 24px; max-width: 440px; box-shadow: 0 20px 50px rgba(0, 0, 0, .3); animation: rise .25s ease; }
+  .hidden { display: none !important; }
+  /* While a session runs, only the card is on the page. */
+  #page-home.studying .hero, #page-home.studying .stats, #page-home.studying #week-card { display: none; }
+  kbd { font-size: 11px; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; color: var(--muted); }
+  button.primary kbd { color: #dbe6ff; border-color: #6b93f0; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  @keyframes flipOut { to { transform: rotateY(90deg); opacity: .6; } }
+  @keyframes flipIn { from { transform: rotateY(-90deg); opacity: .6; } to { transform: none; opacity: 1; } }
+  @keyframes slideIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
+  @keyframes shake { 0%, 100% { transform: none; } 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
+  @keyframes pop { 0% { transform: scale(1); } 40% { transform: scale(1.08); } 100% { transform: scale(1); } }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, .45); } 70% { box-shadow: 0 0 0 14px rgba(37, 99, 235, 0); } 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); } }
+  @keyframes glow { 0%, 100% { text-shadow: 0 0 0 rgba(253, 230, 138, 0); } 50% { text-shadow: 0 0 14px rgba(253, 230, 138, .9); } }
+  @keyframes floatUp { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(-60px) scale(1.3); } }
+  @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+  @keyframes toastIn { from { opacity: 0; transform: translate(-50%, -20px); } to { opacity: 1; transform: translateX(-50%); } }
+  @keyframes fresh { from { background: var(--fresh); } to { background: transparent; } }
+  @keyframes blink { 50% { opacity: .2; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<canvas id="confetti"></canvas>
+<div id="toast"></div>
+<div id="modal" class="modal hidden">
+  <div class="dialog">
+    <h3 style="margin-top:0">Bạn đang dùng gói ChatGPT</h3>
+    <p>Các yêu cầu AI trong Card English (giải thích nghĩa, gợi ý từ mới) sẽ dùng hạn mức trong gói ChatGPT của bạn. Bạn có thể xem và giới hạn mức dùng của app trong cài đặt ChatGPT.</p>
+    <div class="row"><button class="btn primary" id="btn-modal-ok">Đã hiểu</button><button class="btn" data-link="https://chatgpt.com/settings/usage">Quản lý hạn mức</button></div>
+  </div>
+</div>
+<nav>
+  <h1>Card English</h1>
+  <div class="level"><span id="level-text">Cấp 1</span><div class="progress"><div id="level-bar"></div></div></div>
+  <button data-page="home" class="active">Học hôm nay</button>
+  <button data-page="words">Từ vựng</button>
+  <button data-page="practice">Bài tập</button>
+  <button data-page="settings">Cài đặt</button>
+  <div class="foot">
+    <div id="update-banner"></div>
+    <div>Phiên bản <span id="version"></span></div>
+  </div>
+</nav>
+<main>
+  <section id="page-home" class="active">
+    <h2>Học hôm nay</h2>
+    <div class="card hero">
+      <div class="ring" id="goal-ring">
+        <svg width="150" height="150"><circle class="track" cx="75" cy="75" r="62"/><circle class="fill" id="goal-fill" cx="75" cy="75" r="62"/></svg>
+        <div class="label"><b id="goal-xp">0</b><span class="muted" id="goal-of">/ 50 XP</span></div>
+      </div>
+      <div>
+        <div class="streak" id="streak">Bắt đầu chuỗi ngày học của bạn</div>
+        <div class="muted" id="goal-text"></div>
+        <div class="quote" id="quote"></div>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat"><b id="st-due">0</b><span>Từ cần ôn</span></div>
+      <div class="stat"><b id="st-new">0</b><span>Từ mới hôm nay</span></div>
+      <div class="stat"><b id="st-learned">0</b><span>Đã học</span></div>
+      <div class="stat"><b id="st-total">0</b><span>Tổng số từ</span></div>
+    </div>
+    <div id="session-start" class="card">
+      <p id="session-hint" class="muted"></p>
+      <div class="row">
+        <button class="btn primary big" id="btn-start">Bắt đầu học</button>
+        <button class="btn" id="btn-go-suggest">AI gợi ý từ mới</button>
+      </div>
+    </div>
+    <div id="session" class="hidden">
+      <div class="row"><div class="grow progress"><div id="session-bar"></div></div><span id="session-count" class="muted"></span></div>
+      <div class="card flash" id="session-card"></div>
+    </div>
+    <div class="card" id="week-card">
+      <div class="row"><b class="grow">7 ngày gần đây</b><span class="muted" id="week-total"></span></div>
+      <div class="week" id="week"></div>
+    </div>
+  </section>
+
+  <section id="page-words">
+    <h2>Từ vựng</h2>
+    <div class="card">
+      <div class="row">
+        <input id="new-word" class="grow" placeholder="Nhập từ hoặc cụm từ tiếng Anh muốn học" maxlength="80">
+        <button class="btn primary" id="btn-add">Tra và thêm</button>
+        <button class="btn" id="btn-manual">Tự nhập</button>
+      </div>
+      <div id="editor" class="hidden">
+        <p id="editor-status" class="muted"></p>
+        <div class="grid2">
+          <div><label>Từ</label><input id="f-word" maxlength="80"></div>
+          <div><label>Phiên âm (IPA)</label><input id="f-ipa"></div>
+          <div><label>Loại từ</label><input id="f-pos"></div>
+          <div><label>Nghĩa tiếng Việt</label><input id="f-meaning"></div>
+        </div>
+        <label>Giải thích cách dùng</label><textarea id="f-explain"></textarea>
+        <div class="grid2">
+          <div><label>Câu ví dụ</label><textarea id="f-example"></textarea></div>
+          <div><label>Dịch câu ví dụ</label><textarea id="f-example_vi"></textarea></div>
+        </div>
+        <label>Ghi chú</label><textarea id="f-note"></textarea>
+        <div class="row" style="margin-top:12px">
+          <button class="btn primary" id="btn-save">Lưu</button>
+          <button class="btn" id="btn-listen">Nghe</button>
+          <button class="btn" id="btn-reexplain">Hỏi lại AI</button>
+          <button class="btn" id="btn-cancel">Hủy</button>
+          <span id="editor-error" class="error"></span>
+        </div>
+      </div>
+    </div>
+    <div class="card" id="suggest-card">
+      <div class="row"><b class="grow">AI gợi ý từ mới</b><button class="btn" id="btn-suggest-learned">Theo từ bạn đã học</button></div>
+      <div class="chips" id="topics"></div>
+      <div class="row">
+        <input id="topic" class="grow" placeholder="Hoặc nhập chủ đề bạn quan tâm, ví dụ: phỏng vấn xin việc" maxlength="80">
+        <button class="btn primary" id="btn-suggest">Gợi ý</button>
+      </div>
+      <div id="suggest-status" class="muted" style="margin-top:8px"></div>
+      <div class="suggestions" id="suggestions"></div>
+      <div class="row hidden" id="suggest-actions" style="margin-top:10px"><button class="btn primary" id="btn-add-all">Thêm tất cả</button></div>
+    </div>
+    <div class="row" style="margin-bottom:10px">
+      <input id="search" class="grow" placeholder="Tìm theo từ hoặc nghĩa">
+      <span id="word-count" class="muted"></span>
+    </div>
+    <div id="pron-panel" class="card hidden"></div>
+    <table>
+      <thead><tr><th>Từ</th><th>Nghĩa</th><th>Trạng thái</th><th>Phát âm</th><th></th></tr></thead>
+      <tbody id="word-rows"></tbody>
+    </table>
+  </section>
+
+  <section id="page-practice">
+    <h2>Bài tập</h2>
+    <div id="practice-menu" class="card">
+      <p class="muted">Bài tập lấy từ danh sách của bạn. Mỗi câu đúng được 5 XP, trả lời đúng liên tiếp được thưởng thêm. Câu sai với từ đã học sẽ được đưa lại vào lịch ôn sớm.</p>
+      <div class="row">
+        <button class="btn primary" data-kind="flash">Flashcard</button>
+        <button class="btn primary" data-kind="fill">Điền từ</button>
+        <button class="btn primary" data-kind="choice">Chọn đáp án</button>
+        <label style="margin:0 0 0 12px">Số câu</label>
+        <select id="practice-size"><option>5</option><option selected>10</option><option>20</option></select>
+      </div>
+      <p id="practice-error" class="error"></p>
+    </div>
+    <div id="practice" class="hidden">
+      <div class="row"><div class="grow progress"><div id="practice-bar"></div></div><span id="practice-count" class="muted"></span>
+        <span class="combo" id="combo"></span><button class="btn small" id="btn-practice-quit">Dừng</button></div>
+      <div class="card flash" id="practice-card"></div>
+    </div>
+  </section>
+
+  <section id="page-settings">
+    <h2>Cài đặt</h2>
+    <div class="card">
+      <h3 style="margin-top:0">Trí tuệ nhân tạo</h3>
+      <label>Dùng AI nào để giải thích nghĩa và gợi ý từ mới</label>
+      <select id="s-ai_provider">
+        <option value="local">Model trên máy (Qwen 0.5B): miễn phí, chạy offline</option>
+        <option value="chatgpt">ChatGPT: dùng gói ChatGPT của bạn</option>
+        <option value="gemini">Gemini: API key miễn phí từ Google AI Studio</option>
+        <option value="deepseek">DeepSeek: API key, trả phí theo lượt</option>
+      </select>
+      <p class="muted">Khi AI đang chọn bị lỗi hoặc hết hạn mức, app tự chuyển sang nguồn khác đã sẵn sàng và cho bạn biết.</p>
+    </div>
+    <div class="card" id="pv-chatgpt"></div>
+    <div class="card" id="pv-gemini"></div>
+    <div class="card" id="pv-deepseek"></div>
+    <div class="card" id="pv-local">
+      <div class="provider-head"><h3>Model trên máy</h3><span id="tag-local"></span></div>
+      <div id="model-llm" style="margin-top:12px"></div>
+      <div id="model-stt" style="margin-top:12px"></div>
+      <div id="usage-local"></div>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Học tập, nhắc nhở và giao diện</h3>
+      <div class="grid2">
+        <div><label>Số từ mới mỗi ngày</label><input id="s-new_per_day" type="number" min="1" max="200"></div>
+        <div><label>Mục tiêu XP mỗi ngày</label><input id="s-daily_goal" type="number" min="10" max="1000" step="10"></div>
+        <div><label>Nhắc học mỗi bao nhiêu giờ (0 là tắt)</label><input id="s-remind_hours" type="number" min="0" max="24"></div>
+        <div><label>Giao diện</label><select id="s-theme" style="width:100%"><option value="system">Theo hệ thống</option><option value="light">Sáng</option><option value="dark">Tối</option></select></div>
+      </div>
+      <p class="muted">Nhắc nhở chạy khi app còn ở khay hệ thống. Đóng cửa sổ không tắt app; muốn thoát hãy chọn Thoát trên icon ở khay.</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Phiên bản</h3>
+      <div class="row"><span>Đang dùng bản <b id="s-version"></b></span><button class="btn" id="btn-update">Kiểm tra cập nhật</button></div>
+      <p id="update-result" class="muted"></p>
+      <p class="muted">Dữ liệu lưu tại: <span id="data-dir"></span></p>
+    </div>
+  </section>
+</main>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const dayStart = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return Math.floor(d.getTime() / 1000); };
+const nowSec = () => Math.floor(Date.now() / 1000);
+const pad = (n) => String(n).padStart(2, "0");
+const localDay = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+const app = {
+  seq: 0,
+  pending: {},
+  call(cmd, args = {}) {
+    return new Promise((resolve, reject) => {
+      const id = ++this.seq;
+      this.pending[id] = { resolve, reject };
+      window.ipc.postMessage(JSON.stringify({ id, cmd, args }));
+    });
+  },
+  receive(m) {
+    if (m.event) return onEvent(m.event, m.data);
+    const p = this.pending[m.id];
+    if (!p) return;
+    delete this.pending[m.id];
+    m.ok ? p.resolve(m.data) : p.reject(m.error);
+  },
+};
+window.app = app;
+
+let state = { settings: {}, models: {}, words: [], editing: null, xpToday: 0, totalXp: 0, days: [], celebrated: "" };
+
+function onEvent(name, data) {
+  if (name === "update") showUpdate(data);
+  if (name === "progress") {
+    const el = $("bar-" + data.group);
+    if (el) el.style.width = Math.round((100 * data.done) / data.total) + "%";
+    const t = $("mb-" + data.group);
+    if (t) t.textContent = `${(data.done / 1e6).toFixed(0)} / ${(data.total / 1e6).toFixed(0)} MB`;
+  }
+}
+
+// Motion: confetti, floating experience, toasts and counters.
+const confetti = (() => {
+  const canvas = $("confetti"), ctx = canvas.getContext("2d");
+  const colors = ["#2563eb", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#fde68a"];
+  let parts = [], running = false;
+  function frame() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    parts = parts.filter((p) => p.y < canvas.height + 20 && p.life-- > 0);
+    for (const p of parts) {
+      p.vy += 0.25; p.vx *= 0.99; p.x += p.vx; p.y += p.vy; p.rot += p.spin;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2); ctx.restore();
+    }
+    if (parts.length) requestAnimationFrame(frame); else { running = false; ctx.clearRect(0, 0, canvas.width, canvas.height); }
+  }
+  return (amount = 140, x = innerWidth / 2, y = innerHeight / 3) => {
+    if (reducedMotion) return;
+    canvas.width = innerWidth; canvas.height = innerHeight;
+    for (let i = 0; i < amount; i++) {
+      const angle = Math.random() * Math.PI * 2, speed = 4 + Math.random() * 9;
+      parts.push({ x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed - 6, rot: Math.random() * 6, spin: (Math.random() - 0.5) * 0.4,
+                   size: 6 + Math.random() * 8, color: colors[i % colors.length], life: 160 + Math.random() * 60 });
+    }
+    if (!running) { running = true; requestAnimationFrame(frame); }
+  };
+})();
+
+let toastTimer;
+function toast(text) {
+  const t = $("toast");
+  t.textContent = text;
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+}
+
+function floatXp(amount, near) {
+  const r = near ? near.getBoundingClientRect() : { left: innerWidth / 2, top: innerHeight / 2, width: 0 };
+  const el = document.createElement("div");
+  el.className = "float-xp";
+  el.textContent = `+${amount} XP`;
+  el.style.left = r.left + r.width / 2 - 24 + "px";
+  el.style.top = r.top - 8 + "px";
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 1200);
+}
+
+function countUp(el, to) {
+  const from = +el.textContent || 0;
+  if (reducedMotion || from === to) { el.textContent = to; return; }
+  const start = performance.now(), ms = 700;
+  const step = (t) => {
+    const k = Math.min(1, (t - start) / ms);
+    el.textContent = Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3)));
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+// Experience, levels, the daily goal and the streak.
+const levelOf = (xp) => Math.floor(Math.sqrt(xp / 40)) + 1;
+const levelXp = (level) => (level - 1) * (level - 1) * 40;
+
+async function gainXp(amount, near, correct) {
+  if (amount <= 0 && correct === undefined) return;
+  const before = levelOf(state.totalXp);
+  const goalBefore = state.xpToday >= state.settings.daily_goal;
+  state.xpToday += amount;
+  state.totalXp += amount;
+  if (amount > 0) floatXp(amount, near);
+  app.call("xp", { day: localDay(), xp: amount, correct }).catch(() => {});
+  renderLevel();
+  if (levelOf(state.totalXp) > before) {
+    toast(`Lên cấp ${levelOf(state.totalXp)}! Tiếp tục phát huy nhé`);
+    confetti(200);
+  } else if (!goalBefore && state.xpToday >= state.settings.daily_goal && state.celebrated !== localDay()) {
+    state.celebrated = localDay();
+    toast("Hoàn thành mục tiêu hôm nay! Tuyệt vời");
+    confetti(220);
+  }
+}
+
+function renderLevel() {
+  const level = levelOf(state.totalXp);
+  const base = levelXp(level), next = levelXp(level + 1);
+  $("level-text").textContent = `Cấp ${level} - ${state.totalXp} XP`;
+  $("level-bar").style.width = (100 * (state.totalXp - base)) / (next - base) + "%";
+}
+
+function streakOf(days) {
+  const active = new Set(days.filter((d) => d.xp > 0).map((d) => d.day));
+  const d = new Date();
+  if (!active.has(localDay(d))) d.setDate(d.getDate() - 1);
+  let n = 0;
+  while (active.has(localDay(d))) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+
+const QUOTES = [
+  "Mỗi ngày 10 phút, sau một tháng bạn sẽ thuộc thêm hàng trăm từ.",
+  "Ôn đúng lúc quan trọng hơn học thật nhiều một lúc.",
+  "Đọc to từng từ giúp bạn nhớ lâu gấp đôi.",
+  "Sai là một phần của học. Từ nào quên sẽ quay lại để bạn nhớ chắc hơn.",
+  "Chuỗi ngày học là món quà bạn tặng cho chính mình trong tương lai.",
+  "Học từ trong câu ví dụ giúp bạn dùng được từ, không chỉ biết nghĩa.",
+  "Một từ mới hôm nay, một câu nói tự tin ngày mai.",
+];
+let quoteTimer;
+function rotateQuote() {
+  const q = $("quote");
+  q.style.opacity = 0;
+  setTimeout(() => { q.textContent = QUOTES[Math.floor(Math.random() * QUOTES.length)]; q.style.opacity = 1; }, 400);
+}
+
+function renderGoal() {
+  const goal = state.settings.daily_goal || 50;
+  const circumference = 2 * Math.PI * 62;
+  const fill = $("goal-fill");
+  fill.style.strokeDasharray = circumference;
+  fill.style.strokeDashoffset = circumference * (1 - Math.min(1, state.xpToday / goal));
+  countUp($("goal-xp"), state.xpToday);
+  $("goal-of").textContent = `/ ${goal} XP`;
+  $("goal-ring").classList.toggle("done", state.xpToday >= goal);
+  const left = goal - state.xpToday;
+  $("goal-text").textContent = left > 0 ? `Còn ${left} XP nữa để hoàn thành mục tiêu hôm nay.` : "Đã hoàn thành mục tiêu hôm nay. Học thêm để lên cấp nhanh hơn!";
+  const streak = streakOf(state.days);
+  $("streak").textContent = streak > 0 ? `Chuỗi ${streak} ngày học liên tiếp` : "Bắt đầu chuỗi ngày học của bạn hôm nay";
+  $("streak").classList.toggle("hot", streak >= 3);
+}
+
+function renderWeek() {
+  const byDay = Object.fromEntries(state.days.map((d) => [d.day, d.xp]));
+  const goal = state.settings.daily_goal || 50;
+  const names = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+  const list = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    list.push({ day: localDay(d), xp: byDay[localDay(d)] || 0, name: i === 0 ? "Nay" : names[d.getDay()] });
+  }
+  const top = Math.max(goal, ...list.map((d) => d.xp));
+  const before = Object.fromEntries([...$("week").querySelectorAll("[data-day]")].map((b) => [b.dataset.day, b.style.height]));
+  $("week").innerHTML = list.map((d, i) => `
+    <div class="bar ${d.xp >= goal ? "goal" : ""} ${i === 6 ? "today" : ""}" title="${d.xp} XP">
+      <small>${d.xp || ""}</small><div data-day="${d.day}" data-h="${Math.max(4, (100 * d.xp) / top)}" style="height:${before[d.day] || 0}"></div><span>${d.name}</span>
+    </div>`).join("");
+  // The start height is laid out first, so that the change animates.
+  void $("week").offsetHeight;
+  $("week").querySelectorAll("[data-h]").forEach((b) => (b.style.height = b.dataset.h + "%"));
+  $("week-total").textContent = `${list.reduce((s, d) => s + d.xp, 0)} XP trong tuần`;
+}
+
+// Navigation
+document.querySelectorAll("nav button[data-page]").forEach((b) =>
+  b.addEventListener("click", () => go(b.dataset.page)));
+function go(page) {
+  document.querySelectorAll("nav button[data-page]").forEach((b) => b.classList.toggle("active", b.dataset.page === page));
+  document.querySelectorAll("main section").forEach((s) => s.classList.toggle("active", s.id === "page-" + page));
+  if (page === "home") refreshHome();
+  if (page === "words") loadWords();
+  if (page === "settings") loadUsage();
+}
+
+// Speech: the web view's own voices when it has English ones, else the system's through the app.
+function speak(text, slow = false) {
+  if (!text) return;
+  const voices = window.speechSynthesis ? speechSynthesis.getVoices().filter((v) => v.lang.startsWith("en")) : [];
+  if (voices.length) {
+    const u = new SpeechSynthesisUtterance(text);
+    u.voice = voices.find((v) => v.lang === "en-US") || voices[0];
+    u.lang = u.voice.lang;
+    u.rate = slow ? 0.6 : 0.95;
+    speechSynthesis.cancel();
+    speechSynthesis.speak(u);
+  } else {
+    app.call("speak", { text, slow }).catch(() => {});
+  }
+}
+if (window.speechSynthesis) speechSynthesis.getVoices();
+
+// Pronunciation practice, shared by the session, the word list and the exercises.
+function pronWidget(container, word) {
+  container.innerHTML = `
+    <div class="row"><b>Luyện phát âm</b><span class="muted">Bấm Ghi âm, đọc to từ "${esc(word.word)}", rồi bấm Dừng.</span></div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn" data-a="listen">Nghe mẫu</button>
+      <button class="btn" data-a="slow">Nghe chậm</button>
+      <button class="btn primary" data-a="rec">Ghi âm</button>
+    </div>
+    <div class="result" style="margin-top:10px"></div>`;
+  const rec = container.querySelector('[data-a="rec"]');
+  const result = container.querySelector(".result");
+  let recording = false, timer = null;
+  container.querySelector('[data-a="listen"]').onclick = () => speak(word.word);
+  container.querySelector('[data-a="slow"]').onclick = () => speak(word.word, true);
+  const stop = async () => {
+    clearTimeout(timer);
+    recording = false;
+    rec.disabled = true;
+    rec.textContent = "Đang chấm điểm...";
+    try {
+      const s = await app.call("rec_stop", { target: word.word, id: word.id || 0 });
+      word.score = s.score;
+      const color = s.score >= 75 ? "var(--green)" : s.score >= 50 ? "var(--orange)" : "var(--red)";
+      result.innerHTML = `
+        <div class="row"><span class="score" style="color:${color}"><span class="num">0</span>/100</span><span>${esc(s.message)}</span></div>
+        <div class="meter"><div style="background:${color}"></div></div>
+        <div class="muted">Máy nghe được: <b>${esc(s.heard || "(không rõ)")}</b> ${esc(s.heard_ipa)}</div>
+        <div class="muted">Phát âm chuẩn: ${esc(s.target_ipa || word.ipa)}</div>`;
+      countUp(result.querySelector(".num"), s.score);
+      requestAnimationFrame(() => (result.querySelector(".meter div").style.width = s.score + "%"));
+      if (s.score >= 90) { confetti(80, rec.getBoundingClientRect().left + 40, rec.getBoundingClientRect().top); gainXp(8, rec); }
+      else if (s.score >= 75) gainXp(5, rec);
+    } catch (e) {
+      result.innerHTML = `<span class="error">${esc(e)}</span>`;
+    }
+    rec.disabled = false;
+    rec.textContent = "Ghi âm lại";
+  };
+  rec.onclick = async () => {
+    if (recording) return stop();
+    try {
+      await app.call("rec_start");
+      recording = true;
+      rec.textContent = "Dừng và chấm điểm";
+      result.innerHTML = `<span class="rec-dot"></span><span class="muted">Đang nghe...</span>`;
+      timer = setTimeout(stop, 5000);
+    } catch (e) {
+      result.innerHTML = `<span class="error">${esc(e)}</span>`;
+    }
+  };
+}
+
+function wordDetail(w) {
+  return `
+    <div class="ipa">${esc(w.ipa)} ${w.pos ? `<span class="tag">${esc(w.pos)}</span>` : ""}</div>
+    <div class="meaning">${esc(w.meaning)}</div>
+    ${w.explain ? `<div class="muted">${esc(w.explain)}</div>` : ""}
+    ${w.example ? `<div class="example">${esc(w.example)} <button class="btn small" data-say="${esc(w.example)}">Nghe câu</button></div>` : ""}
+    ${w.example_vi ? `<div class="muted">${esc(w.example_vi)}</div>` : ""}
+    ${w.note ? `<div class="muted" style="margin-top:8px">Ghi chú: ${esc(w.note)}</div>` : ""}`;
+}
+document.addEventListener("click", (e) => {
+  const say = e.target.closest("[data-say]");
+  if (say) speak(say.dataset.say);
+  const link = e.target.closest("[data-link]");
+  if (link) {
+    e.preventDefault();
+    app.call("open_url", { url: link.dataset.link }).catch((err) => toast(String(err)));
+  }
+});
+
+/// Turns a card over: out, change what it shows, back in.
+function flipCard(card, change) {
+  if (reducedMotion) return change();
+  card.classList.remove("flip-in");
+  card.classList.add("flip-out");
+  setTimeout(() => { change(); card.classList.remove("flip-out"); card.classList.add("flip-in"); }, 180);
+}
+function slideIn(card) {
+  card.classList.remove("slide-in", "flip-in");
+  void card.offsetWidth;
+  card.classList.add("slide-in");
+}
+
+// Home and the review session
+async function refreshHome() {
+  const r = await app.call("stats", { day_start: dayStart() });
+  const s = r.words;
+  state.days = r.days;
+  state.totalXp = r.total_xp;
+  state.xpToday = (r.days.find((d) => d.day === localDay()) || { xp: 0 }).xp;
+  countUp($("st-due"), s.due);
+  countUp($("st-new"), s.new_today);
+  countUp($("st-learned"), s.learned);
+  countUp($("st-total"), s.total);
+  renderLevel();
+  renderGoal();
+  renderWeek();
+  const n = s.due + s.new_today;
+  $("session-hint").textContent = s.total === 0
+    ? "Chưa có từ nào. Thêm từ bạn muốn học, hoặc để AI gợi ý theo chủ đề."
+    : n === 0 ? (s.new_waiting === 0 ? "Bạn đã học hết các từ. Để AI gợi ý thêm từ mới nhé!" : "Bạn đã học xong hôm nay. Có thể luyện thêm ở mục Bài tập.")
+    : `Hôm nay có ${s.due} từ cần ôn và ${s.new_today} từ mới. Khoảng ${Math.max(1, Math.round(n * 0.4))} phút là xong.`;
+  $("btn-start").disabled = n === 0;
+  $("btn-start").classList.toggle("pulse", n > 0);
+}
+$("btn-go-suggest").onclick = () => { go("words"); $("suggest-card").scrollIntoView({ behavior: "smooth" }); $("topic").focus(); };
+
+let session = null;
+$("btn-start").onclick = async () => {
+  const words = await app.call("session", { day_start: dayStart() });
+  if (!words.length) return refreshHome();
+  session = { queue: words, done: 0, total: words.length, flipped: false, xp: 0, right: 0 };
+  $("session-start").classList.add("hidden");
+  $("session").classList.remove("hidden");
+  $("page-home").classList.add("studying");
+  showSessionCard();
+};
+
+function showSessionCard() {
+  const w = session.queue[0];
+  const card = $("session-card");
+  $("session-bar").style.width = (100 * session.done) / session.total + "%";
+  $("session-count").textContent = `${session.done}/${session.total}`;
+  if (!w) {
+    card.innerHTML = `<div class="question">Hoàn thành buổi học</div>
+      <p>Bạn đã đi hết ${session.total} thẻ và nhận <b>${session.xp} XP</b>.</p>
+      <p class="muted">${QUOTES[Math.floor(Math.random() * QUOTES.length)]}</p>
+      <button class="btn primary big" id="btn-session-end">Về trang chính</button>`;
+    $("btn-session-end").onclick = endSession;
+    slideIn(card);
+    confetti(240);
+    return;
+  }
+  session.flipped = false;
+  const isNew = w.learned_at === 0;
+  card.innerHTML = `
+    ${isNew ? '<span class="tag new">Từ mới</span>' : '<span class="tag due">Ôn tập</span>'}
+    <div class="word">${esc(w.word)}</div>
+    <div class="row" style="justify-content:center"><button class="btn small" data-say="${esc(w.word)}">Nghe</button></div>
+    <div id="back" class="hidden">${wordDetail(w)}<div class="pron" id="session-pron"></div></div>
+    <div class="grades" id="flip-row"><button class="btn primary" id="btn-flip">Hiện đáp án <kbd>Space</kbd></button></div>
+    <div class="grades hidden" id="grade-row">
+      <button class="btn" data-q="1">Quên <kbd>1</kbd></button>
+      <button class="btn" data-q="3">Khó <kbd>2</kbd></button>
+      <button class="btn" data-q="4">Được <kbd>3</kbd></button>
+      <button class="btn" data-q="5">Dễ <kbd>4</kbd></button>
+    </div>`;
+  slideIn(card);
+  speak(w.word);
+  $("btn-flip").onclick = flip;
+  $("grade-row").querySelectorAll("button").forEach((b) => (b.onclick = () => grade(+b.dataset.q, b)));
+}
+function flip() {
+  if (!session || session.flipped || !session.queue[0]) return;
+  session.flipped = true;
+  flipCard($("session-card"), () => {
+    $("back").classList.remove("hidden");
+    $("flip-row").classList.add("hidden");
+    $("grade-row").classList.remove("hidden");
+    pronWidget($("session-pron"), session.queue[0]);
+  });
+}
+const GRADE_XP = { 1: 2, 3: 6, 4: 10, 5: 12 };
+async function grade(q, button) {
+  if (!session || !session.flipped) return;
+  session.flipped = false;
+  const w = session.queue.shift();
+  const updated = await app.call("grade", { id: w.id, q });
+  session.xp += GRADE_XP[q];
+  gainXp(GRADE_XP[q], button || $("session-card"), q >= 3);
+  // A forgotten word comes back at the end of this session.
+  if (q < 3) {
+    session.queue.push(updated);
+    session.total = session.done + session.queue.length;
+    $("session-card").classList.add("shake");
+    setTimeout(showSessionCard, 350);
+  } else {
+    session.done++;
+    showSessionCard();
+  }
+}
+function endSession() {
+  session = null;
+  $("session").classList.add("hidden");
+  $("session-start").classList.remove("hidden");
+  $("page-home").classList.remove("studying");
+  refreshHome();
+}
+document.addEventListener("keydown", (e) => {
+  if (!session || !$("page-home").classList.contains("active") || e.target.matches("input, textarea, select")) return;
+  if (e.code === "Space") { e.preventDefault(); flip(); }
+  const q = { Digit1: 1, Digit2: 3, Digit3: 4, Digit4: 5 }[e.code];
+  if (q && session.flipped) grade(q, document.querySelector(`#grade-row [data-q="${q}"]`));
+});
+
+// Word list and editor
+const FIELDS = ["word", "ipa", "pos", "meaning", "explain", "example", "example_vi", "note"];
+function openEditor(w, status = "") {
+  state.editing = w;
+  FIELDS.forEach((f) => ($("f-" + f).value = w[f] || ""));
+  $("editor-status").textContent = status;
+  $("editor-error").textContent = "";
+  $("editor").classList.remove("hidden");
+}
+function closeEditor() {
+  state.editing = null;
+  $("editor").classList.add("hidden");
+}
+async function explainInto(word) {
+  $("editor-status").textContent = "AI đang giải thích từ, chờ vài giây...";
+  $("btn-reexplain").disabled = true;
+  try {
+    const e = await app.call("explain", { word, day: localDay() });
+    ["pos", "meaning", "explain", "example", "example_vi"].forEach((f) => ($("f-" + f).value = e[f] || ""));
+    $("editor-status").innerHTML = `${byHtml(e)} Kiểm tra lại rồi bấm Lưu.`;
+  } catch (err) {
+    $("editor-status").innerHTML = `<span class="error">${esc(err)}</span> Bạn vẫn có thể tự nhập nghĩa.`;
+  }
+  $("btn-reexplain").disabled = false;
+}
+async function addWord(useAi) {
+  const word = $("new-word").value.trim();
+  if (!word) return $("new-word").focus();
+  const exists = state.words.find((w) => w.word.toLowerCase() === word.toLowerCase());
+  if (exists) return openEditor(exists, "Từ này đã có, bạn đang sửa nó.");
+  const ipa = await app.call("ipa", { word });
+  openEditor({ id: 0, word, ipa }, ipa ? "" : "Không có phiên âm cho từ này trong từ điển, có thể tự nhập.");
+  if (useAi) explainInto(word);
+}
+$("btn-add").onclick = () => addWord(true);
+$("btn-manual").onclick = () => addWord(false);
+$("new-word").addEventListener("keydown", (e) => { if (e.key === "Enter") addWord(true); });
+$("btn-cancel").onclick = closeEditor;
+$("btn-listen").onclick = () => speak($("f-word").value);
+$("btn-reexplain").onclick = () => explainInto($("f-word").value.trim());
+$("btn-save").onclick = async () => {
+  const w = { ...state.editing };
+  FIELDS.forEach((f) => (w[f] = $("f-" + f).value.trim()));
+  try {
+    const saved = await app.call("save", { word: w });
+    freshIds.add(saved.id);
+    if (!w.id) gainXp(3, $("btn-save"));
+    closeEditor();
+    $("new-word").value = "";
+    loadWords();
+  } catch (e) {
+    $("editor-error").textContent = e;
+  }
+};
+
+// AI suggestions
+const TOPICS = ["Giao tiếp hằng ngày", "Du lịch", "Công việc văn phòng", "Công nghệ", "Ẩm thực", "Sức khỏe", "Mua sắm", "Kinh doanh", "Thể thao", "IELTS"];
+$("topics").innerHTML = TOPICS.map((t) => `<button data-topic="${esc(t)}">${esc(t)}</button>`).join("");
+$("topics").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-topic]");
+  if (b) { $("topic").value = b.dataset.topic; suggest(b.dataset.topic); }
+});
+$("btn-suggest").onclick = () => suggest($("topic").value.trim());
+$("topic").addEventListener("keydown", (e) => { if (e.key === "Enter") suggest($("topic").value.trim()); });
+$("btn-suggest-learned").onclick = () => { $("topic").value = ""; suggest(""); };
+let suggestions = [];
+async function suggest(topic) {
+  $("suggest-status").textContent = topic ? `AI đang tìm từ về "${topic}"...` : "AI đang tìm từ liên quan tới những từ bạn đã học...";
+  $("suggestions").innerHTML = Array(6).fill('<div class="skeleton"></div>').join("");
+  $("suggest-actions").classList.add("hidden");
+  try {
+    const found = await app.call("suggest", { topic, day: localDay() });
+    suggestions = found.items;
+    $("suggest-status").innerHTML = `${suggestions.length} từ mới cho bạn. Bấm Thêm để đưa vào danh sách học. ${byHtml(found)}`;
+    $("suggestions").innerHTML = suggestions.map((s, i) => `
+      <div class="sugg" style="animation-delay:${i * 60}ms" id="sg-${i}">
+        <div class="grow"><b>${esc(s.word)}</b> <span class="muted">${esc(s.ipa)}</span><div>${esc(s.meaning)}</div></div>
+        <button class="btn small" data-say="${esc(s.word)}">Nghe</button>
+        <button class="btn small primary" data-add="${i}">Thêm</button>
+      </div>`).join("");
+    $("suggest-actions").classList.remove("hidden");
+  } catch (e) {
+    $("suggestions").innerHTML = "";
+    $("suggest-status").innerHTML = `<span class="error">${esc(e)}</span>`;
+  }
+}
+async function addSuggestion(i, redraw = true) {
+  const s = suggestions[i], box = $("sg-" + i);
+  if (!s || s.added) return;
+  s.added = true;
+  const button = box.querySelector("[data-add]");
+  button.disabled = true;
+  try {
+    const saved = await app.call("save", { word: { id: 0, word: s.word, meaning: s.meaning, ipa: s.ipa } });
+    freshIds.add(saved.id);
+    box.classList.add("added", "pop");
+    button.textContent = "Đã thêm";
+    gainXp(3, button);
+    // The example and the explanation follow in the background. The table shows none of them, so the data is
+    // updated without drawing the list again.
+    app.call("explain", { word: s.word, day: localDay() })
+      .then((e) => app.call("save", { word: { ...saved, pos: e.pos, explain: e.explain, example: e.example, example_vi: e.example_vi } }))
+      .then((updated) => {
+        const at = state.words.findIndex((x) => x.id === updated.id);
+        if (at >= 0) state.words[at] = updated;
+      })
+      .catch(() => {});
+  } catch (e) {
+    button.textContent = "Đã có";
+  }
+  if (redraw) loadWords();
+}
+$("suggestions").addEventListener("click", (e) => {
+  const b = e.target.closest("[data-add]");
+  if (b) addSuggestion(+b.dataset.add);
+});
+$("btn-add-all").onclick = async () => {
+  for (let i = 0; i < suggestions.length; i++) await addSuggestion(i, false);
+  loadWords();
+  toast(`Đã thêm ${suggestions.length} từ mới vào danh sách học`);
+  confetti(120);
+};
+
+function status(w) {
+  if (w.learned_at === 0) return '<span class="tag new">Mới</span>';
+  const days = Math.ceil((w.due - nowSec()) / 86400);
+  return days <= 0 ? '<span class="tag due">Cần ôn</span>' : `<span class="tag">Ôn sau ${days} ngày</span>`;
+}
+// Words saved since they were last drawn, which get the highlight once.
+const freshIds = new Set();
+async function loadWords() {
+  state.words = await app.call("list", { q: $("search").value });
+  $("word-count").textContent = `${state.words.length} từ`;
+  $("word-rows").innerHTML = state.words.map((w) => `
+    <tr class="${freshIds.delete(w.id) ? "fresh" : ""}">
+      <td><b>${esc(w.word)}</b><div class="muted">${esc(w.ipa)}</div></td>
+      <td>${esc(w.meaning)}</td>
+      <td>${status(w)}</td>
+      <td>${w.score >= 0 ? w.score + "/100" : '<span class="muted">-</span>'}</td>
+      <td class="acts">
+        <button class="btn small" data-say="${esc(w.word)}">Nghe</button>
+        <button class="btn small" data-act="pron" data-id="${w.id}">Luyện đọc</button>
+        <button class="btn small" data-act="edit" data-id="${w.id}">Sửa</button>
+        <button class="btn small danger" data-act="del" data-id="${w.id}">Xóa</button>
+      </td>
+    </tr>`).join("") || `<tr><td colspan="5" class="muted">Chưa có từ nào.</td></tr>`;
+}
+let searchTimer;
+$("search").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadWords, 200); });
+$("word-rows").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-act]");
+  if (!b) return;
+  const w = state.words.find((x) => x.id === +b.dataset.id);
+  if (!w) return;
+  if (b.dataset.act === "edit") { openEditor(w); $("page-words").scrollIntoView({ behavior: "smooth" }); }
+  if (b.dataset.act === "del" && confirm(`Xóa từ "${w.word}"?`)) { await app.call("delete", { id: w.id }); loadWords(); }
+  if (b.dataset.act === "pron") {
+    const panel = $("pron-panel");
+    panel.classList.remove("hidden");
+    pronWidget(panel, w);
+    panel.insertAdjacentHTML("beforeend", '<button class="btn small" style="margin-top:8px" id="btn-pron-close">Đóng</button>');
+    $("btn-pron-close").onclick = () => { panel.classList.add("hidden"); loadWords(); };
+    panel.scrollIntoView({ behavior: "smooth" });
+  }
+});
+
+// Exercises
+let practice = null;
+const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+function blankOf(w) {
+  if (!w.example) return null;
+  const re = new RegExp("\\b(" + escRe(w.word) + "\\w*)", "i");
+  const m = w.example.match(re);
+  return m ? { text: w.example.replace(re, "_____"), answer: m[1] } : null;
+}
+document.querySelectorAll("#practice-menu [data-kind]").forEach((b) => (b.onclick = () => startPractice(b.dataset.kind)));
+async function startPractice(kind) {
+  const all = (await app.call("list", { q: "" })).filter((w) => w.meaning);
+  $("practice-error").textContent = "";
+  if (kind === "choice" && all.length < 4) return ($("practice-error").textContent = "Cần ít nhất 4 từ có nghĩa để làm bài chọn đáp án.");
+  if (!all.length) return ($("practice-error").textContent = "Chưa có từ nào có nghĩa để luyện tập.");
+  // Words due or weak first, then the rest at random.
+  const weight = (w) => (w.learned_at && w.due <= nowSec() ? 0 : 1) + (w.score >= 0 && w.score < 60 ? -0.5 : 0) + Math.random();
+  const picked = all.slice().sort((a, b) => weight(a) - weight(b)).slice(0, +$("practice-size").value);
+  practice = { kind, all, items: picked, at: 0, right: 0, wrong: [], combo: 0, best: 0, xp: 0 };
+  $("practice-menu").classList.add("hidden");
+  $("practice").classList.remove("hidden");
+  $("combo").textContent = "";
+  showPractice();
+}
+function quitPractice() {
+  practice = null;
+  $("practice").classList.add("hidden");
+  $("practice-menu").classList.remove("hidden");
+}
+$("btn-practice-quit").onclick = quitPractice;
+async function answered(w, ok, near) {
+  const card = $("practice-card");
+  if (ok) {
+    practice.right++;
+    practice.combo++;
+    practice.best = Math.max(practice.best, practice.combo);
+    // Every third answer in a row is worth more.
+    const xp = 5 + (practice.combo >= 3 ? Math.min(10, practice.combo) : 0);
+    practice.xp += xp;
+    gainXp(xp, near || card, true);
+    card.classList.remove("pop"); void card.offsetWidth; card.classList.add("pop");
+    const combo = $("combo");
+    combo.textContent = practice.combo >= 2 ? `Đúng liên tiếp x${practice.combo}` : "";
+    combo.classList.remove("pop"); void combo.offsetWidth; combo.classList.add("pop");
+    if (practice.combo === 5 || practice.combo === 10) { toast(practice.combo === 5 ? "5 câu đúng liên tiếp! Quá đỉnh" : "10 câu liên tiếp! Không thể cản nổi"); confetti(100); }
+  } else {
+    practice.combo = 0;
+    $("combo").textContent = "";
+    practice.wrong.push(w);
+    gainXp(0, null, false);
+    card.classList.remove("shake"); void card.offsetWidth; card.classList.add("shake");
+    if (w.learned_at) await app.call("grade", { id: w.id, q: 1 });
+  }
+}
+function next() { practice.at++; showPractice(); }
+function showPractice() {
+  const p = practice, w = p.items[p.at], card = $("practice-card");
+  $("practice-bar").style.width = (100 * p.at) / p.items.length + "%";
+  $("practice-count").textContent = `${p.at}/${p.items.length}`;
+  slideIn(card);
+  if (!w) {
+    const rate = p.right / p.items.length;
+    card.innerHTML = `<div class="question">Kết quả: ${p.right}/${p.items.length}</div>
+      <p>Nhận <b>${p.xp} XP</b>, chuỗi đúng dài nhất: <b>${p.best}</b></p>
+      <p class="${rate >= 0.8 ? "ok" : "muted"}">${rate === 1 ? "Đúng hết, xuất sắc!" : rate >= 0.8 ? "Rất tốt, sắp thuộc hết rồi!" : rate >= 0.5 ? "Khá lắm, luyện thêm chút nữa nhé." : "Đừng nản, mỗi lần sai là một lần nhớ sâu hơn."}</p>
+      ${p.wrong.length ? `<p class="muted">Cần xem lại: ${p.wrong.map((x) => esc(x.word)).join(", ")}</p>` : ""}
+      <button class="btn primary" id="btn-again">Làm lại</button> <button class="btn" id="btn-back">Chọn bài khác</button>`;
+    $("btn-again").onclick = () => startPractice(p.kind);
+    $("btn-back").onclick = quitPractice;
+    if (rate >= 0.8) confetti(rate === 1 ? 260 : 150);
+    return;
+  }
+  if (p.kind === "flash") {
+    card.innerHTML = `<div class="word">${esc(w.word)}</div>
+      <div class="row" style="justify-content:center"><button class="btn small" data-say="${esc(w.word)}">Nghe</button></div>
+      <div id="pback" class="hidden">${wordDetail(w)}<div class="pron" id="practice-pron"></div></div>
+      <div class="grades" id="pflip"><button class="btn primary" id="btn-pflip">Lật thẻ</button></div>
+      <div class="grades hidden" id="pjudge"><button class="btn" id="btn-no">Chưa thuộc</button><button class="btn primary" id="btn-yes">Đã thuộc</button></div>`;
+    $("btn-pflip").onclick = () => flipCard(card, () => {
+      $("pback").classList.remove("hidden"); $("pflip").classList.add("hidden"); $("pjudge").classList.remove("hidden");
+      pronWidget($("practice-pron"), w);
+    });
+    $("btn-yes").onclick = async () => { await answered(w, true, $("btn-yes")); setTimeout(next, 250); };
+    $("btn-no").onclick = async () => { await answered(w, false); setTimeout(next, 400); };
+    speak(w.word);
+  } else if (p.kind === "fill") {
+    const blank = blankOf(w);
+    const answer = blank ? blank.answer : w.word;
+    card.innerHTML = `
+      <div class="muted">Điền từ còn thiếu</div>
+      <div class="question">${blank ? esc(blank.text) : esc(w.meaning)}</div>
+      ${blank ? `<div class="muted">${esc(w.example_vi || w.meaning)}</div>` : '<div class="muted">Viết từ tiếng Anh có nghĩa trên</div>'}
+      <div class="row" style="justify-content:center;margin-top:18px">
+        <input id="fill-input" placeholder="Gợi ý: bắt đầu bằng ${esc(answer[0])}" autocomplete="off" style="width:280px">
+        <button class="btn primary" id="btn-check">Kiểm tra</button>
+      </div>
+      <div id="fill-result" style="margin-top:14px"></div>`;
+    const input = $("fill-input");
+    input.focus();
+    const check = async () => {
+      if (input.disabled) return next();
+      const ok = input.value.trim().toLowerCase() === answer.toLowerCase();
+      input.disabled = true;
+      await answered(w, ok, input);
+      $("fill-result").innerHTML = (ok ? '<div class="ok pop">Chính xác!</div>' : `<div class="error">Chưa đúng. Đáp án: <b>${esc(answer)}</b></div>`)
+        + `<div class="muted">${esc(w.word)} ${esc(w.ipa)}: ${esc(w.meaning)}</div>`;
+      $("btn-check").textContent = "Câu tiếp";
+      $("btn-check").focus();
+      speak(answer);
+    };
+    $("btn-check").onclick = check;
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") check(); });
+  } else {
+    // Half the questions ask for the meaning, half for the word.
+    const toMeaning = Math.random() < 0.5;
+    const others = shuffle(p.all.filter((x) => x.id !== w.id && x.meaning !== w.meaning)).slice(0, 3);
+    const options = shuffle([w, ...others]);
+    const label = (x) => (toMeaning ? x.meaning : x.word);
+    card.innerHTML = `
+      <div class="muted">${toMeaning ? "Chọn nghĩa đúng của từ" : "Chọn từ tiếng Anh có nghĩa"}</div>
+      <div class="question">${esc(toMeaning ? w.word : w.meaning)}</div>
+      ${toMeaning ? `<div class="muted">${esc(w.ipa)}</div>` : ""}
+      <div class="options">${options.map((x, i) => `<button class="btn" data-id="${x.id}">${i + 1}. ${esc(label(x))}</button>`).join("")}</div>
+      <div class="grades hidden" id="choice-next"><button class="btn primary" id="btn-next">Câu tiếp <kbd>Enter</kbd></button></div>`;
+    if (toMeaning) speak(w.word);
+    card.querySelectorAll(".options button").forEach((b) => (b.onclick = async () => {
+      if (b.disabled) return;
+      const ok = +b.dataset.id === w.id;
+      card.querySelectorAll(".options button").forEach((x) => {
+        x.disabled = true;
+        if (+x.dataset.id === w.id) x.classList.add("right");
+      });
+      if (!ok) b.classList.add("wrong");
+      await answered(w, ok, b);
+      if (!toMeaning) speak(w.word);
+      $("choice-next").classList.remove("hidden");
+      $("btn-next").onclick = next;
+      $("btn-next").focus();
+    }));
+  }
+}
+document.addEventListener("keydown", (e) => {
+  if (!practice || practice.kind !== "choice" || !$("page-practice").classList.contains("active")) return;
+  const n = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3 }[e.code];
+  const buttons = $("practice-card").querySelectorAll(".options button");
+  if (n !== undefined && buttons[n] && !buttons[n].disabled) buttons[n].click();
+});
+
+// Settings
+const LINKS = {
+  chatgptUsage: "https://chatgpt.com/settings/usage",
+  geminiKey: "https://aistudio.google.com/apikey",
+  geminiUsage: "https://aistudio.google.com/rate-limit",
+  deepseekKey: "https://platform.deepseek.com/api_keys",
+  deepseekUsage: "https://platform.deepseek.com/usage",
+};
+const PROVIDER_NAME = { local: "Model trên máy", chatgpt: "ChatGPT", gemini: "Gemini", deepseek: "DeepSeek" };
+state.modelLists = {};
+state.usage = {};
+state.signingIn = false;
+state.chatgptError = "";
+
+const darkScheme = matchMedia("(prefers-color-scheme: dark)");
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme === "light" || theme === "dark" ? theme : (darkScheme.matches ? "dark" : "light");
+}
+darkScheme.addEventListener("change", () => applyTheme(state.settings.theme));
+
+const tokens = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : String(n || 0));
+const at = (sec) => new Date(sec * 1000).toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" });
+
+/// The line under an AI answer: who gave it, the plan it used, and why another provider stepped in.
+function byHtml(r) {
+  let html = `Trả lời bởi ${esc(r.source_label)}${r.model && r.source !== "local" ? ` (${esc(r.model)})` : ""}.`;
+  if (r.source === "chatgpt") html += ` Đang dùng gói ChatGPT, <a href="#" data-link="${LINKS.chatgptUsage}">quản lý hạn mức</a>.`;
+  if (r.note) html += `<div class="muted">${esc(r.note)}${r.manage_url ? ` <a href="#" data-link="${esc(r.manage_url)}">Xem hạn mức</a>` : ""}</div>`;
+  return html;
+}
+
+function ready(p) {
+  const s = state.settings;
+  if (p === "chatgpt") return !!(s.chatgpt && s.chatgpt.signed_in && s.chatgpt.plan);
+  if (p === "gemini") return !!s.has_gemini_key;
+  if (p === "deepseek") return !!s.has_deepseek_key;
+  return !!(state.models.llm && state.models.llm.ready);
+}
+
+async function loadUsage() {
+  const daysAgo = (n) => { const d = new Date(); d.setDate(d.getDate() - n); return localDay(d); };
+  try {
+    state.usage = await app.call("usage", { today: localDay(), since7: daysAgo(6), since30: daysAgo(29) });
+  } catch (e) {
+    state.usage = {};
+  }
+  renderProviders();
+}
+
+async function loadModels(p) {
+  state.modelLists[p] = null;
+  try {
+    state.modelLists[p] = await app.call("ai_models", { provider: p });
+  } catch (e) {
+    state.modelLists[p] = { error: String(e) };
+  }
+  renderProviders();
+}
+
+function modelPicker(p) {
+  const list = state.modelLists[p];
+  if (!list) return `<label>Model</label><div class="muted">Đang tải danh sách model...</div>`;
+  if (list.error) return `<label>Model</label><div class="error">${esc(list.error)} <a href="#" data-act="reload-models" data-p="${p}">Thử lại</a></div>`;
+  if (!list.models.length) return `<label>Model</label><div class="muted">Tài khoản này chưa có model nào để dùng.</div>`;
+  return `<label>Model</label><select data-model="${p}" style="min-width:320px">${list.models
+    .map((m) => `<option value="${esc(m.id)}" ${m.id === list.selected ? "selected" : ""}>${esc(m.name)}</option>`).join("")}</select>`;
+}
+
+/// What this app used of a provider, measured here, and what the provider itself said about its limits.
+function usageHtml(p) {
+  const u = state.usage[p] || {};
+  const t = u.today || {}, w = u.week || {}, m = u.month || {};
+  let html = `<div class="usage"><b>Đo mức dùng</b>
+    <div>Hôm nay: ${t.requests || 0} lượt${t.failures ? ` (${t.failures} lỗi)` : ""}, ${tokens(t.tokens)} token.</div>
+    <div class="muted">7 ngày: ${w.requests || 0} lượt, ${tokens(w.tokens)} token. 30 ngày: ${m.requests || 0} lượt, ${tokens(m.tokens)} token, nhiều nhất ${m.peak || 0} lượt một ngày, ${m.active_days || 0} ngày có dùng.</div>`;
+  const q = u.quota;
+  if (q && q.balance) {
+    const money = q.balance.map((b) => `${esc(b.total_balance)} ${esc(b.currency)}`).join(", ") || "0";
+    html += `<div>Số dư: <b>${money}</b>${q.available === false ? ", không đủ để gọi API" : ""} (đo lúc ${at(q.at)}).</div>`;
+  }
+  if (q && q.headers) {
+    const h = q.headers, parts = [];
+    if (h["x-ratelimit-remaining-requests"]) parts.push(`còn ${esc(h["x-ratelimit-remaining-requests"])}/${esc(h["x-ratelimit-limit-requests"] || "?")} lượt, đặt lại sau ${esc(h["x-ratelimit-reset-requests"] || "?")}`);
+    if (h["x-ratelimit-remaining-tokens"]) parts.push(`còn ${esc(h["x-ratelimit-remaining-tokens"])}/${esc(h["x-ratelimit-limit-tokens"] || "?")} token, đặt lại sau ${esc(h["x-ratelimit-reset-tokens"] || "?")}`);
+    if (parts.length) html += `<div>Máy chủ báo: ${parts.join("; ")} (lúc ${at(q.at)}).</div>`;
+  }
+  if (u.limit && u.limit.message) html += `<div class="error">Chạm hạn mức lúc ${at(u.limit.at)}: ${esc(u.limit.message)}</div>`;
+  return html + "</div>";
+}
+
+function usingTag(p) {
+  return state.settings.ai_provider === p ? '<span class="tag">Đang dùng</span>' : "";
+}
+
+function renderChatGPT() {
+  const c = state.settings.chatgpt || {};
+  let body;
+  if (state.signingIn) {
+    body = `<p>Đang chờ bạn đăng nhập trong trình duyệt...</p><button class="btn" data-act="cg-cancel">Hủy</button>`;
+  } else if (c.expired) {
+    body = `<p>Phiên đăng nhập ChatGPT của <b>${esc(c.email || "bạn")}</b> đã hết hạn.</p>
+      <p class="muted">OpenAI hiện chưa cho app tự gia hạn phiên sau một thời gian không dùng (lỗi phía OpenAI đang được theo dõi). Đăng nhập lại chỉ cần chọn tài khoản, không phải cấp quyền lại.</p>
+      <div class="row"><button class="btn chatgpt" data-act="cg-sign-in">Đăng nhập lại</button><button class="btn" data-act="cg-other">Dùng tài khoản ChatGPT khác</button></div>`;
+  } else if (!c.signed_in) {
+    body = `<p class="muted">Dùng hạn mức có sẵn trong gói ChatGPT của bạn (Plus, Pro, Business...) cho các yêu cầu AI trong app, không cần API key và không mất thêm phí. Gói Plus có giới hạn 5 giờ dùng chung với các app khác.</p>
+      <button class="btn chatgpt" data-act="cg-sign-in">Continue with ChatGPT</button>`;
+  } else {
+    body = `<p>Đã đăng nhập: <b>${esc(c.email || "tài khoản ChatGPT")}</b></p>
+      ${c.plan ? "" : `<p class="error">Bạn chưa cho phép app dùng gói ChatGPT.</p><button class="btn primary" data-act="cg-sign-in">Cho phép dùng gói ChatGPT</button>`}
+      ${c.plan ? modelPicker("chatgpt") : ""}
+      ${state.settings.ai_provider === "chatgpt" ? `<p class="ok">Đang dùng gói ChatGPT. <a href="#" data-link="${LINKS.chatgptUsage}">Quản lý hạn mức</a></p>` : ""}
+      ${usageHtml("chatgpt")}
+      <div class="row" style="margin-top:10px">
+        <button class="btn" data-link="${LINKS.chatgptUsage}">Quản lý hạn mức</button>
+        <button class="btn" data-act="cg-sign-out">Đăng xuất</button>
+        <button class="btn" data-act="cg-other">Dùng tài khoản ChatGPT khác</button>
+      </div>`;
+  }
+  $("pv-chatgpt").innerHTML = `<div class="provider-head"><h3>ChatGPT</h3>${usingTag("chatgpt")}</div>${body}
+    ${state.chatgptError ? `<p class="error">${esc(state.chatgptError)}</p>` : ""}`;
+}
+
+function renderKeyProvider(p) {
+  const has = state.settings["has_" + p + "_key"];
+  const info = p === "gemini"
+    ? `<p class="muted">Google không cho app bên ngoài đăng nhập bằng tài khoản Gemini (vi phạm điều khoản, đã có tài khoản bị khóa vì việc này). Cách chính thức là API key miễn phí: bấm Lấy API key, đăng nhập Google AI Studio, tạo key rồi dán vào đây.</p>`
+    : `<p class="muted">Trả phí theo lượt dùng, cần API key tạo trên DeepSeek Platform.</p>`;
+  $("pv-" + p).innerHTML = `<div class="provider-head"><h3>${PROVIDER_NAME[p]}</h3>${usingTag(p)}</div>${info}
+    <label>API key (chỉ lưu trên máy này)</label>
+    <div class="row">
+      <input type="password" class="grow" id="key-${p}" placeholder="${has ? "Đã có key, nhập key mới để thay" : p === "gemini" ? "AIza..." : "sk-..."}" autocomplete="off">
+      <button class="btn" data-act="save-key" data-p="${p}">Lưu key</button>
+      ${has ? `<button class="btn danger" data-act="clear-key" data-p="${p}">Xóa key</button>` : ""}
+      <button class="btn" data-link="${p === "gemini" ? LINKS.geminiKey : LINKS.deepseekKey}">Lấy API key</button>
+    </div>
+    ${has ? modelPicker(p) + usageHtml(p) : ""}
+    <div class="row" style="margin-top:10px">
+      ${p === "deepseek" && has ? `<button class="btn" data-act="balance">Đo số dư</button>` : ""}
+      <button class="btn" data-link="${p === "gemini" ? LINKS.geminiUsage : LINKS.deepseekUsage}">Xem hạn mức trên ${p === "gemini" ? "AI Studio" : "DeepSeek"}</button>
+    </div>`;
+}
+
+function renderProviders() {
+  for (const p of ["chatgpt", "gemini", "deepseek"]) {
+    if (ready(p) && !(p in state.modelLists)) loadModels(p);
+  }
+  renderChatGPT();
+  renderKeyProvider("gemini");
+  renderKeyProvider("deepseek");
+  $("tag-local").innerHTML = usingTag("local");
+  $("usage-local").innerHTML = usageHtml("local");
+}
+
+function renderSettings() {
+  const s = state.settings;
+  $("s-ai_provider").value = s.ai_provider;
+  $("s-new_per_day").value = s.new_per_day;
+  $("s-remind_hours").value = s.remind_hours;
+  $("s-daily_goal").value = s.daily_goal;
+  $("s-theme").value = s.theme;
+  renderModel("llm", "Qwen2.5 0.5B: giải thích nghĩa, gợi ý từ mới bằng tiếng Việt");
+  renderModel("stt", "Whisper tiny.en: nghe và chấm điểm phát âm");
+  renderProviders();
+}
+function renderModel(group, title) {
+  const m = state.models[group];
+  const mb = Math.round(m.size / 1e6);
+  $("model-" + group).innerHTML = `
+    <div class="row"><span class="grow">${title} (${mb} MB)</span>
+      ${m.ready ? '<span class="ok">Đã sẵn sàng</span>' : `<button class="btn primary" id="dl-${group}">Tải về</button>`}</div>
+    <div class="row hidden" id="dlrow-${group}" style="margin-top:6px"><div class="grow progress"><div id="bar-${group}"></div></div><span class="muted" id="mb-${group}"></span></div>
+    <div class="error" id="dlerr-${group}"></div>`;
+  const btn = $("dl-" + group);
+  if (btn) btn.onclick = async () => {
+    btn.disabled = true;
+    $("dlrow-" + group).classList.remove("hidden");
+    $("dlerr-" + group).textContent = "";
+    try {
+      state.models = await app.call("download", { group });
+      toast("Đã tải xong model");
+    } catch (e) {
+      $("dlerr-" + group).textContent = e + ". Bấm Tải về để tải tiếp phần còn lại.";
+    }
+    renderSettings();
+  };
+}
+const saveSetting = async (key, value) => { state.settings = await app.call("set_setting", { key, value: String(value) }); renderSettings(); };
+$("s-ai_provider").onchange = (e) => saveSetting("ai_provider", e.target.value);
+$("s-new_per_day").onchange = (e) => saveSetting("new_per_day", Math.max(1, Math.min(200, +e.target.value || 10)));
+$("s-remind_hours").onchange = (e) => saveSetting("remind_hours", Math.max(0, Math.min(24, +e.target.value || 0)));
+$("s-daily_goal").onchange = (e) => saveSetting("daily_goal", Math.max(10, Math.min(1000, +e.target.value || 50)));
+$("s-theme").onchange = (e) => { applyTheme(e.target.value); saveSetting("theme", e.target.value); };
+$("btn-modal-ok").onclick = () => { $("modal").classList.add("hidden"); saveSetting("chatgpt_welcomed", "1"); };
+
+async function chatgptSignIn(fresh) {
+  state.signingIn = true;
+  state.chatgptError = "";
+  renderProviders();
+  try {
+    state.settings.chatgpt = await app.call("chatgpt_sign_in", { fresh });
+    delete state.modelLists.chatgpt;
+    toast("Đã đăng nhập ChatGPT");
+    if (state.settings.chatgpt.plan) {
+      // Signing in is choosing it: ChatGPT takes over from the model on this machine.
+      if (state.settings.ai_provider === "local") await saveSetting("ai_provider", "chatgpt");
+      if (!state.settings.chatgpt_welcomed) $("modal").classList.remove("hidden");
+    }
+  } catch (e) {
+    state.chatgptError = String(e);
+  }
+  state.signingIn = false;
+  renderSettings();
+}
+
+$("page-settings").addEventListener("change", (e) => {
+  const picker = e.target.closest("[data-model]");
+  if (!picker) return;
+  const p = picker.dataset.model;
+  if (state.modelLists[p]) state.modelLists[p].selected = picker.value;
+  saveSetting(p + "_model", picker.value);
+});
+$("page-settings").addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-act]");
+  if (!b) return;
+  e.preventDefault();
+  const p = b.dataset.p;
+  switch (b.dataset.act) {
+    case "cg-sign-in": return chatgptSignIn(false);
+    case "cg-other": return chatgptSignIn(true);
+    case "cg-cancel": return app.call("chatgpt_cancel");
+    case "cg-sign-out": {
+      b.disabled = true;
+      try {
+        const r = await app.call("chatgpt_sign_out");
+        state.settings.chatgpt = r.status;
+        delete state.modelLists.chatgpt;
+        toast(r.revoked ? "Đã đăng xuất ChatGPT" : "Đã đăng xuất trên máy này, nhưng chưa xác nhận được với OpenAI. Bạn có thể ngắt kết nối app trong cài đặt ChatGPT.");
+      } catch (err) {
+        state.chatgptError = String(err);
+      }
+      return renderSettings();
+    }
+    case "save-key": {
+      const key = $("key-" + p).value.trim();
+      if (!key) return $("key-" + p).focus();
+      delete state.modelLists[p];
+      await saveSetting(p + "_key", key);
+      return toast(`Đã lưu ${PROVIDER_NAME[p]} API key`);
+    }
+    case "clear-key":
+      delete state.modelLists[p];
+      return saveSetting(p + "_key", "");
+    case "balance": {
+      b.disabled = true;
+      try {
+        const q = await app.call("deepseek_balance");
+        state.usage.deepseek = { ...(state.usage.deepseek || {}), quota: q };
+      } catch (err) {
+        toast(String(err));
+      }
+      return renderProviders();
+    }
+    case "reload-models":
+      delete state.modelLists[p];
+      return renderProviders();
+  }
+});
+
+function showUpdate(c) {
+  if (!c || !c.newer) return;
+  const banner = $("update-banner");
+  banner.style.display = "block";
+  banner.innerHTML = `Có bản mới ${esc(c.latest)}. <a href="#" id="update-link">Tải về</a>`;
+  $("update-link").onclick = (e) => { e.preventDefault(); app.call("open_url", { url: c.url }); };
+}
+$("btn-update").onclick = async () => {
+  $("update-result").textContent = "Đang kiểm tra...";
+  try {
+    const c = await app.call("check_update");
+    if (c.newer) {
+      $("update-result").innerHTML = `Có bản mới <b>${esc(c.latest)}</b>. <a href="#" id="update-open">Mở trang tải về</a>`;
+      $("update-open").onclick = (e) => { e.preventDefault(); app.call("open_url", { url: c.url }); };
+      showUpdate(c);
+    } else {
+      $("update-result").textContent = `Bạn đang dùng bản mới nhất (${c.latest}).`;
+    }
+  } catch (e) {
+    $("update-result").innerHTML = `<span class="error">${esc(e)}</span>`;
+  }
+};
+
+(async () => {
+  const init = await app.call("init");
+  state.settings = init.settings;
+  state.models = init.models;
+  applyTheme(state.settings.theme);
+  $("version").textContent = init.version;
+  $("s-version").textContent = init.version;
+  $("data-dir").textContent = init.data_dir;
+  showUpdate(init.update);
+  renderSettings();
+  rotateQuote();
+  quoteTimer = setInterval(rotateQuote, 12000);
+  await refreshHome();
+})();
+</script>
+</body>
+</html>
