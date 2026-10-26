@@ -200,7 +200,15 @@ impl App {
             .with_menu(Box::new(menu))
             .with_tooltip(APP_NAME);
         if let Some(icon) = icon {
-            builder = if cfg!(target_os = "macos") { builder.with_icon_templated(icon) } else { builder.with_icon(icon) };
+            // The template form exists on macOS only.
+            #[cfg(target_os = "macos")]
+            {
+                builder = builder.with_icon_templated(icon);
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                builder = builder.with_icon(icon);
+            }
         }
         match builder.build() {
             Ok(tray) => self.tray = Some(tray),
