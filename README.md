@@ -22,6 +22,7 @@ Chọn nguồn AI trong Cài đặt. Khi nguồn đang chọn lỗi hoặc hết
 | --- | --- | --- |
 | Model trên máy | Tải về trong Cài đặt (Qwen2.5 0.5B, 498 MB), chạy offline | qwen2.5-0.5b-instruct |
 | ChatGPT | Bấm Continue with ChatGPT, đăng nhập trong trình duyệt; dùng hạn mức của gói Plus hoặc Pro (gói Free không dùng được) | Lấy từ tài khoản (`GET /v1/models`) |
+| ChatGPT qua Codex | Đăng nhập bằng client của Codex CLI; dùng hạn mức Codex của tài khoản, kể cả gói Free khi OpenAI còn tặng. Không chính thức, có thể ngừng chạy bất cứ lúc nào | Lấy từ `backend-api/codex/models` |
 | Gemini | API key miễn phí từ Google AI Studio | Lấy từ `models.list`, mặc định là bản flash mới nhất |
 | DeepSeek | API key, trả phí theo lượt | Lấy từ `GET /models` |
 
@@ -35,7 +36,7 @@ thứ ba và đã khóa tài khoản vì việc này, nên app dùng API key ch�
 Đo mức dùng: với từng nguồn, app đếm số lượt, số lỗi và token theo ngày (hôm nay, 7 ngày, 30 ngày, ngày nhiều nhất).
 Kèm theo là những gì nhà cung cấp tự báo: số dư DeepSeek, giới hạn Gemini lúc chạm (số lượt mỗi ngày hoặc mỗi phút,
 thời gian chờ), header giới hạn của ChatGPT nếu có, và lúc chạm hạn mức. ChatGPT không có API xem hạn mức còn lại;
-nút Quản lý hạn mức mở chatgpt.com/settings/usage.
+nút Quản lý hạn mức mở chatgpt.com/settings/usage. Với Codex, app đọc phần trăm đã dùng của hạn mức 5 giờ và hạn mức tuần từ header mỗi câu trả lời, và nút Đo hạn mức gọi `backend-api/wham/usage`.
 
 Key, token và dữ liệu nằm trong `words.db`, quyền đọc chỉ dành cho chủ máy (0600 trên macOS và Linux).
 
@@ -63,6 +64,7 @@ Cấu trúc:
 - `src/db.rs`: từ vựng, cài đặt, lịch SM-2, XP theo ngày.
 - `src/ai.rs`: chọn nguồn AI, tự chuyển nguồn khi lỗi, Qwen trên máy.
 - `src/chatgpt.rs`: Sign in with ChatGPT (PKCE, làm mới token, đăng xuất), Responses API.
+- `src/codex.rs`: ChatGPT qua Codex (đăng nhập, model, hạn mức).
 - `src/cloud.rs`: Gemini và DeepSeek.
 - `src/speech.rs`: ghi âm (cpal), Whisper, chấm điểm.
 - `src/pron.rs`: IPA và so khớp âm vị từ CMUdict.

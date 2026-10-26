@@ -4,6 +4,7 @@
 mod ai;
 mod chatgpt;
 mod cloud;
+mod codex;
 mod db;
 mod models;
 mod net;
@@ -45,8 +46,9 @@ const TRAY_ICON: &[u8] = if cfg!(target_os = "macos") {
     include_bytes!("../assets/icon-64.png")
 };
 /// Pages the page may open besides the app's own releases.
-const OPEN_URLS: [&str; 5] = [
+const OPEN_URLS: [&str; 6] = [
     chatgpt::USAGE_URL,
+    codex::USAGE_URL,
     cloud::GEMINI_KEY_URL,
     cloud::GEMINI_USAGE_URL,
     cloud::DEEPSEEK_KEY_URL,
@@ -129,6 +131,7 @@ fn main() {
             thread::sleep(Duration::from_secs(60));
             if let Ok(db) = db::open(&dir.join("words.db")) {
                 chatgpt::keep_alive(&db);
+                codex::keep_alive(&db);
             }
         });
     }
@@ -330,6 +333,18 @@ impl App {
                     Ok(chatgpt::status(&db))
                 }));
             }
+            "codex_sign_in" => background(Box::new(move || {
+                let db = db::open(&dir.join("words.db")).map_err(|e| e.to_string())?;
+                codex::sign_in(&db)?;
+                Ok(codex::status(&db))
+            })),
+            "codex_usage" => background(Box::new(move || {
+                let db = db::open(&dir.join("words.db")).map_err(|e| e.to_string())?;
+                let usage = codex::usage(&db).map_err(|e| e.message)?;
+                let record = json!({ "at": now(), "server": usage });
+                db::set_setting(&db, "quota_codex", &record.to_string()).map_err(|e| e.to_string())?;
+                Ok(record)
+            })),
             "chatgpt_sign_out" => background(Box::new(move || {
                 let db = db::open(&dir.join("words.db")).map_err(|e| e.to_string())?;
                 let revoked = chatgpt::sign_out(&db)?;
@@ -466,10 +481,11 @@ impl App {
                 }
                 Ok(summary)
             }
-            "chatgpt_cancel" => {
+            "cancel_sign_in" => {
                 chatgpt::cancel();
                 Ok(Value::Null)
             }
+            "codex_sign_out" => codex::sign_out(db).map(|_| codex::status(db)),
             "models" => Ok(models::status(&self.dir)),
             "rec_start" => speech::start().map(|_| Value::Null),
             "open_url" => {
@@ -495,6 +511,7 @@ impl App {
         ai::Settings {
             provider: self.provider(),
             chatgpt_model: text("chatgpt_model"),
+            codex_model: text("codex_model"),
             gemini_key: text("gemini_key"),
             gemini_model: text("gemini_model"),
             deepseek_key: text("deepseek_key"),
@@ -522,9 +539,11 @@ impl App {
             "has_gemini_key": self.setting("gemini_key").is_some(),
             "has_deepseek_key": self.setting("deepseek_key").is_some(),
             "chatgpt_model": text("chatgpt_model"),
+            "codex_model": text("codex_model"),
             "gemini_model": text("gemini_model"),
             "deepseek_model": text("deepseek_model"),
             "chatgpt": chatgpt::status(&self.db),
+            "codex": codex::status(&self.db),
             "chatgpt_welcomed": self.setting("chatgpt_welcomed").is_some(),
             "theme": self.setting("theme").unwrap_or_else(|| "system".into()),
             "new_per_day": self.setting("new_per_day").and_then(|v| v.parse::<i64>().ok()).unwrap_or(10),
@@ -540,7 +559,7 @@ fn valid_setting(key: &str, value: &str) -> bool {
     match key {
         "ai_provider" => ai::PROVIDERS.contains(&value),
         "theme" => matches!(value, "system" | "light" | "dark"),
-        "chatgpt_model" | "gemini_model" | "deepseek_model" => model(value),
+        "chatgpt_model" | "codex_model" | "gemini_model" | "deepseek_model" => model(value),
         "gemini_key" | "deepseek_key" => value.len() <= 500 && !value.chars().any(char::is_control),
         "new_per_day" | "remind_hours" | "daily_goal" => value.parse::<u32>().is_ok_and(|n| n <= 1000),
         "chatgpt_welcomed" => value == "1",
@@ -563,7 +582,7 @@ fn record_usage(dir: &Path, day: &str, attempts: &[ai::Attempt]) {
             let _ = db::set_setting(&db, &limit, "");
         }
         if !a.limits.is_null() {
-            let _ = db::set_setting(&db, &format!("quota_{}", a.provider), &json!({ "at": now(), "headers": a.limits }).to_string());
+            let _ = db::set_setting(&db, &format!("quota_{}", a.provider), &json!({ "at": now(), "server": a.limits }).to_string());
         }
     }
 }

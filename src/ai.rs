@@ -2,7 +2,7 @@
 //! machine, the user's ChatGPT plan, or Gemini and DeepSeek with an API key. The chosen one is asked first; when
 //! it fails, the others that are ready take over, and every call is kept for measuring usage.
 
-use crate::{chatgpt, cloud, db, models, pron};
+use crate::{chatgpt, cloud, codex, db, models, pron};
 use candle_core::{Device, Tensor};
 use candle_transformers::{
     generation::LogitsProcessor, models::quantized_qwen2::ModelWeights, utils::apply_repeat_penalty,
@@ -12,7 +12,7 @@ use serde_json::Value;
 use std::{cell::RefCell, path::Path, sync::Mutex};
 use tokenizers::Tokenizer;
 
-pub const PROVIDERS: [&str; 4] = ["local", "chatgpt", "gemini", "deepseek"];
+pub const PROVIDERS: [&str; 5] = ["local", "chatgpt", "codex", "gemini", "deepseek"];
 const LOCAL_MODEL: &str = "qwen2.5-0.5b-instruct";
 
 const EXPLAIN_SYSTEM: &str = "You are an English-Vietnamese dictionary for Vietnamese learners. \
@@ -91,6 +91,7 @@ pub struct ModelInfo {
 pub struct Settings {
     pub provider: String,
     pub chatgpt_model: String,
+    pub codex_model: String,
     pub gemini_key: String,
     pub gemini_model: String,
     pub deepseek_key: String,
@@ -151,6 +152,7 @@ pub struct Suggestions {
 pub fn label(provider: &str) -> &'static str {
     match provider {
         "chatgpt" => "ChatGPT",
+        "codex" => "ChatGPT (Codex)",
         "gemini" => "Gemini",
         "deepseek" => "DeepSeek",
         _ => "Model trên máy (Qwen 0.5B)",
@@ -160,6 +162,7 @@ pub fn label(provider: &str) -> &'static str {
 fn usage_url(provider: &str) -> &'static str {
     match provider {
         "chatgpt" => chatgpt::USAGE_URL,
+        "codex" => codex::USAGE_URL,
         "gemini" => cloud::GEMINI_USAGE_URL,
         "deepseek" => cloud::DEEPSEEK_USAGE_URL,
         _ => "",
@@ -210,6 +213,7 @@ impl<'a> Ai<'a> {
             "chatgpt" => {
                 self.database().ok().and_then(|db| chatgpt::session(&db)).is_some_and(|s| s.signed_in() && s.plan())
             }
+            "codex" => self.database().ok().and_then(|db| codex::session(&db)).is_some_and(|s| s.signed_in()),
             "gemini" => !self.settings.gemini_key.trim().is_empty(),
             "deepseek" => !self.settings.deepseek_key.trim().is_empty(),
             _ => false,
@@ -227,6 +231,7 @@ impl<'a> Ai<'a> {
     pub fn models(&self, provider: &str) -> Result<Vec<ModelInfo>, CallError> {
         match provider {
             "chatgpt" => chatgpt::models(&self.database()?),
+            "codex" => codex::models(&self.database()?),
             "gemini" => cloud::gemini_models(&self.settings.gemini_key),
             "deepseek" => cloud::deepseek_models(&self.settings.deepseek_key),
             _ => Ok(vec![ModelInfo { id: LOCAL_MODEL.into(), name: "Qwen2.5 0.5B Instruct".into() }]),
@@ -236,6 +241,7 @@ impl<'a> Ai<'a> {
     fn chosen(&self, provider: &str) -> &str {
         match provider {
             "chatgpt" => &self.settings.chatgpt_model,
+            "codex" => &self.settings.codex_model,
             "gemini" => &self.settings.gemini_model,
             "deepseek" => &self.settings.deepseek_model,
             _ => LOCAL_MODEL,
@@ -270,6 +276,7 @@ impl<'a> Ai<'a> {
         };
         let result = match provider {
             "chatgpt" => self.database().map_err(CallError::from).and_then(|db| chatgpt::chat(&db, &model, prompt)),
+            "codex" => self.database().map_err(CallError::from).and_then(|db| codex::chat(&db, &model, prompt)),
             "gemini" => cloud::gemini_chat(&self.settings.gemini_key, &model, prompt),
             "deepseek" => cloud::deepseek_chat(&self.settings.deepseek_key, &model, prompt),
             _ => local(prompt, self.dir),

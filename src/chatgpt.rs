@@ -96,7 +96,7 @@ impl Session {
     }
 }
 
-fn now() -> i64 {
+pub(crate) fn now() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| d.as_secs() as i64)
@@ -120,18 +120,18 @@ pub fn status(db: &Connection) -> Value {
     }
 }
 
-fn random_token() -> Result<String, String> {
+pub(crate) fn random_token() -> Result<String, String> {
     let mut bytes = [0u8; 32];
     getrandom::fill(&mut bytes).map_err(|e| format!("Không tạo được số ngẫu nhiên: {e}"))?;
     Ok(URL_SAFE_NO_PAD.encode(bytes))
 }
 
 /// The PKCE challenge of a verifier: base64url of its SHA-256, without padding.
-fn challenge(verifier: &str) -> String {
+pub(crate) fn challenge(verifier: &str) -> String {
     URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()))
 }
 
-fn host_id(db: &Connection) -> Result<String, String> {
+pub(crate) fn host_id(db: &Connection) -> Result<String, String> {
     if let Some(id) = db::setting(db, HOST_KEY).map_err(|e| e.to_string())?.filter(|id| !id.is_empty()) {
         return Ok(id);
     }
@@ -154,22 +154,30 @@ pub fn cancel() {
 /// Signs in through the system browser and keeps the session. `fresh` registers a new client, for another
 /// ChatGPT account; otherwise the client registered earlier on this machine is reused.
 pub fn sign_in(db: &Connection, fresh: bool) -> Result<Session, String> {
+    exclusive(|| {
+        // A refused one-time code (used or expired) takes one fresh authorization with the client just issued,
+        // never a new registration, as OpenAI's devkit does.
+        let result = match authorize(db, fresh) {
+            Err(Refused::Grant(_)) if !CANCEL.load(Ordering::SeqCst) => authorize(db, false),
+            other => other,
+        };
+        result.map_err(|e| match e {
+            // Plan usage is for Plus and Pro: a Free account gets through registration and is refused here.
+            Refused::Grant(message) => format!("{message}. Nếu bạn dùng ChatGPT Free: gói Free không được dùng cho app khác, cần gói Plus hoặc Pro; hãy dùng ChatGPT qua Codex."),
+            Refused::Other(message) => message,
+        })
+    })
+}
+
+/// Runs one browser sign-in at a time, for this flow and for Codex's, which share the cancel button.
+pub(crate) fn exclusive<T>(work: impl FnOnce() -> Result<T, String>) -> Result<T, String> {
     if SIGNING_IN.swap(true, Ordering::SeqCst) {
         return Err("Đang chờ bạn đăng nhập trong trình duyệt".into());
     }
     CANCEL.store(false, Ordering::SeqCst);
-    // A refused one-time code (used or expired) takes one fresh authorization with the client just issued, never
-    // a new registration, as OpenAI's devkit does.
-    let result = match authorize(db, fresh) {
-        Err(Refused::Grant(_)) if !CANCEL.load(Ordering::SeqCst) => authorize(db, false),
-        other => other,
-    };
+    let result = work();
     SIGNING_IN.store(false, Ordering::SeqCst);
-    result.map_err(|e| match e {
-        // Plan usage is for Plus and Pro: a Free account gets through registration and is refused here.
-        Refused::Grant(message) => format!("{message}. Nếu bạn dùng ChatGPT Free: gói Free không được dùng cho app khác, cần gói Plus hoặc Pro."),
-        Refused::Other(message) => message,
-    })
+    result
 }
 
 /// Why a sign-in stopped: the token endpoint refused the code (worth one more try), or anything else.
@@ -230,7 +238,7 @@ fn authorize(db: &Connection, fresh: bool) -> Result<Session, Refused> {
         }
     }
     crate::open_url(&format!("{AUTHORIZE}?{}", net::form(&params)))?;
-    let callback = wait_for_callback(&listener, &state)?;
+    let callback = wait_for_callback(std::slice::from_ref(&listener), &state)?;
     let issued = issued_client(saved_client.as_deref(), callback.get("client_id").map(String::as_str))?;
     // Kept at once: if the exchange fails, the next try reuses this registration instead of making another.
     db::set_setting(db, CLIENT_KEY, &issued).map_err(e)?;
@@ -277,9 +285,11 @@ fn issued_client(saved: Option<&str>, from_callback: Option<&str>) -> Result<Str
     }
 }
 
-/// Waits for the browser to come back to the loopback address, until cancelled or out of time.
-fn wait_for_callback(listener: &TcpListener, state: &str) -> Result<HashMap<String, String>, String> {
-    listener.set_nonblocking(true).map_err(|e| e.to_string())?;
+/// Waits for the browser to come back to a loopback address, until cancelled or out of time.
+pub(crate) fn wait_for_callback(listeners: &[TcpListener], state: &str) -> Result<HashMap<String, String>, String> {
+    for listener in listeners {
+        listener.set_nonblocking(true).map_err(|e| e.to_string())?;
+    }
     let deadline = Instant::now() + SIGN_IN_TIMEOUT;
     loop {
         if CANCEL.load(Ordering::SeqCst) {
@@ -288,14 +298,21 @@ fn wait_for_callback(listener: &TcpListener, state: &str) -> Result<HashMap<Stri
         if Instant::now() > deadline {
             return Err("Hết thời gian chờ đăng nhập, hãy thử lại".into());
         }
-        match listener.accept() {
-            Ok((stream, _)) => {
-                if let Some(result) = answer_browser(stream, state) {
-                    return result;
+        let mut idle = true;
+        for listener in listeners {
+            match listener.accept() {
+                Ok((stream, _)) => {
+                    idle = false;
+                    if let Some(result) = answer_browser(stream, state) {
+                        return result;
+                    }
                 }
+                Err(e) if e.kind() == ErrorKind::WouldBlock => {}
+                Err(e) => return Err(e.to_string()),
             }
-            Err(e) if e.kind() == ErrorKind::WouldBlock => thread::sleep(Duration::from_millis(200)),
-            Err(e) => return Err(e.to_string()),
+        }
+        if idle {
+            thread::sleep(Duration::from_millis(200));
         }
     }
 }
@@ -363,14 +380,14 @@ fn parse_query(query: &str) -> HashMap<String, String> {
         .collect()
 }
 
-fn post_form(url: &str, pairs: &[(&str, &str)]) -> Result<net::Reply, String> {
+pub(crate) fn post_form(url: &str, pairs: &[(&str, &str)]) -> Result<net::Reply, String> {
     let headers = [("Content-Type", "application/x-www-form-urlencoded"), ("Accept", "application/json")];
     net::fetch(url, &headers, Some(&net::form(pairs)), 30)
 }
 
 /// The code of an OAuth error and a line for the user with the server's reason. The request ID goes to the log,
 /// for a report to OpenAI.
-fn oauth_error(reply: &net::Reply) -> (String, String) {
+pub(crate) fn oauth_error(reply: &net::Reply) -> (String, String) {
     let json: Value = serde_json::from_str(&reply.body).unwrap_or_default();
     let code = json["error"].as_str().or(json["error"]["code"].as_str()).unwrap_or("không rõ lý do").to_owned();
     let mut detail = code.clone();
@@ -385,7 +402,7 @@ fn oauth_error(reply: &net::Reply) -> (String, String) {
 }
 
 /// `earliest_refresh_at` as Unix seconds: a number, or an RFC 3339 time; 0 when absent or unreadable.
-fn unix_time(value: &Value) -> i64 {
+pub(crate) fn unix_time(value: &Value) -> i64 {
     value.as_i64().or(value.as_f64().map(|f| f as i64)).or(value.as_str().and_then(parse_rfc3339)).unwrap_or(0)
 }
 
@@ -458,7 +475,7 @@ fn from_token(token: &Value, client_id: &str, nonce: Option<&str>, base: Session
 /// The claims of an ID token after checking issuer, audience, expiry, nonce and subject. Its signature is not
 /// checked: OpenID Connect Core 3.1.3.7 lets a client rely on TLS for an ID token received directly from the
 /// token endpoint, which is the only place this one comes from, and the app uses it for the account's name only.
-fn id_token_claims(token: &str, client_id: &str, nonce: Option<&str>, now: i64) -> Result<Value, String> {
+pub(crate) fn id_token_claims(token: &str, client_id: &str, nonce: Option<&str>, now: i64) -> Result<Value, String> {
     let invalid = |why: &str| format!("ID token không hợp lệ ({why})");
     let payload = token.split('.').nth(1).ok_or_else(|| invalid("định dạng"))?;
     let bytes = URL_SAFE_NO_PAD.decode(payload.trim_end_matches('=')).map_err(|_| invalid("mã hóa"))?;
@@ -651,7 +668,7 @@ fn rate_limits(headers: &[(String, String)]) -> Value {
 }
 
 /// The text of a stream of Responses events, which only counts once `response.completed` arrives.
-fn parse_stream(body: &str) -> Result<Answer, CallError> {
+pub(crate) fn parse_stream(body: &str) -> Result<Answer, CallError> {
     let mut text = String::new();
     let mut completed = None;
     for line in body.lines() {
@@ -719,6 +736,13 @@ fn plan_error(code: Option<&str>, message: Option<&str>, param: Option<&str>) ->
         "subscription_sharing_usage_limit_exceeded" => {
             return CallError {
                 message: "Đã chạm giới hạn sử dụng gói ChatGPT (của gói hoặc giới hạn riêng cho app)".into(),
+                limit: true,
+                details: json!({ "code": code }),
+            };
+        }
+        "usage_limit_reached" | "rate_limit_exceeded" => {
+            return CallError {
+                message: format!("Đã hết hạn mức sử dụng ({})", message.unwrap_or(code)),
                 limit: true,
                 details: json!({ "code": code }),
             };
@@ -853,7 +877,7 @@ mod tests {
             };
             (send("/favicon.ico"), send("/auth/callback?code=x&state=old"), send("/auth/callback?code=abc&state=s1&client_id=oaiapp_9"))
         });
-        let params = wait_for_callback(&listener, "s1").unwrap();
+        let params = wait_for_callback(std::slice::from_ref(&listener), "s1").unwrap();
         let (favicon, stale, good) = browser.join().unwrap();
         assert!(favicon.starts_with("HTTP/1.1 404"), "{favicon}");
         assert!(stale.starts_with("HTTP/1.1 400"), "{stale}");
@@ -867,7 +891,7 @@ mod tests {
             stream.write_all(b"GET /auth/callback?error=access_denied&state=s2 HTTP/1.1\r\n\r\n").unwrap();
             let _ = stream.read_to_string(&mut String::new());
         });
-        assert!(wait_for_callback(&listener, "s2").unwrap_err().contains("từ chối"));
+        assert!(wait_for_callback(std::slice::from_ref(&listener), "s2").unwrap_err().contains("từ chối"));
     }
 
     #[test]

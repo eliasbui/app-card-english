@@ -300,12 +300,14 @@
       <label>Dùng AI nào để giải thích nghĩa và gợi ý từ mới</label>
       <select id="s-ai_provider">
         <option value="local">Model trên máy (Qwen 0.5B): miễn phí, chạy offline</option>
+        <option value="codex">ChatGPT qua Codex: dùng được cả tài khoản Free</option>
         <option value="chatgpt">ChatGPT: dùng gói Plus hoặc Pro của bạn</option>
         <option value="gemini">Gemini: API key miễn phí từ Google AI Studio</option>
         <option value="deepseek">DeepSeek: API key, trả phí theo lượt</option>
       </select>
       <p class="muted">Khi AI đang chọn bị lỗi hoặc hết hạn mức, app tự chuyển sang nguồn khác đã sẵn sàng và cho bạn biết.</p>
     </div>
+    <div class="card" id="pv-codex"></div>
     <div class="card" id="pv-chatgpt"></div>
     <div class="card" id="pv-gemini"></div>
     <div class="card" id="pv-deepseek"></div>
@@ -1070,16 +1072,20 @@ document.addEventListener("keydown", (e) => {
 // Settings
 const LINKS = {
   chatgptUsage: "https://chatgpt.com/settings/usage",
+  codexUsage: "https://chatgpt.com/codex/settings/usage",
   geminiKey: "https://aistudio.google.com/apikey",
   geminiUsage: "https://aistudio.google.com/rate-limit",
   deepseekKey: "https://platform.deepseek.com/api_keys",
   deepseekUsage: "https://platform.deepseek.com/usage",
 };
-const PROVIDER_NAME = { local: "Model trên máy", chatgpt: "ChatGPT", gemini: "Gemini", deepseek: "DeepSeek" };
+const PROVIDER_NAME = { local: "Model trên máy", chatgpt: "ChatGPT", codex: "ChatGPT qua Codex", gemini: "Gemini", deepseek: "DeepSeek" };
+const PLAN_NAME = { free: "Free", go: "Go", plus: "Plus", pro: "Pro", team: "Business", business: "Business", enterprise: "Enterprise", edu: "Edu" };
+const planName = (plan) => PLAN_NAME[plan] || plan;
 state.modelLists = {};
 state.usage = {};
 state.signingIn = false;
 state.chatgptError = "";
+state.codexError = "";
 
 const darkScheme = matchMedia("(prefers-color-scheme: dark)");
 function applyTheme(theme) {
@@ -1094,6 +1100,7 @@ const at = (sec) => new Date(sec * 1000).toLocaleString("vi-VN", { hour: "2-digi
 function byHtml(r) {
   let html = `Trả lời bởi ${esc(r.source_label)}${r.model && r.source !== "local" ? ` (${esc(r.model)})` : ""}.`;
   if (r.source === "chatgpt") html += ` Đang dùng gói ChatGPT, <a href="#" data-link="${LINKS.chatgptUsage}">quản lý hạn mức</a>.`;
+  if (r.source === "codex") html += ` Đang dùng hạn mức Codex của tài khoản ChatGPT, <a href="#" data-link="${LINKS.codexUsage}">quản lý hạn mức</a>.`;
   if (r.note) html += `<div class="muted">${esc(r.note)}${r.manage_url ? ` <a href="#" data-link="${esc(r.manage_url)}">Xem hạn mức</a>` : ""}</div>`;
   return html;
 }
@@ -1101,6 +1108,7 @@ function byHtml(r) {
 function ready(p) {
   const s = state.settings;
   if (p === "chatgpt") return !!(s.chatgpt && s.chatgpt.signed_in && s.chatgpt.plan);
+  if (p === "codex") return !!(s.codex && s.codex.signed_in);
   if (p === "gemini") return !!s.has_gemini_key;
   if (p === "deepseek") return !!s.has_deepseek_key;
   return !!(state.models.llm && state.models.llm.ready);
@@ -1147,8 +1155,17 @@ function usageHtml(p) {
     const money = q.balance.map((b) => `${esc(b.total_balance)} ${esc(b.currency)}`).join(", ") || "0";
     html += `<div>Số dư: <b>${money}</b>${q.available === false ? ", không đủ để gọi API" : ""} (đo lúc ${at(q.at)}).</div>`;
   }
-  if (q && q.headers) {
-    const h = q.headers, parts = [];
+  const server = q && q.server;
+  if (server && server.windows && server.windows.length) {
+    html += server.windows.map((w) => {
+      const used = Math.round(w.used_percent);
+      const color = used >= 90 ? "var(--red)" : used >= 70 ? "var(--orange)" : "var(--green)";
+      return `<div>${w.kind === "week" ? "Hạn mức tuần" : "Hạn mức 5 giờ"}: đã dùng <b>${used}%</b>${w.resets_at ? `, đặt lại lúc ${at(w.resets_at)}` : ""}</div>
+        <div class="meter"><div style="width:${Math.min(100, used)}%;background:${color}"></div></div>`;
+    }).join("") + `<div class="muted">Máy chủ báo lúc ${at(q.at)}${server.plan ? `, gói ${esc(planName(server.plan))}` : ""}.</div>`;
+  }
+  if (server) {
+    const h = server, parts = [];
     if (h["x-ratelimit-remaining-requests"]) parts.push(`còn ${esc(h["x-ratelimit-remaining-requests"])}/${esc(h["x-ratelimit-limit-requests"] || "?")} lượt, đặt lại sau ${esc(h["x-ratelimit-reset-requests"] || "?")}`);
     if (h["x-ratelimit-remaining-tokens"]) parts.push(`còn ${esc(h["x-ratelimit-remaining-tokens"])}/${esc(h["x-ratelimit-limit-tokens"] || "?")} token, đặt lại sau ${esc(h["x-ratelimit-reset-tokens"] || "?")}`);
     if (parts.length) html += `<div>Máy chủ báo: ${parts.join("; ")} (lúc ${at(q.at)}).</div>`;
@@ -1164,14 +1181,14 @@ function usingTag(p) {
 function renderChatGPT() {
   const c = state.settings.chatgpt || {};
   let body;
-  if (state.signingIn) {
-    body = `<p>Đang chờ bạn đăng nhập trong trình duyệt...</p><button class="btn" data-act="cg-cancel">Hủy</button>`;
+  if (state.signingIn === "chatgpt") {
+    body = `<p>Đang chờ bạn đăng nhập trong trình duyệt...</p><button class="btn" data-act="cancel-sign-in">Hủy</button>`;
   } else if (c.expired) {
     body = `<p>Phiên đăng nhập ChatGPT của <b>${esc(c.email || "bạn")}</b> đã hết hạn.</p>
       <p class="muted">OpenAI hiện chưa cho app tự gia hạn phiên sau một thời gian không dùng (lỗi phía OpenAI đang được theo dõi). Đăng nhập lại chỉ cần chọn tài khoản, không phải cấp quyền lại.</p>
       <div class="row"><button class="btn chatgpt" data-act="cg-sign-in">Đăng nhập lại</button><button class="btn" data-act="cg-other">Dùng tài khoản ChatGPT khác</button></div>`;
   } else if (!c.signed_in) {
-    body = `<p class="muted">Dùng hạn mức có sẵn trong gói ChatGPT Plus hoặc Pro của bạn cho các yêu cầu AI trong app, không cần API key và không mất thêm phí. Gói Plus có giới hạn 5 giờ dùng chung với các app khác. Tài khoản ChatGPT Free không dùng được tính năng này; khi đó hãy dùng Gemini (API key miễn phí) hoặc model trên máy.</p>
+    body = `<p class="muted">Dùng hạn mức có sẵn trong gói ChatGPT Plus hoặc Pro của bạn cho các yêu cầu AI trong app, không cần API key và không mất thêm phí. Gói Plus có giới hạn 5 giờ dùng chung với các app khác. Tài khoản ChatGPT Free không dùng được cách này; hãy dùng ChatGPT qua Codex ở trên.</p>
       <button class="btn chatgpt" data-act="cg-sign-in">Continue with ChatGPT</button>`;
   } else {
     body = `<p>Đã đăng nhập: <b>${esc(c.email || "tài khoản ChatGPT")}</b></p>
@@ -1187,6 +1204,30 @@ function renderChatGPT() {
   }
   $("pv-chatgpt").innerHTML = `<div class="provider-head"><h3>ChatGPT</h3>${usingTag("chatgpt")}</div>${body}
     ${state.chatgptError ? `<p class="error">${esc(state.chatgptError)}</p>` : ""}`;
+}
+
+function renderCodex() {
+  const c = state.settings.codex || {};
+  let body;
+  if (state.signingIn === "codex") {
+    body = `<p>Đang chờ bạn đăng nhập trong trình duyệt...</p><button class="btn" data-act="cancel-sign-in">Hủy</button>`;
+  } else if (c.signed_in) {
+    body = `<p>Đã đăng nhập: <b>${esc(c.email || "tài khoản ChatGPT")}</b>${c.plan ? `, gói <b>${esc(planName(c.plan))}</b>` : ""}</p>
+      ${modelPicker("codex")}
+      ${usageHtml("codex")}
+      <div class="row" style="margin-top:10px">
+        <button class="btn" data-act="cx-usage">Đo hạn mức</button>
+        <button class="btn" data-link="${LINKS.codexUsage}">Quản lý hạn mức</button>
+        <button class="btn" data-act="cx-sign-out">Đăng xuất</button>
+      </div>`;
+  } else {
+    body = `${c.expired ? `<p>Phiên Codex của <b>${esc(c.email || "bạn")}</b> đã hết hạn, hãy đăng nhập lại.</p>` : ""}
+      <p class="muted">Dùng hạn mức Codex có trong tài khoản ChatGPT, kể cả gói Free (OpenAI đang tặng Codex cho gói Free trong thời gian có hạn). Đăng nhập trong trình duyệt, không cần API key.</p>
+      <p class="muted">Lưu ý: đây là cách không chính thức (OpenCode, ChatMock cũng dùng), OpenAI có thể thay đổi bất cứ lúc nào. Cần cổng 1455 trống: hãy tắt Codex CLI nếu nó đang chờ đăng nhập.</p>
+      <button class="btn chatgpt" data-act="cx-sign-in">${c.expired ? "Đăng nhập lại" : "Đăng nhập ChatGPT qua Codex"}</button>`;
+  }
+  $("pv-codex").innerHTML = `<div class="provider-head"><h3>ChatGPT qua Codex</h3>${usingTag("codex")}</div>${body}
+    ${state.codexError ? `<p class="error">${esc(state.codexError)}</p>` : ""}`;
 }
 
 function renderKeyProvider(p) {
@@ -1210,9 +1251,10 @@ function renderKeyProvider(p) {
 }
 
 function renderProviders() {
-  for (const p of ["chatgpt", "gemini", "deepseek"]) {
+  for (const p of ["chatgpt", "codex", "gemini", "deepseek"]) {
     if (ready(p) && !(p in state.modelLists)) loadModels(p);
   }
+  renderCodex();
   renderChatGPT();
   renderKeyProvider("gemini");
   renderKeyProvider("deepseek");
@@ -1262,7 +1304,7 @@ $("s-theme").onchange = (e) => { applyTheme(e.target.value); saveSetting("theme"
 $("btn-modal-ok").onclick = () => { $("modal").classList.add("hidden"); saveSetting("chatgpt_welcomed", "1"); };
 
 async function chatgptSignIn(fresh) {
-  state.signingIn = true;
+  state.signingIn = "chatgpt";
   state.chatgptError = "";
   renderProviders();
   try {
@@ -1281,6 +1323,36 @@ async function chatgptSignIn(fresh) {
   renderSettings();
 }
 
+async function codexSignIn() {
+  state.signingIn = "codex";
+  state.codexError = "";
+  renderProviders();
+  try {
+    state.settings.codex = await app.call("codex_sign_in");
+    delete state.modelLists.codex;
+    toast("Đã đăng nhập ChatGPT qua Codex");
+    // Signing in is choosing it.
+    if (state.settings.ai_provider !== "codex") await saveSetting("ai_provider", "codex");
+    measureCodex();
+  } catch (e) {
+    state.codexError = String(e);
+  }
+  state.signingIn = false;
+  renderSettings();
+}
+
+/// Asks the usage endpoint how much of the plan's allowance is left.
+async function measureCodex() {
+  try {
+    const q = await app.call("codex_usage");
+    state.usage.codex = { ...(state.usage.codex || {}), quota: q };
+    state.codexError = "";
+  } catch (e) {
+    state.codexError = String(e);
+  }
+  renderProviders();
+}
+
 $("page-settings").addEventListener("change", (e) => {
   const picker = e.target.closest("[data-model]");
   if (!picker) return;
@@ -1296,7 +1368,17 @@ $("page-settings").addEventListener("click", async (e) => {
   switch (b.dataset.act) {
     case "cg-sign-in": return chatgptSignIn(false);
     case "cg-other": return chatgptSignIn(true);
-    case "cg-cancel": return app.call("chatgpt_cancel");
+    case "cancel-sign-in": return app.call("cancel_sign_in");
+    case "cx-sign-in": return codexSignIn();
+    case "cx-usage":
+      b.disabled = true;
+      return measureCodex();
+    case "cx-sign-out": {
+      state.settings.codex = await app.call("codex_sign_out");
+      delete state.modelLists.codex;
+      toast("Đã đăng xuất ChatGPT qua Codex");
+      return renderSettings();
+    }
     case "cg-sign-out": {
       b.disabled = true;
       try {
