@@ -280,7 +280,12 @@ fn add(db: &Connection, mut w: Word, now: i64, out: &mut Imported) -> Result<(),
 /// Everything learned: the words with their schedules, the days of study and the answers.
 pub fn backup(db: &Connection, now: i64) -> rusqlite::Result<String> {
     let words = db::list(db, "")?;
-    let (days, _) = db::activity(db, i64::MAX)?;
+    let mut days = Vec::new();
+    for lang in ["en", "zh"] {
+        for d in db::activity(db, i64::MAX, lang)?.0 {
+            days.push(json!({ "day": d.day, "lang": lang, "xp": d.xp, "answers": d.answers, "correct": d.correct }));
+        }
+    }
     let reviews = db::review_log(db)?;
     Ok(json!({ "app": "card-english", "version": 1, "exported_at": now, "words": words, "activity": days, "reviews": reviews })
         .to_string())
@@ -314,11 +319,13 @@ fn restore(db: &Connection, json: &Value) -> Result<Imported, String> {
     }
     for d in json["activity"].as_array().into_iter().flatten() {
         let day = d["day"].as_str().unwrap_or_default();
+        // A copy from before the courses kept their own experience is English.
+        let lang = if d["lang"] == "zh" { "zh" } else { "en" };
         if db::is_day(day) {
             let n = |key: &str| d[key].as_i64().unwrap_or(0).max(0);
             tx.execute(
-                "INSERT OR IGNORE INTO activity (day, xp, answers, correct) VALUES (?1, ?2, ?3, ?4)",
-                rusqlite::params![day, n("xp"), n("answers"), n("correct")],
+                "INSERT OR IGNORE INTO activity (day, lang, xp, answers, correct) VALUES (?1, ?5, ?2, ?3, ?4)",
+                rusqlite::params![day, n("xp"), n("answers"), n("correct"), lang],
             )
             .map_err(|e| e.to_string())?;
         }
@@ -425,7 +432,8 @@ mod tests {
         let db = memory();
         let id = db::save(&db, &Word { word: "deadline".into(), meaning: "hạn chót".into(), ..Word::default() }, 1).unwrap();
         db::grade(&db, id, 3, 100, 0.9).unwrap();
-        db::add_xp(&db, "2026-10-26", 10, Some(true)).unwrap();
+        db::add_xp(&db, "2026-10-26", "en", 10, Some(true)).unwrap();
+        db::add_xp(&db, "2026-10-26", "zh", 4, Some(true)).unwrap();
         let copy = backup(&db, 200).unwrap();
         assert!(!copy.contains("_key") && !copy.contains("token"));
 
@@ -435,7 +443,8 @@ mod tests {
         let copy = backup(&db, 300).unwrap();
         assert_eq!(import(&other, "card-english.json", &copy, 400).unwrap(), Imported { added: 1, skipped: 1, invalid: 0 });
         assert_eq!(db::find(&other, "deadline").unwrap().unwrap().meaning, "giữ nguyên");
-        assert_eq!(db::activity(&other, 10).unwrap().1, 10);
+        assert_eq!(db::activity(&other, 10, "en").unwrap().1, 10);
+        assert_eq!(db::activity(&other, 10, "zh").unwrap().1, 4);
         assert_eq!(import(&other, "x.json", "{\"app\":\"other\"}", 1).unwrap_err(), "Đây không phải bản sao lưu của Card English");
 
         let third = memory();

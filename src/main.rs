@@ -15,6 +15,7 @@ mod net;
 mod pron;
 mod speech;
 mod update;
+mod voice;
 
 use global_hotkey::{
     GlobalHotKeyEvent, GlobalHotKeyManager, HotKeyState,
@@ -585,7 +586,31 @@ impl App {
                 let slow = args["slow"].as_bool().unwrap_or(false);
                 let accent = text("accent");
                 let rate = args["rate"].as_f64().unwrap_or(0.95);
-                background(Box::new(move || speak(&words, slow, &accent, rate).map(|_| Value::Null)));
+                // The Kokoro voice chosen for the language of the text, once its pack is downloaded.
+                let lang = if pron::is_chinese(&words) { "zh" } else { "en" };
+                let kokoro = db::setting(&self.db, &db::scoped("voice", lang))
+                    .ok()
+                    .flatten()
+                    .and_then(|v| v.strip_prefix("kokoro:").and_then(|sid| sid.parse::<i32>().ok()))
+                    .filter(|_| voice::ready(&dir, lang));
+                background(Box::new(move || {
+                    match kokoro {
+                        Some(sid) => voice::speak(&dir, lang, sid, &words, (rate * if slow { 0.7 } else { 1.0 }) as f32),
+                        None => speak(&words, slow, &accent, rate),
+                    }
+                    .map(|_| Value::Null)
+                }));
+            }
+            "download_voice" => {
+                let course = if text("course") == "zh" { "zh" } else { "en" };
+                let proxy = self.proxy.clone();
+                background(Box::new(move || {
+                    voice::download(&dir, course, |done, total| {
+                        let message = json!({ "event": "progress", "data": { "group": format!("voice-{course}"), "done": done, "total": total } });
+                        let _ = proxy.send_event(UserEvent::Post(message));
+                    })?;
+                    Ok(voice::status(&dir))
+                }));
             }
             _ => {
                 let result = self.handle(&cmd, &args);
@@ -607,6 +632,8 @@ impl App {
                     "version": update::CURRENT,
                     "settings": self.settings(),
                     "models": models::status(&self.dir),
+                    "voices": voice::status(&self.dir),
+                    "kokoro_voices": voice::VOICES.iter().map(|(lang, sid, name)| json!({ "lang": lang, "sid": sid, "name": name })).collect::<Vec<_>>(),
                     "update": self.update,
                     "data_dir": self.dir,
                     "platform": std::env::consts::OS,
@@ -619,13 +646,11 @@ impl App {
             "stats" => {
                 let course = self.course();
                 let stats = db::stats(db, now(), day_start, &course).map_err(e)?;
-                // Achievements count both courses, as experience and the streak do.
-                let all = db::stats(db, now(), day_start, "").map_err(e)?;
-                let (days, total_xp) = db::activity(db, 400).map_err(e)?;
+                let (days, total_xp) = db::activity(db, 400, &course).map_err(e)?;
                 let forecast = db::forecast(db, day_start, 7, &course).map_err(e)?;
                 // The page asks after every change, which keeps the count in the menu bar right too.
                 self.update_count();
-                Ok(json!({ "words": stats, "all": all, "days": days, "total_xp": total_xp, "forecast": forecast }))
+                Ok(json!({ "words": stats, "all": stats, "days": days, "total_xp": total_xp, "forecast": forecast }))
             }
             "xp" => {
                 let day = args["day"].as_str().unwrap_or_default();
@@ -633,7 +658,7 @@ impl App {
                 if !db::is_day(day) || !(0..=MAX_XP).contains(&xp) {
                     return Err("Điểm kinh nghiệm không hợp lệ".into());
                 }
-                db::add_xp(db, day, xp, args["correct"].as_bool()).map(|_| Value::Null).map_err(e)
+                db::add_xp(db, day, &self.course(), xp, args["correct"].as_bool()).map(|_| Value::Null).map_err(e)
             }
             "list" => db::list(db, args["q"].as_str().unwrap_or_default()).map(|w| json!(w)).map_err(e),
             "session" => db::session(db, now(), day_start, &self.course()).map(|w| json!(w)).map_err(e),
@@ -666,7 +691,7 @@ impl App {
                     return Err("Không hoàn tác được".into());
                 }
                 let word = db::undo(db, args["id"].as_i64().unwrap_or(0)).map_err(e)?.ok_or("Không còn câu trả lời nào để hoàn tác")?;
-                db::take_back_xp(db, day, xp, args["correct"].as_bool().unwrap_or(false)).map_err(e)?;
+                db::take_back_xp(db, day, &self.course(), xp, args["correct"].as_bool().unwrap_or(false)).map_err(e)?;
                 Ok(json!(word))
             }
             "set_setting" => {
@@ -675,7 +700,7 @@ impl App {
                 if !valid_setting(key, value) {
                     return Err("Cài đặt không hợp lệ".into());
                 }
-                db::set_setting(db, key, value).map_err(e)?;
+                db::set_setting(db, &db::scoped(key, &self.course()), value).map_err(e)?;
                 match key {
                     "theme" => {
                         if let Some((window, _)) = &self.window {
@@ -755,7 +780,7 @@ impl App {
 
     /// The course being studied: "en" or "zh".
     fn course(&self) -> String {
-        self.setting("course").filter(|c| c == "zh").unwrap_or_else(|| "en".into())
+        db::setting(&self.db, "course").ok().flatten().filter(|c| c == "zh").unwrap_or_else(|| "en".into())
     }
 
     /// The chance of recall the learner wants at each review, 90% unless the settings say otherwise.
@@ -774,8 +799,9 @@ impl App {
         }
     }
 
+    /// A setting of the current course, or a shared one.
     fn setting(&self, key: &str) -> Option<String> {
-        db::setting(&self.db, key).ok().flatten().filter(|v| !v.is_empty())
+        db::setting(&self.db, &db::scoped(key, &self.course())).ok().flatten().filter(|v| !v.is_empty())
     }
 
     /// What the page sees of the settings: never a key or token, only whether there is one.
@@ -796,7 +822,8 @@ impl App {
             "chatgpt_welcomed": self.setting("chatgpt_welcomed").is_some(),
             "course": self.course(),
             "theme": self.setting("theme").unwrap_or_else(|| "system".into()),
-            "palette": self.setting("palette").unwrap_or_else(|| "blue".into()),
+            // Each course has a colour of its own until the learner picks one.
+            "palette": self.setting("palette").unwrap_or_else(|| if self.course() == "zh" { "red" } else { "blue" }.into()),
             "new_per_day": number("new_per_day", 10),
             "remind_hours": number("remind_hours", 4),
             "daily_goal": number("daily_goal", 50),
@@ -813,7 +840,7 @@ impl App {
             "hotkey": text("hotkey"),
             "hotkey_error": self.hotkey_error,
             // Kept apart from "none yet", so that the first ones reached are celebrated.
-            "achievements": db::setting(&self.db, "achievements").ok().flatten(),
+            "achievements": db::setting(&self.db, &db::scoped("achievements", &self.course())).ok().flatten(),
         })
     }
 }
@@ -846,7 +873,7 @@ fn valid_setting(key: &str, value: &str) -> bool {
         "ai_provider" => ai::PROVIDERS.contains(&value),
         "theme" => matches!(value, "system" | "light" | "dark"),
         "course" => matches!(value, "en" | "zh"),
-        "palette" => matches!(value, "blue" | "pink" | "purple"),
+        "palette" => matches!(value, "blue" | "pink" | "purple" | "red"),
         "chatgpt_model" | "codex_model" | "gemini_model" | "deepseek_model" => model(value),
         "gemini_key" | "deepseek_key" => value.len() <= 500 && !value.chars().any(char::is_control),
         "new_per_day" | "remind_hours" | "daily_goal" => value.parse::<u32>().is_ok_and(|n| n <= 1000),

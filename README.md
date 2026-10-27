@@ -13,9 +13,9 @@ Từ vựng:
 
 Khóa tiếng Trung:
 
-- Khóa thứ hai, đổi khóa ở thanh bên. Mỗi khóa có lịch ôn riêng và mỗi ngày được học đủ số từ mới đã đặt trong Cài đặt; XP, chuỗi ngày học và thành tích thì dùng chung. Từ có chữ Hán tự vào khóa tiếng Trung, kể cả khi nhập từ file.
+- Khóa thứ hai, đổi khóa ở thanh bên. Mỗi khóa là một không gian riêng: lịch ôn, XP, cấp độ, chuỗi ngày học, thành tích, thống kê, màu giao diện, mục tiêu, số từ mới mỗi ngày và giọng đọc đều tách riêng. Nhắc nhở và số trên thanh menu theo khóa đang chọn. Từ có chữ Hán tự vào khóa tiếng Trung, kể cả khi nhập từ file.
 - Pinyin có dấu thanh lấy từ CC-CEDICT, âm Hán Việt của từng từ lấy từ tự điển Thiều Chửu, câu ví dụ kèm pinyin, trình độ HSK.
-- Nghe đọc bằng giọng tiếng Trung phổ thông của hệ điều hành.
+- Nghe đọc bằng giọng Kokoro tiếng Trung tải về (giọng tự nhiên, chạy offline) hoặc giọng phổ thông của hệ điều hành.
 - Chấm phát âm bằng Whisper tiny đa ngôn ngữ (tải thêm 45 MB trong Cài đặt), phân biệt được lỗi sai thanh điệu với lỗi sai âm.
 - Bài điền từ và nghe viết nhận cả chữ Hán lẫn pinyin không dấu.
 - AI gợi ý từ, chữa câu, viết truyện ngắn và chọn từ trong đoạn văn tiếng Trung dán vào.
@@ -51,7 +51,7 @@ Nhắc học:
 - Số từ cần học hiển thị cạnh icon trên thanh menu và trong tooltip của khay hệ thống.
 - Khởi động cùng máy tính (LaunchAgent trên macOS, khóa Run trên Windows, mục autostart trên Linux), khi đó app chỉ chạy trong khay.
 
-Giọng đọc: tiếng Anh giọng Mỹ hoặc Anh, chọn giọng cụ thể, chỉnh tốc độ; tiếng Trung dùng giọng phổ thông.
+Giọng đọc: mỗi khóa tải được một gói giọng Kokoro chạy trên máy qua sherpa-onnx (tiếng Anh 132 MB với các giọng Heart, Bella, Nicole, Michael, Emma, George; tiếng Trung 147 MB với 6 giọng nam và nữ), hoặc dùng giọng của hệ điều hành; chỉnh tốc độ.
 
 Phím tắt toàn cục (Cmd hoặc Ctrl + Shift + E, và vài tổ hợp khác): thêm từ vừa copy (có tra nghĩa), hoặc nếu là cả đoạn văn thì để AI chọn ra những từ đáng học.
 
@@ -164,6 +164,7 @@ Cấu trúc:
 - `src/cloud.rs`: Gemini và DeepSeek.
 - `src/speech.rs`: ghi âm (cpal), Whisper, chấm điểm.
 - `src/pron.rs`: IPA và so khớp âm vị từ CMUdict, pinyin và âm Hán Việt.
+- `src/voice.rs`: giọng đọc Kokoro (tải gói, đọc ra file WAV, phát).
 - `src/update.rs`, `src/models.rs`, `src/net.rs`: phiên bản mới, tải model, HTTP qua curl của hệ thống.
 - `ui/index.html`: toàn bộ giao diện.
 - `ui/stickers.webp`: bộ hình dán.
@@ -198,6 +199,7 @@ README của tap là `packaging/homebrew/README.md`, được script chép sang 
 ## Giấy phép dữ liệu
 
 - CMU Pronouncing Dictionary: xem `assets/cmudict-LICENSE`.
+- Giọng Kokoro-82M (Apache 2.0) đóng gói bởi sherpa-onnx (Apache 2.0), tải từ github.com/k2-fsa/sherpa-onnx/releases, kiểm tra bằng SHA-256.
 - Model Qwen2.5 (Apache 2.0) và Whisper (MIT, cả tiny.en lẫn bản tiny đa ngôn ngữ, từ huggingface.co/lmz/candle-whisper) được tải trực tiếp từ Hugging Face.
 - `assets/cedict.txt` lấy từ CC-CEDICT (MDBG và những người đóng góp, bản ngày 2026-10-27, CC BY-SA 4.0), đã bỏ phần định nghĩa tiếng Anh, và bản thân file cũng theo CC BY-SA 4.0. Xem `assets/cedict-LICENSE`.
 - `assets/hanviet.txt` chứa âm Hán Việt của Thiều Chửu, Hán Việt tự điển (1942, phạm vi công cộng), theo bản số hóa của catusf/tudien (CC0 1.0), cùng quan hệ dị thể và một phần âm đọc kVietnamese của Unicode Han Database (Unihan), Copyright Unicode, Inc., Unicode License v3. Xem `assets/hanviet-LICENSE`.

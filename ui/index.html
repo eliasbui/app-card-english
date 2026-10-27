@@ -28,6 +28,8 @@
   :root[data-theme="dark"][data-palette="pink"] { --accent: #cf3a80; --accent-hover: #dc5592; --accent-soft: #3a1a2b; --accent-text: #f8a5c6; --fresh: #4a1f34; --hero-a: #c43d7c; --hero-b: #8a2457; }
   :root[data-palette="purple"] { --accent: #7c3aed; --accent-hover: #6d28d9; --accent-soft: #f1ebfe; --accent-text: #6d28d9; --fresh: #e6dcfd; --hero-a: #9b6cf6; --hero-b: #6d3fd8; }
   :root[data-theme="dark"][data-palette="purple"] { --accent: #7c4ddf; --accent-hover: #8f66e6; --accent-soft: #2a2145; --accent-text: #c4b1fc; --fresh: #33285a; --hero-a: #7449d8; --hero-b: #4b2a9e; }
+  :root[data-palette="red"] { --accent: #c8281e; --accent-hover: #b0201a; --accent-soft: #fdecea; --accent-text: #b0201a; --fresh: #fbdcd8; --hero-a: #e2483a; --hero-b: #b0201a; }
+  :root[data-theme="dark"][data-palette="red"] { --accent: #c43a2e; --accent-hover: #d65446; --accent-soft: #3a1a17; --accent-text: #f7a59c; --fresh: #4a201c; --hero-a: #c23a2e; --hero-b: #84211a; }
   * { box-sizing: border-box; }
   body { margin: 0; font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", sans-serif;
          color: var(--text); background: var(--bg); display: flex; height: 100vh; overflow: hidden; -webkit-font-smoothing: antialiased; }
@@ -514,7 +516,7 @@
 </div>
 <input type="file" id="import-file" accept=".csv,.tsv,.txt,.json" hidden>
 <nav>
-  <div class="brand"><span class="st st-mascot" aria-hidden="true"></span><div><b>Card English</b><span>Học từ vựng mỗi ngày</span></div></div>
+  <div class="brand"><span class="st st-mascot" id="brand-mascot" aria-hidden="true"></span><div><b id="brand-name">Card English</b><span id="brand-sub">Học từ vựng tiếng Anh mỗi ngày</span></div></div>
   <div class="seg" id="course-switch" role="radiogroup" aria-label="Khóa học">
     <input type="radio" name="course" id="course-en" value="en" checked><label for="course-en">Tiếng Anh</label>
     <input type="radio" name="course" id="course-zh" value="zh"><label for="course-zh">Tiếng Trung</label>
@@ -804,9 +806,10 @@
 
     <h3 class="group">Giọng đọc</h3>
     <div class="card">
+      <div id="voice-kokoro"></div>
       <div class="setting-row">
-        <div><b>Giọng</b><div class="muted">Anh-Mỹ hay Anh-Anh, và giọng cụ thể nếu máy có nhiều giọng.</div></div>
-        <div class="seg" id="s-accent" role="radiogroup" aria-label="Giọng">
+        <div><b>Giọng</b><div class="muted" id="voice-hint">Anh-Mỹ hay Anh-Anh, và giọng cụ thể nếu máy có nhiều giọng.</div></div>
+        <div class="seg only-en" id="s-accent" role="radiogroup" aria-label="Giọng">
           <input type="radio" name="accent" id="ac-en-US" value="en-US"><label for="ac-en-US">Anh-Mỹ</label>
           <input type="radio" name="accent" id="ac-en-GB" value="en-GB"><label for="ac-en-GB">Anh-Anh</label>
         </div>
@@ -845,6 +848,7 @@
           <input type="radio" name="palette" id="pl-blue" value="blue"><label for="pl-blue">Xanh dương</label>
           <input type="radio" name="palette" id="pl-pink" value="pink"><label for="pl-pink">Hồng</label>
           <input type="radio" name="palette" id="pl-purple" value="purple"><label for="pl-purple">Tím</label>
+          <input type="radio" name="palette" id="pl-red" value="red"><label for="pl-red">Đỏ</label>
         </div>
       </div>
     </div>
@@ -1001,8 +1005,8 @@ async function gainXp(amount, near, correct) {
   if (levelOf(state.totalXp) > before) {
     toast(`Lên cấp ${levelOf(state.totalXp)}! Tiếp tục phát huy nhé`);
     confetti(200);
-  } else if (!goalBefore && state.xpToday >= state.settings.daily_goal && state.celebrated !== localDay()) {
-    state.celebrated = localDay();
+  } else if (!goalBefore && state.xpToday >= state.settings.daily_goal && state.celebrated !== localDay() + courseOf()) {
+    state.celebrated = localDay() + courseOf();
     toast("Hoàn thành mục tiêu hôm nay! Tuyệt vời");
     confetti(220);
   }
@@ -1142,6 +1146,10 @@ function reloadPage(page) {
 function applyCourse() {
   const zh = courseOf() === "zh";
   document.documentElement.dataset.course = courseOf();
+  applyPalette(state.settings.palette);
+  $("brand-name").textContent = zh ? "Card 中文" : "Card English";
+  $("brand-sub").textContent = zh ? "Học từ vựng tiếng Trung mỗi ngày" : "Học từ vựng tiếng Anh mỗi ngày";
+  $("brand-mascot").className = "st " + (zh ? "st-mascot-zh" : "st-mascot");
   const radio = $("course-" + courseOf());
   if (radio) radio.checked = true;
   $("new-word").placeholder = zh ? "Nhập từ tiếng Trung (chữ Hán) muốn học" : "Nhập từ hoặc cụm từ tiếng Anh muốn học";
@@ -1159,8 +1167,11 @@ async function switchCourse(course) {
   if (practice) quitPractice();
   state.settings = await app.call("set_setting", { key: "course", value: course });
   applyCourse();
-  reloadPage(document.querySelector("main section.active").id.slice(5));
-  refreshBadges();
+  renderSettings();
+  // The level, the streak and the badges of the other course.
+  const page = document.querySelector("main section.active").id.slice(5);
+  await refreshHome();
+  if (page !== "home") reloadPage(page);
 }
 
 // Speech: the web view's own English voices, the one chosen in the settings first, else the system's through the app.
@@ -1175,12 +1186,20 @@ function pickVoice() {
 function pickZhVoice() {
   if (!window.speechSynthesis) return null;
   const all = speechSynthesis.getVoices();
+  if (courseOf() === "zh" && state.settings.voice) {
+    const chosen = all.find((v) => v.name === state.settings.voice);
+    if (chosen) return chosen;
+  }
   return all.find((v) => voiceLang(v).toLowerCase() === "zh-cn") || all.find((v) => voiceLang(v).toLowerCase() === "zh-tw");
 }
+const kokoroChosen = () => String(state.settings.voice || "").startsWith("kokoro:") && !!state.voices?.[courseOf()]?.ready;
 function speak(text, slow = false) {
   if (!text) return;
   const rate = +state.settings.speech_rate || 0.95;
   const zh = hasHan(text);
+  if (zh === (courseOf() === "zh") && kokoroChosen()) {
+    return app.call("speak", { text, slow, accent: state.settings.accent || "en-US", rate }).catch((e) => toast(String(e)));
+  }
   const voice = zh ? pickZhVoice() : pickVoice();
   if (voice) {
     const u = new SpeechSynthesisUtterance(text);
@@ -2204,7 +2223,7 @@ function applyTheme(theme) {
 }
 darkScheme.addEventListener("change", () => applyTheme(state.settings.theme));
 function applyPalette(palette) {
-  document.documentElement.dataset.palette = palette === "pink" || palette === "purple" ? palette : "blue";
+  document.documentElement.dataset.palette = ["pink", "purple", "red"].includes(palette) ? palette : "blue";
 }
 
 const tokens = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : String(n || 0));
@@ -2383,15 +2402,50 @@ function renderProviders() {
 
 const rateLabel = (r) => `${Math.round(r * 100)}% tốc độ thường${Math.abs(r - 0.95) < 0.01 ? " (mặc định)" : ""}`;
 function renderVoices() {
-  const select = $("s-voice"), accent = state.settings.accent || "en-US";
-  const all = englishVoices(), list = all.filter((v) => voiceLang(v) === accent);
-  select.innerHTML = `<option value="">Tự chọn giọng phù hợp</option>` + list.map((v) => `<option value="${esc(v.name)}">${esc(v.name)}</option>`).join("");
-  select.value = list.some((v) => v.name === state.settings.voice) ? state.settings.voice : "";
-  select.classList.toggle("hidden", !list.length);
-  const notes = [!all.length ? "App đọc bằng giọng của hệ điều hành."
-    : list.length ? "" : `Máy này chưa có giọng ${accent === "en-GB" ? "Anh-Anh" : "Anh-Mỹ"}, app đọc bằng giọng tiếng Anh khác.`,
-    "Từ tiếng Trung được đọc bằng giọng Quan Thoại nếu máy có giọng đó."];
+  const select = $("s-voice"), s = state.settings, zh = courseOf() === "zh", accent = s.accent || "en-US";
+  const system = zh
+    ? (window.speechSynthesis ? speechSynthesis.getVoices().filter((v) => /^zh[-_](cn|tw)$/i.test(voiceLang(v))) : [])
+    : englishVoices().filter((v) => voiceLang(v) === accent);
+  const kokoro = state.voices?.[courseOf()]?.ready ? (state.kokoroVoices || []).filter((v) => v.lang === courseOf()) : [];
+  const options = (list, value, label) => list.map((v) => `<option value="${esc(value(v))}">${esc(label(v))}</option>`).join("");
+  select.innerHTML = `<option value="">Tự chọn giọng phù hợp</option>`
+    + (kokoro.length ? `<optgroup label="Kokoro, giọng tự nhiên">${options(kokoro, (v) => "kokoro:" + v.sid, (v) => v.name)}</optgroup>` : "")
+    + (system.length ? `<optgroup label="Giọng của máy">${options(system, (v) => v.name, (v) => v.name)}</optgroup>` : "");
+  select.value = [...select.options].some((o) => o.value === s.voice) ? s.voice : "";
+  $("voice-hint").textContent = zh ? "Giọng đọc chữ Hán, Quan Thoại." : "Anh-Mỹ hay Anh-Anh, và giọng cụ thể nếu máy có nhiều giọng.";
+  const notes = [kokoro.length ? "" : "Tải giọng Kokoro ở trên để có giọng đọc tự nhiên hơn.",
+    !zh && !system.length && englishVoices().length ? `Máy này chưa có giọng ${accent === "en-GB" ? "Anh-Anh" : "Anh-Mỹ"}.` : ""];
   $("voice-note").textContent = notes.filter(Boolean).join(" ");
+  renderVoicePack();
+}
+/// The download of the course's Kokoro pack, with the same progress bar as the models.
+function renderVoicePack() {
+  const course = courseOf(), pack = state.voices?.[course];
+  if (!pack) return;
+  const group = "voice-" + course;
+  $("voice-kokoro").innerHTML = `
+    <div class="model-row">
+      <div class="grow"><b>Giọng Kokoro ${course === "zh" ? "tiếng Trung" : "tiếng Anh"}</b> <span class="muted">${Math.round(pack.size / 1e6)} MB</span>
+        <div class="muted">Giọng đọc tự nhiên, chạy trên máy, không cần mạng</div></div>
+      ${pack.ready ? '<span class="tag ok">Đã sẵn sàng</span>' : `<button class="btn primary small" id="dl-${group}">Tải về</button>`}
+    </div>
+    <div class="row dl hidden" id="dlrow-${group}"><div class="grow progress"><div id="bar-${group}"></div></div><span class="muted num" id="mb-${group}"></span></div>
+    <div class="error" id="dlerr-${group}"></div>`;
+  const btn = $("dl-" + group);
+  if (btn) btn.onclick = async () => {
+    btn.disabled = true;
+    $("dlrow-" + group).classList.remove("hidden");
+    try {
+      state.voices = await app.call("download_voice", { course });
+      const first = (state.kokoroVoices || []).find((v) => v.lang === course);
+      // A download is a choice of the new voice; the learner can pick another one after.
+      if (first && courseOf() === course) await saveSetting("voice", "kokoro:" + first.sid);
+      toast("Đã tải xong giọng Kokoro");
+    } catch (e) {
+      $("dlerr-" + group).textContent = e + ". Bấm Tải về để thử lại.";
+    }
+    renderSettings();
+  };
 }
 function hotkeyLabel(key) {
   const mac = state.platform === "macos";
@@ -2467,11 +2521,14 @@ $("s-autostart").onchange = async (e) => {
   }
   renderSettings();
 };
-$("s-accent").addEventListener("change", async (e) => { await saveSetting("accent", e.target.value); await saveSetting("voice", ""); });
+$("s-accent").addEventListener("change", async (e) => {
+  await saveSetting("accent", e.target.value);
+  if (!String(state.settings.voice).startsWith("kokoro:")) await saveSetting("voice", "");
+});
 $("s-voice").onchange = (e) => saveSetting("voice", e.target.value);
 $("s-speech_rate").oninput = (e) => ($("rate-label").textContent = rateLabel(+e.target.value));
 $("s-speech_rate").onchange = (e) => saveSetting("speech_rate", e.target.value);
-$("btn-voice-test").onclick = () => speak("Hello! I will read your new words like this.");
+$("btn-voice-test").onclick = () => speak(courseOf() === "zh" ? "你好！我会这样读你的新词。" : "Hello! I will read your new words like this.");
 $("s-hotkey").onchange = (e) => saveSetting("hotkey", e.target.value);
 $("s-theme").addEventListener("change", (e) => { applyTheme(e.target.value); saveSetting("theme", e.target.value); });
 $("s-palette").addEventListener("change", (e) => { applyPalette(e.target.value); saveSetting("palette", e.target.value); });
@@ -2713,12 +2770,13 @@ async function quickAdd(text) {
   const init = await app.call("init");
   state.settings = init.settings;
   state.models = init.models;
+  state.voices = init.voices;
+  state.kokoroVoices = init.kokoro_voices || [];
   state.platform = init.platform || "";
   state.hotkeys = init.hotkeys || [];
   state.brew = !!init.brew;
   state.script = !!init.script;
   applyTheme(state.settings.theme);
-  applyPalette(state.settings.palette);
   applyCourse();
   $("version").textContent = init.version;
   $("s-version").textContent = init.version;

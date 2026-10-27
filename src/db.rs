@@ -11,7 +11,7 @@ pub const DAY: i64 = 86_400;
 /// A forgotten word comes back within the same session.
 const RELEARN_SECONDS: i64 = 600;
 /// The version of the tables in `PRAGMA user_version`; `migrate` brings an older file up to it.
-const SCHEMA: i64 = 2;
+const SCHEMA: i64 = 3;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -140,6 +140,29 @@ const V2: &str = "
     ALTER TABLE words ADD COLUMN example_reading TEXT NOT NULL DEFAULT '';
     CREATE INDEX words_lang ON words (lang, learned_at, due);";
 
+/// Version 3: each course keeps its own experience, so the activity of a day is per course. What was there
+/// before is English, the only course for most of that time.
+const V3: &str = "
+    CREATE TABLE activity_v3 (
+        day TEXT NOT NULL,
+        lang TEXT NOT NULL,
+        xp INTEGER NOT NULL DEFAULT 0,
+        answers INTEGER NOT NULL DEFAULT 0,
+        correct INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (day, lang)
+    );
+    INSERT INTO activity_v3 (day, lang, xp, answers, correct) SELECT day, 'en', xp, answers, correct FROM activity;
+    DROP TABLE activity;
+    ALTER TABLE activity_v3 RENAME TO activity;";
+
+/// The settings each course keeps for itself; the rest are shared.
+const SCOPED: [&str; 5] = ["palette", "new_per_day", "daily_goal", "voice", "achievements"];
+
+/// The key a setting is stored under for a course: English keeps the plain key it always had.
+pub fn scoped(key: &str, lang: &str) -> String {
+    if lang == "zh" && SCOPED.contains(&key) { format!("{key}@zh") } else { key.to_owned() }
+}
+
 fn user_version(db: &Connection) -> rusqlite::Result<i64> {
     db.query_row("PRAGMA user_version", [], |r| r.get(0))
 }
@@ -175,6 +198,9 @@ fn migrate(db: &mut Connection) -> rusqlite::Result<()> {
                 params![w.id, w.lang, w.ipa, w.hanviet, w.example_reading],
             )?;
         }
+    }
+    if user_version(&tx)? < 3 {
+        tx.execute_batch(V3)?;
     }
     tx.pragma_update(None, "user_version", SCHEMA)?;
     tx.commit()
@@ -319,7 +345,7 @@ pub fn session(db: &Connection, now: i64, day_start: i64, lang: &str) -> rusqlit
 
 /// How many new words of a course may still be started today; each course has `new_per_day` of its own.
 fn new_left(db: &Connection, day_start: i64, lang: &str) -> rusqlite::Result<i64> {
-    let per_day: i64 = setting(db, "new_per_day")?
+    let per_day: i64 = setting(db, &scoped("new_per_day", lang))?
         .and_then(|v| v.parse().ok())
         .unwrap_or(10);
     let today: i64 = db.query_row(
@@ -490,37 +516,37 @@ pub struct Day {
     pub correct: i64,
 }
 
-/// Adds experience to a day, and an answer when `correct` says how it went.
-pub fn add_xp(db: &Connection, day: &str, xp: i64, correct: Option<bool>) -> rusqlite::Result<()> {
+/// Adds experience to a day of a course, and an answer when `correct` says how it went.
+pub fn add_xp(db: &Connection, day: &str, lang: &str, xp: i64, correct: Option<bool>) -> rusqlite::Result<()> {
     let (answers, right) = match correct {
         Some(ok) => (1, i64::from(ok)),
         None => (0, 0),
     };
     db.execute(
-        "INSERT INTO activity (day, xp, answers, correct) VALUES (?1, ?2, ?3, ?4)
-         ON CONFLICT(day) DO UPDATE SET xp = xp + ?2, answers = answers + ?3, correct = correct + ?4",
-        params![day, xp, answers, right],
+        "INSERT INTO activity (day, lang, xp, answers, correct) VALUES (?1, ?5, ?2, ?3, ?4)
+         ON CONFLICT(day, lang) DO UPDATE SET xp = xp + ?2, answers = answers + ?3, correct = correct + ?4",
+        params![day, xp, answers, right, lang],
     )
     .map(|_| ())
 }
 
 /// Takes back the experience and the answer of an undone review.
-pub fn take_back_xp(db: &Connection, day: &str, xp: i64, correct: bool) -> rusqlite::Result<()> {
+pub fn take_back_xp(db: &Connection, day: &str, lang: &str, xp: i64, correct: bool) -> rusqlite::Result<()> {
     db.execute(
         "UPDATE activity SET xp = max(0, xp - ?2), answers = max(0, answers - 1), correct = max(0, correct - ?3)
-         WHERE day = ?1",
-        params![day, xp, i64::from(correct)],
+         WHERE day = ?1 AND lang = ?4",
+        params![day, xp, i64::from(correct), lang],
     )
     .map(|_| ())
 }
 
-/// The last `days` days that saw any study, newest first, and the experience of all time.
-pub fn activity(db: &Connection, days: i64) -> rusqlite::Result<(Vec<Day>, i64)> {
-    let mut stmt = db.prepare("SELECT day, xp, answers, correct FROM activity ORDER BY day DESC LIMIT ?1")?;
+/// The last `days` days of a course that saw any study, newest first, and its experience of all time.
+pub fn activity(db: &Connection, days: i64, lang: &str) -> rusqlite::Result<(Vec<Day>, i64)> {
+    let mut stmt = db.prepare("SELECT day, xp, answers, correct FROM activity WHERE lang = ?2 ORDER BY day DESC LIMIT ?1")?;
     let list = stmt
-        .query_map([days], |r| Ok(Day { day: r.get(0)?, xp: r.get(1)?, answers: r.get(2)?, correct: r.get(3)? }))?
+        .query_map(params![days, lang], |r| Ok(Day { day: r.get(0)?, xp: r.get(1)?, answers: r.get(2)?, correct: r.get(3)? }))?
         .collect::<rusqlite::Result<_>>()?;
-    let total = db.query_row("SELECT coalesce(sum(xp), 0) FROM activity", [], |r| r.get(0))?;
+    let total = db.query_row("SELECT coalesce(sum(xp), 0) FROM activity WHERE lang = ?1", [lang], |r| r.get(0))?;
     Ok((list, total))
 }
 
@@ -701,6 +727,9 @@ mod tests {
     fn chinese_words_are_a_course_of_their_own() {
         let db = memory();
         set_setting(&db, "new_per_day", "1").unwrap();
+        // Each course keeps its own number of new words a day.
+        set_setting(&db, &scoped("new_per_day", "zh"), "1").unwrap();
+        assert_eq!((scoped("new_per_day", "en"), scoped("theme", "zh")), ("new_per_day".into(), "theme".into()));
         let en = add(&db, "deadline", 0);
         let zh = save(&db, &Word { word: " 学习 ".into(), example: "我每天学习中文。".into(), ..Word::default() }, 0).unwrap();
         add(&db, "苹果", 0);
@@ -736,15 +765,17 @@ mod tests {
     #[test]
     fn experience_adds_up_by_day() {
         let db = memory();
-        add_xp(&db, "2026-10-25", 10, Some(true)).unwrap();
-        add_xp(&db, "2026-10-26", 10, Some(false)).unwrap();
-        add_xp(&db, "2026-10-26", 3, None).unwrap();
-        let (days, total) = activity(&db, 30).unwrap();
-        assert_eq!(total, 23);
+        add_xp(&db, "2026-10-25", "en", 10, Some(true)).unwrap();
+        add_xp(&db, "2026-10-26", "en", 10, Some(false)).unwrap();
+        add_xp(&db, "2026-10-26", "en", 3, None).unwrap();
+        add_xp(&db, "2026-10-26", "zh", 7, Some(true)).unwrap();
+        let (days, total) = activity(&db, 30, "en").unwrap();
+        assert_eq!(total, 23, "the Chinese course keeps its experience apart");
         assert_eq!(days[0], Day { day: "2026-10-26".into(), xp: 13, answers: 1, correct: 0 });
         assert_eq!(days[1].correct, 1);
-        take_back_xp(&db, "2026-10-25", 12, true).unwrap();
-        assert_eq!(activity(&db, 30).unwrap().0[1], Day { day: "2026-10-25".into(), xp: 0, answers: 0, correct: 0 });
+        assert_eq!(activity(&db, 30, "zh").unwrap(), (vec![Day { day: "2026-10-26".into(), xp: 7, answers: 1, correct: 1 }], 7));
+        take_back_xp(&db, "2026-10-25", "en", 12, true).unwrap();
+        assert_eq!(activity(&db, 30, "en").unwrap().0[1], Day { day: "2026-10-25".into(), xp: 0, answers: 0, correct: 0 });
         assert!(is_day("2026-10-26") && !is_day("2026-1-26") && !is_day("2026-10-2x"));
     }
 
