@@ -16,12 +16,17 @@ pub const PROVIDERS: [&str; 5] = ["local", "chatgpt", "codex", "gemini", "deepse
 const LOCAL_MODEL: &str = "qwen2.5-0.5b-instruct";
 
 const EXPLAIN_SYSTEM: &str = "You are an English-Vietnamese dictionary for Vietnamese learners. \
-Reply with exactly these five lines and nothing else:\n\
+Reply with exactly these ten lines and nothing else:\n\
 TYPE: <part of speech in English>\n\
 NGHIA: <short Vietnamese meaning>\n\
 GIAITHICH: <one short Vietnamese sentence on when to use it>\n\
 VIDU: <one simple English sentence using the word>\n\
-DICH: <Vietnamese translation of that sentence>";
+DICH: <Vietnamese translation of that sentence>\n\
+DONGNGHIA: <up to 3 English synonyms, comma separated, or ->\n\
+TRAINGHIA: <up to 3 English antonyms, comma separated, or ->\n\
+CUMTU: <up to 3 common English collocations with the word, comma separated>\n\
+CAPDO: <the CEFR level of the word: A1, A2, B1, B2, C1 or C2>\n\
+CHUDE: <one short Vietnamese topic such as Du lịch, Công việc, Ẩm thực>";
 /// One worked answer, which a model this small needs in order to keep to the format.
 const EXPLAIN_SHOT: (&str, &str) = (
     "apple",
@@ -29,7 +34,130 @@ const EXPLAIN_SHOT: (&str, &str) = (
      NGHIA: quả táo\n\
      GIAITHICH: Dùng để chỉ loại quả tròn, vỏ đỏ hoặc xanh, ăn được.\n\
      VIDU: She eats an apple every morning.\n\
-     DICH: Cô ấy ăn một quả táo mỗi sáng.",
+     DICH: Cô ấy ăn một quả táo mỗi sáng.\n\
+     DONGNGHIA: -\n\
+     TRAINGHIA: -\n\
+     CUMTU: apple juice, apple pie, green apple\n\
+     CAPDO: A1\n\
+     CHUDE: Ẩm thực",
+);
+
+const CHECK_SYSTEM: &str = "You are a friendly English teacher for Vietnamese learners. The learner wrote one sentence \
+with a given word. Reply with exactly these four lines and nothing else:\n\
+DUNG: <YES if the sentence is correct and natural, otherwise NO>\n\
+SUA: <the corrected sentence, or the same sentence if it is already correct>\n\
+GIAITHICH: <one or two short Vietnamese sentences on the mistakes, or a short praise if it is correct>\n\
+GOIY: <one more natural English sentence using the word>";
+const CHECK_SHOT: (&str, &str) = (
+    "Word: deadline\nSentence: I must finish report before deadline.",
+    "DUNG: NO\n\
+     SUA: I must finish the report before the deadline.\n\
+     GIAITHICH: Cần thêm mạo từ \"the\" trước \"report\" và \"deadline\" vì người nghe biết đó là báo cáo và hạn chót nào.\n\
+     GOIY: The deadline for this project is next Friday.",
+);
+
+const STORY_SYSTEM: &str = "You write very short, simple English stories for Vietnamese learners. Use every word of the \
+list at least once. Reply with exactly these three lines and nothing else:\n\
+TITLE: <a short English title>\n\
+STORY: <the story, 60 to 110 words, in one paragraph>\n\
+DICH: <the Vietnamese translation of the story, in one paragraph>";
+const STORY_SHOT: (&str, &str) = (
+    "Words: luggage, delay, souvenir",
+    "TITLE: A Long Day at the Airport\n\
+     STORY: Mai packed her luggage the night before her trip. At the airport there was a two-hour delay, so she \
+     walked around the shops. She bought a small souvenir for her brother, a key ring with a plane on it. When the \
+     plane finally took off, Mai smiled. The delay was boring, but now she had a gift and a good story to tell.\n\
+     DICH: Mai đóng hành lý vào tối hôm trước chuyến đi. Ở sân bay chuyến bay bị trễ hai tiếng, nên cô đi dạo \
+     quanh các cửa hàng. Cô mua một món quà lưu niệm nhỏ cho em trai, một chiếc móc khóa hình máy bay. Khi máy bay \
+     cuối cùng cũng cất cánh, Mai mỉm cười. Việc chờ đợi thật chán, nhưng giờ cô có một món quà và một câu chuyện \
+     hay để kể.",
+);
+
+const EXTRACT_SYSTEM: &str = "You help Vietnamese learners pick vocabulary from an English text. Choose up to 10 words or \
+short phrases of the text that are most worth learning for an intermediate learner; skip names and very common words \
+such as the, is, have, good. Reply with lines like: english word | nghĩa tiếng Việt theo ngữ cảnh. Use the base form \
+of each word. No numbering, no explanations.";
+const EXTRACT_SHOT: (&str, &str) = (
+    "Text: The meeting was postponed because the manager had to negotiate a new contract with an important client.",
+    "postpone | hoãn lại\nnegotiate | đàm phán\ncontract | hợp đồng\nclient | khách hàng",
+);
+/// The longest text read for its words, about a thousand tokens.
+const EXTRACT_CHARS: usize = 4000;
+
+// The same five questions for the Chinese course: the answers keep the Vietnamese labels the parsers read.
+const EXPLAIN_ZH_SYSTEM: &str = "You are a Chinese-Vietnamese dictionary for Vietnamese learners. \
+Reply with exactly these eleven lines and nothing else:\n\
+TYPE: <part of speech in English>\n\
+NGHIA: <short Vietnamese meaning>\n\
+GIAITHICH: <one short Vietnamese sentence on when to use it>\n\
+VIDU: <one simple Chinese sentence in simplified characters using the word>\n\
+PINYIN: <the pinyin of that sentence with tone marks>\n\
+DICH: <Vietnamese translation of that sentence>\n\
+DONGNGHIA: <up to 3 Chinese synonyms in simplified characters, comma separated, or ->\n\
+TRAINGHIA: <up to 3 Chinese antonyms in simplified characters, comma separated, or ->\n\
+CUMTU: <up to 3 common Chinese collocations with the word, comma separated>\n\
+CAPDO: <the HSK level of the word, such as HSK 2>\n\
+CHUDE: <one short Vietnamese topic such as Du lịch, Công việc, Ẩm thực>";
+const EXPLAIN_ZH_SHOT: (&str, &str) = (
+    "苹果",
+    "TYPE: noun\n\
+     NGHIA: quả táo\n\
+     GIAITHICH: Dùng để chỉ loại quả tròn, vỏ đỏ hoặc xanh, ăn được.\n\
+     VIDU: 我每天早上吃一个苹果。\n\
+     PINYIN: Wǒ měitiān zǎoshang chī yí ge píngguǒ.\n\
+     DICH: Mỗi sáng tôi ăn một quả táo.\n\
+     DONGNGHIA: -\n\
+     TRAINGHIA: -\n\
+     CUMTU: 苹果汁, 红苹果, 吃苹果\n\
+     CAPDO: HSK 1\n\
+     CHUDE: Ẩm thực",
+);
+
+const SUGGEST_ZH_SYSTEM: &str = "You suggest useful Chinese vocabulary to Vietnamese learners. \
+Reply with exactly 8 lines and nothing else. Each line is: Chinese word in simplified characters | nghĩa tiếng Việt. \
+Use common, practical words. No pinyin, no numbering, no explanations.";
+const SUGGEST_ZH_SHOT: (&str, &str) = (
+    "Topic: weather",
+    "晴天 | trời nắng\n下雨 | mưa\n阴天 | trời âm u\n刮风 | có gió\n温度 | nhiệt độ\n天气预报 | dự báo thời tiết\n潮湿 | ẩm ướt\n寒冷 | lạnh giá",
+);
+
+const CHECK_ZH_SYSTEM: &str = "You are a friendly Chinese teacher for Vietnamese learners. The learner wrote one sentence \
+with a given word. Reply with exactly these four lines and nothing else:\n\
+DUNG: <YES if the sentence is correct and natural, otherwise NO>\n\
+SUA: <the corrected sentence in simplified characters, or the same sentence if it is already correct>\n\
+GIAITHICH: <one or two short Vietnamese sentences on the mistakes, or a short praise if it is correct>\n\
+GOIY: <one more natural Chinese sentence in simplified characters using the word>";
+const CHECK_ZH_SHOT: (&str, &str) = (
+    "Word: 喜欢\nSentence: 我喜欢很吃中国菜。",
+    "DUNG: NO\n\
+     SUA: 我很喜欢吃中国菜。\n\
+     GIAITHICH: Phó từ \"很\" phải đứng trước động từ \"喜欢\", không đặt giữa \"喜欢\" và \"吃\".\n\
+     GOIY: 她喜欢周末在家看电影。",
+);
+
+const STORY_ZH_SYSTEM: &str = "You write very short, simple Chinese stories in simplified characters for Vietnamese \
+learners at HSK 2 to 3 level. Use every word of the list at least once. Reply with exactly these three lines and \
+nothing else:\n\
+TITLE: <a short Chinese title>\n\
+STORY: <the story, 60 to 120 Chinese characters, in one paragraph>\n\
+DICH: <the Vietnamese translation of the story, in one paragraph>";
+const STORY_ZH_SHOT: (&str, &str) = (
+    "Words: 行李, 晚点, 纪念品",
+    "TITLE: 机场的一天\n\
+     STORY: 小美前一天晚上就收拾好了行李。到了机场，她的航班晚点了两个小时，所以她在商店里走了走。她给弟弟买了一个小纪念品。\
+     飞机终于起飞的时候，小美笑了。等飞机很无聊，但是现在她有了礼物，也有了一个好故事。\n\
+     DICH: Tiểu Mỹ đã thu dọn hành lý từ tối hôm trước. Đến sân bay, chuyến bay của cô bị trễ hai tiếng, nên cô đi dạo \
+     một vòng trong các cửa hàng. Cô mua cho em trai một món quà lưu niệm nhỏ. Khi máy bay cuối cùng cũng cất cánh, \
+     Tiểu Mỹ mỉm cười. Chờ máy bay thật chán, nhưng giờ cô đã có quà, và cũng có một câu chuyện hay.",
+);
+
+const EXTRACT_ZH_SYSTEM: &str = "You help Vietnamese learners pick vocabulary from a Chinese text. Choose up to 10 words of \
+the text that are most worth learning for an HSK 3 to 4 learner; skip names and very common words such as 的, 是, 我, \
+你, 好. Reply with lines like: 中文词 | nghĩa tiếng Việt theo ngữ cảnh. Use simplified characters. No pinyin, no \
+numbering, no explanations.";
+const EXTRACT_ZH_SHOT: (&str, &str) = (
+    "Text: 因为经理要和一个重要的客户谈新合同，所以会议推迟了。",
+    "经理 | giám đốc, quản lý\n重要 | quan trọng\n客户 | khách hàng\n合同 | hợp đồng\n推迟 | hoãn lại",
 );
 
 const SUGGEST_SYSTEM: &str = "You suggest useful English vocabulary to Vietnamese learners. \
@@ -48,6 +176,8 @@ pub struct Prompt<'a> {
     pub question: &'a str,
     /// For the model on this machine; the providers keep their answers short by themselves.
     pub max_tokens: usize,
+    /// Whether the answer is in Chinese; otherwise the model on this machine keeps Chinese characters out of it.
+    pub cjk: bool,
 }
 
 /// A failed call: what to tell the user, whether a usage limit was reached, and what the server said about it.
@@ -131,6 +261,39 @@ pub struct Explain {
     pub explain: String,
     pub example: String,
     pub example_vi: String,
+    pub synonyms: String,
+    pub antonyms: String,
+    pub collocations: String,
+    /// A1 to C2, HSK1 to HSK9, or empty when the answer had none.
+    pub level: String,
+    pub topic: String,
+    /// Chinese: the Sino-Vietnamese reading of the word, and the pinyin of the example.
+    pub hanviet: String,
+    pub example_reading: String,
+    #[serde(flatten)]
+    pub by: By,
+}
+
+/// What a teacher says of a sentence the learner wrote.
+#[derive(Debug, Default, Serialize, PartialEq)]
+pub struct Check {
+    pub ok: bool,
+    pub corrected: String,
+    pub explain: String,
+    pub better: String,
+    #[serde(flatten)]
+    pub by: By,
+}
+
+#[derive(Debug, Default, Serialize, PartialEq)]
+pub struct Story {
+    pub title: String,
+    pub story: String,
+    pub translation: String,
+    /// The words it was asked to use.
+    pub words: Vec<String>,
+    /// Chinese: the pinyin of the story.
+    pub pinyin: String,
     #[serde(flatten)]
     pub by: By,
 }
@@ -333,23 +496,35 @@ impl<'a> Ai<'a> {
         Err(failures.join(" "))
     }
 
+    /// An English or a Chinese word explained in Vietnamese; the script of the word tells which.
     pub fn explain(&self, word: &str) -> Result<Explain, String> {
         let word = word.trim();
         if word.is_empty() || word.chars().count() > 80 {
             return Err("Từ không hợp lệ".into());
         }
-        let prompt = Prompt { system: EXPLAIN_SYSTEM, example: EXPLAIN_SHOT, question: word, max_tokens: 220 };
+        let zh = pron::is_chinese(word);
+        let (system, example) = if zh { (EXPLAIN_ZH_SYSTEM, EXPLAIN_ZH_SHOT) } else { (EXPLAIN_SYSTEM, EXPLAIN_SHOT) };
+        let prompt = Prompt { system, example, question: word, max_tokens: 380, cjk: zh };
         let (text, by) = self.chat(&prompt)?;
         let mut out = parse_explain(&text);
         if out.meaning.is_empty() {
             return Err(format!("AI trả lời không đúng mẫu: {}", text.trim()));
         }
+        if zh {
+            out.hanviet = pron::hanviet(word);
+            // The dictionary's pinyin when the model gave none, or gave characters instead.
+            if out.example_reading.is_empty() || pron::is_chinese(&out.example_reading) {
+                out.example_reading = pron::pinyin(&out.example);
+            }
+        } else {
+            out.example_reading.clear();
+        }
         out.by = by;
         Ok(out)
     }
 
-    /// New words on a topic or, without one, near the words already learned; none that are in `known`.
-    pub fn suggest(&self, topic: &str, learned: &[String], known: &[String]) -> Result<Suggestions, String> {
+    /// New words of a course on a topic or, without one, near the words already learned; none that are in `known`.
+    pub fn suggest(&self, topic: &str, learned: &[String], known: &[String], zh: bool) -> Result<Suggestions, String> {
         let topic: String = topic.trim().chars().take(80).collect();
         let question = if !topic.is_empty() {
             format!("Topic: {topic}")
@@ -359,55 +534,262 @@ impl<'a> Ai<'a> {
         } else {
             "Topic: everyday life".to_owned()
         };
-        let prompt = Prompt { system: SUGGEST_SYSTEM, example: SUGGEST_SHOT, question: &question, max_tokens: 200 };
+        let (system, example) = if zh { (SUGGEST_ZH_SYSTEM, SUGGEST_ZH_SHOT) } else { (SUGGEST_SYSTEM, SUGGEST_SHOT) };
+        let prompt = Prompt { system, example, question: &question, max_tokens: 200, cjk: zh };
         let (text, by) = self.chat(&prompt)?;
-        let items = parse_suggestions(&text, known);
+        let mut items = parse_suggestions(&text, known);
+        items.retain(|s| pron::is_chinese(&s.word) == zh);
         if items.is_empty() {
             return Err("AI chưa gợi ý được từ mới, hãy thử chủ đề khác".into());
         }
         Ok(Suggestions { items, by })
     }
+
+    /// Corrects a sentence the learner wrote with `word` and says why, in Vietnamese.
+    pub fn check_sentence(&self, word: &str, sentence: &str) -> Result<Check, String> {
+        let (word, sentence) = (word.trim(), sentence.trim());
+        if word.is_empty() || word.chars().count() > 80 {
+            return Err("Từ không hợp lệ".into());
+        }
+        if sentence.is_empty() || sentence.chars().count() > 300 {
+            return Err("Hãy viết một câu từ 1 đến 300 ký tự".into());
+        }
+        let question = format!("Word: {word}\nSentence: {sentence}");
+        let zh = pron::is_chinese(word);
+        let (system, example) = if zh { (CHECK_ZH_SYSTEM, CHECK_ZH_SHOT) } else { (CHECK_SYSTEM, CHECK_SHOT) };
+        let prompt = Prompt { system, example, question: &question, max_tokens: 200, cjk: zh };
+        let (text, by) = self.chat(&prompt)?;
+        let mut out = parse_check(&text, sentence);
+        if out.explain.is_empty() && out.better.is_empty() {
+            return Err(format!("AI trả lời không đúng mẫu: {}", text.trim()));
+        }
+        out.by = by;
+        Ok(out)
+    }
+
+    /// A short story that uses every one of `words`, with its translation.
+    pub fn story(&self, words: &[String]) -> Result<Story, String> {
+        let words: Vec<String> = words.iter().map(|w| w.trim().to_owned()).filter(|w| !w.is_empty() && w.chars().count() <= 80).take(12).collect();
+        if words.is_empty() {
+            return Err("Chưa có từ nào để viết truyện, hãy học vài từ trước".into());
+        }
+        let question = format!("Words: {}", words.join(", "));
+        let zh = words.iter().any(|w| pron::is_chinese(w));
+        let (system, example) = if zh { (STORY_ZH_SYSTEM, STORY_ZH_SHOT) } else { (STORY_SYSTEM, STORY_SHOT) };
+        let prompt = Prompt { system, example, question: &question, max_tokens: 560, cjk: zh };
+        let (text, by) = self.chat(&prompt)?;
+        let mut out = parse_story(&text);
+        if out.story.is_empty() {
+            return Err("AI chưa viết được truyện, hãy thử lại".into());
+        }
+        if zh {
+            out.pinyin = pron::pinyin(&out.story);
+        }
+        out.words = words;
+        out.by = by;
+        Ok(out)
+    }
+
+    /// The words of an English or a Chinese text most worth learning, none of them in `known`.
+    pub fn extract(&self, text: &str, known: &[String]) -> Result<Suggestions, String> {
+        let text: String = text.trim().chars().take(EXTRACT_CHARS).collect();
+        let zh = text.chars().filter(|&c| pron::is_han(c)).count() >= 3;
+        if !zh && text.chars().filter(char::is_ascii_alphabetic).count() < 3 {
+            return Err("Hãy dán một đoạn văn tiếng Anh hoặc tiếng Trung".into());
+        }
+        let question = format!("Text: {text}");
+        let (system, example) = if zh { (EXTRACT_ZH_SYSTEM, EXTRACT_ZH_SHOT) } else { (EXTRACT_SYSTEM, EXTRACT_SHOT) };
+        let prompt = Prompt { system, example, question: &question, max_tokens: 260, cjk: zh };
+        let (answer, by) = self.chat(&prompt)?;
+        let mut items = parse_suggestions(&answer, known);
+        items.retain(|s| pron::is_chinese(&s.word) == zh);
+        if items.is_empty() {
+            return Err("AI không tìm thấy từ mới nào đáng học trong đoạn này".into());
+        }
+        Ok(Suggestions { items, by })
+    }
 }
 
-/// The five lines of an explanation; labels are matched loosely since a small model drifts.
-fn parse_explain(text: &str) -> Explain {
-    let mut out = Explain::default();
-    for line in text.lines() {
-        let Some((label, value)) = line.split_once(':') else { continue };
-        let label: String = label
-            .chars()
-            .filter(char::is_ascii_alphabetic)
-            .collect::<String>()
-            .to_ascii_uppercase();
-        let value = value.trim().trim_matches('*').trim().to_owned();
-        // By the start of the ASCII letters, so that `NGHĨA` or `VÍ DỤ` with accents still match.
-        let slot = match label.as_str() {
-            l if l.starts_with("TYPE") => &mut out.pos,
-            l if l.starts_with("NGH") => &mut out.meaning,
-            l if l.starts_with("GI") => &mut out.explain,
-            l if l.starts_with('V') => &mut out.example,
-            l if l.starts_with('D') => &mut out.example_vi,
-            _ => continue,
-        };
-        if slot.is_empty() {
-            *slot = value;
+/// A Vietnamese letter without its marks, `ệ` as `e` and `đ` as `d`; any other character as it is.
+fn base_letter(c: char) -> char {
+    const GROUPS: [(&str, char); 14] = [
+        ("àáạảãâầấậẩẫăằắặẳẵ", 'a'),
+        ("ÀÁẠẢÃÂẦẤẬẨẪĂẰẮẶẲẴ", 'A'),
+        ("èéẹẻẽêềếệểễ", 'e'),
+        ("ÈÉẸẺẼÊỀẾỆỂỄ", 'E'),
+        ("ìíịỉĩ", 'i'),
+        ("ÌÍỊỈĨ", 'I'),
+        ("òóọỏõôồốộổỗơờớợởỡ", 'o'),
+        ("ÒÓỌỎÕÔỒỐỘỔỖƠỜỚỢỞỠ", 'O'),
+        ("ùúụủũưừứựửữ", 'u'),
+        ("ÙÚỤỦŨƯỪỨỰỬỮ", 'U'),
+        ("ỳýỵỷỹ", 'y'),
+        ("ỲÝỴỶỸ", 'Y'),
+        ("đ", 'd'),
+        ("Đ", 'D'),
+    ];
+    GROUPS.iter().find(|(set, _)| set.contains(c)).map_or(c, |&(_, base)| base)
+}
+
+/// A label such as `**Nghĩa**` or `VÍ DỤ` as its unaccented capital letters: `NGHIA`, `VIDU`.
+fn fold_label(label: &str) -> String {
+    label.chars().map(base_letter).filter(char::is_ascii_alphabetic).map(|c| c.to_ascii_uppercase()).collect()
+}
+
+/// A value without the stars a model wraps it in.
+fn clean(value: &str) -> String {
+    value.trim().trim_matches('*').trim().to_owned()
+}
+
+/// The values of `LABEL: value` lines, in the slot `slot` gives each folded label; the first value wins. A line
+/// without a known label goes on the value before it when that slot is in `long`, and is dropped otherwise.
+fn labeled<const N: usize>(text: &str, slot: impl Fn(&str) -> Option<usize>, long: &[usize]) -> [String; N] {
+    let mut out: [String; N] = std::array::from_fn(|_| String::new());
+    let mut open = None;
+    for line in text.lines().map(str::trim).filter(|l| !l.is_empty()) {
+        // Chinese answers often put a full-width colon after the label.
+        let found = line.split_once([':', '：']).and_then(|(label, value)| {
+            let label = fold_label(label);
+            if label.is_empty() || label.len() > 20 { None } else { slot(&label).filter(|&i| i < N).map(|i| (i, value)) }
+        });
+        match found {
+            Some((i, value)) => {
+                open = None;
+                if out[i].is_empty() {
+                    out[i] = clean(value);
+                    open = long.contains(&i).then_some(i);
+                }
+            }
+            None => {
+                if let Some(i) = open {
+                    out[i].push(' ');
+                    out[i].push_str(&clean(line));
+                }
+            }
         }
     }
     out
 }
 
-/// `word | meaning` lines, tolerant of numbering and other separators; words already known are left out.
+/// Nothing, for the dash or the "none" a model writes when it has no synonym.
+fn unless_none(value: String) -> String {
+    let lower = value.to_lowercase();
+    let none = value.chars().all(|c| matches!(c, '-' | '–' | '—' | '.' | ' '))
+        || ["none", "n/a", "không", "không có", "khong co"].contains(&lower.trim_end_matches('.'));
+    if none { String::new() } else { value }
+}
+
+/// The first CEFR level in `text`, such as `B2`.
+fn cefr(text: &str) -> String {
+    let up = text.to_ascii_uppercase();
+    let b = up.as_bytes();
+    (0..b.len().saturating_sub(1))
+        .find(|&i| matches!(b[i], b'A' | b'B' | b'C') && matches!(b[i + 1], b'1' | b'2'))
+        .map(|i| up[i..i + 2].to_owned())
+        .unwrap_or_default()
+}
+
+/// A level as the app keeps it: `HSK3` from "HSK 3", else the first CEFR level, such as `B2`.
+fn level_of(text: &str) -> String {
+    let up = text.to_ascii_uppercase();
+    let hsk = up.find("HSK").and_then(|at| up[at + 3..].trim_start().chars().next()).filter(|c| ('1'..='9').contains(c));
+    hsk.map_or_else(|| cefr(text), |n| format!("HSK{n}"))
+}
+
+/// The lines of an explanation; labels are matched by how they start since a small model drifts.
+fn parse_explain(text: &str) -> Explain {
+    let slot = |l: &str| {
+        Some(match l {
+            _ if l.starts_with("TY") || l.starts_with("LOAI") => 0,
+            _ if l.starts_with("NGH") || l == "MEANING" => 1,
+            _ if l.starts_with("GI") => 2,
+            _ if l.starts_with('V') || l.starts_with("EXAM") => 3,
+            _ if l.starts_with("DI") || l.starts_with("TRANSL") => 4,
+            _ if l.starts_with("DO") || l.starts_with("SYN") => 5,
+            _ if l.starts_with("TR") || l.starts_with("ANT") => 6,
+            _ if l.starts_with("CU") || l.starts_with("COL") => 7,
+            _ if l.starts_with("CA") || l.starts_with("LEV") || l.starts_with("CEFR") => 8,
+            _ if l.starts_with("CH") || l.starts_with("TOP") => 9,
+            _ if l.starts_with("PIN") => 10,
+            _ => return None,
+        })
+    };
+    let [pos, meaning, explain, example, example_vi, synonyms, antonyms, collocations, level, topic, example_reading] =
+        labeled(text, slot, &[]);
+    Explain {
+        pos,
+        meaning,
+        explain,
+        example,
+        example_vi,
+        synonyms: unless_none(synonyms),
+        antonyms: unless_none(antonyms),
+        collocations: unless_none(collocations),
+        level: level_of(&level),
+        topic: unless_none(topic),
+        hanviet: String::new(),
+        example_reading,
+        by: By::default(),
+    }
+}
+
+fn letters(text: &str) -> String {
+    text.to_lowercase().chars().filter(|c| c.is_alphanumeric()).collect()
+}
+
+/// A teacher's four lines; without a clear yes or no, a sentence left unchanged counts as right.
+fn parse_check(text: &str, sentence: &str) -> Check {
+    let slot = |l: &str| {
+        Some(match l {
+            _ if l.starts_with("DU") || l.starts_with("CORRECT") => 0,
+            _ if l.starts_with("SU") || l.starts_with("FIX") => 1,
+            _ if l.starts_with("GI") || l.starts_with("EXPL") => 2,
+            _ if l.starts_with("GO") || l.starts_with("BETTER") => 3,
+            _ => return None,
+        })
+    };
+    let [verdict, corrected, explain, better] = labeled(text, slot, &[2]);
+    let corrected = if corrected.is_empty() { sentence.trim().to_owned() } else { corrected };
+    let verdict = fold_label(&verdict);
+    let ok = if ["YES", "CO", "DUNG", "TRUE"].iter().any(|v| verdict.starts_with(v)) {
+        true
+    } else if ["NO", "KHONG", "SAI", "FALSE"].iter().any(|v| verdict.starts_with(v)) {
+        false
+    } else {
+        letters(&corrected) == letters(sentence)
+    };
+    Check { ok, corrected, explain, better, by: By::default() }
+}
+
+/// A title, the story and its translation. The labels are matched whole, since the story is free text that may
+/// hold a colon; lines without a label go on the paragraph before them.
+fn parse_story(text: &str) -> Story {
+    let slot = |l: &str| match l {
+        "TITLE" | "TIEUDE" => Some(0),
+        "STORY" | "TRUYEN" | "CAUCHUYEN" => Some(1),
+        "DICH" | "BANDICH" | "TRANSLATION" => Some(2),
+        _ => None,
+    };
+    let [title, story, translation] = labeled(text, slot, &[1, 2]);
+    // A model that leaves out the labels still wrote a story.
+    let story = if story.is_empty() && translation.is_empty() { text.trim().to_owned() } else { story };
+    Story { title, story, translation, ..Story::default() }
+}
+
+/// `word | meaning` lines, tolerant of numbering and other separators; words already known are left out. A word
+/// is English letters or Chinese characters, never both.
 fn parse_suggestions(text: &str, known: &[String]) -> Vec<Suggestion> {
     let mut out: Vec<Suggestion> = Vec::new();
     for line in text.lines() {
         let line = line.trim().trim_start_matches(|c: char| c.is_ascii_digit() || matches!(c, '.' | ')' | '-' | '*' | ' '));
-        let Some((word, meaning)) = ["|", " - ", ":", "–"].iter().find_map(|sep| line.split_once(sep)) else {
+        let Some((word, meaning)) = ["|", "｜", " - ", ":", "：", "–"].iter().find_map(|sep| line.split_once(sep)) else {
             continue;
         };
         let word = word.trim().trim_matches('*').trim().to_lowercase();
         let meaning = meaning.trim().trim_matches('*').trim().to_owned();
-        let plain = word.chars().all(|c| c.is_ascii_alphabetic() || matches!(c, ' ' | '-' | '\''));
-        if word.is_empty() || word.len() > 40 || !plain || meaning.is_empty() {
+        let english = word.chars().all(|c| c.is_ascii_alphabetic() || matches!(c, ' ' | '-' | '\''));
+        let chinese = word.chars().all(pron::is_han);
+        if word.is_empty() || word.len() > 40 || !(english || chinese) || meaning.is_empty() {
             continue;
         }
         let seen = known.iter().any(|k| k.eq_ignore_ascii_case(&word)) || out.iter().any(|s| s.word == word);
@@ -482,7 +864,7 @@ pub fn warm_up(dir: &Path) {
     if !models::ready(dir, "llm") {
         return;
     }
-    let prompt = Prompt { system: "You are helpful.", example: ("hi", "hello"), question: "hi", max_tokens: 1 };
+    let prompt = Prompt { system: "You are helpful.", example: ("hi", "hello"), question: "hi", max_tokens: 1, cjk: false };
     if let Err(e) = local(&prompt, dir) {
         eprintln!("warm up: {}", e.message);
     }
@@ -513,7 +895,7 @@ fn local(prompt: &Prompt, dir: &Path) -> Result<Answer, CallError> {
         let (input, pos) = if i == 0 { (&tokens[..], 0) } else { (&tokens[tokens.len() - 1..], tokens.len() - 1) };
         let input = Tensor::new(input, &device).and_then(|t| t.unsqueeze(0)).map_err(err)?;
         let logits = llm.model.forward(&input, pos).and_then(|l| l.squeeze(0)).map_err(err)?;
-        let logits = logits.broadcast_add(&llm.no_cjk).map_err(err)?;
+        let logits = if prompt.cjk { logits } else { logits.broadcast_add(&llm.no_cjk).map_err(err)? };
         let recent = &tokens[prompt_len.max(tokens.len().saturating_sub(64))..];
         let logits = apply_repeat_penalty(&logits, 1.1, recent).map_err(err)?;
         let next = sampler.sample(&logits).map_err(err)?;
@@ -525,7 +907,7 @@ fn local(prompt: &Prompt, dir: &Path) -> Result<Answer, CallError> {
     }
     let decoded = llm.tokenizer.decode(&output, true).map_err(|e| e.to_string())?;
     Ok(Answer {
-        text: decoded.chars().filter(|&c| !is_cjk(c)).collect(),
+        text: if prompt.cjk { decoded } else { decoded.chars().filter(|&c| !is_cjk(c)).collect() },
         input_tokens: prompt_len as u64,
         output_tokens: output.len() as u64,
         limits: Value::Null,
@@ -550,7 +932,7 @@ mod tests {
             assert!(!e.meaning.is_empty() && !e.example.is_empty(), "{e:?}");
         }
         let known = ["passport".to_owned()];
-        let s = ai.suggest("travel", &[], &known).unwrap();
+        let s = ai.suggest("travel", &[], &known, false).unwrap();
         println!("travel: {:?}", s.items);
         assert!(s.items.len() >= 4 && s.items.iter().all(|s| s.word != "passport"));
         assert!(ai.attempts.borrow().iter().all(|a| a.ok && a.output_tokens > 0));
@@ -603,7 +985,51 @@ mod tests {
         assert_eq!(e.example_vi, "Tôi chạy mỗi ngày.");
         assert_eq!(e.explain, "Di chuyển nhanh bằng chân.");
         assert_eq!(parse_explain("VÍ DỤ: Hi.\nDỊCH: Chào.").example_vi, "Chào.");
-        assert_eq!(parse_explain(EXPLAIN_SHOT.1).meaning, "quả táo");
+        let shot = parse_explain(EXPLAIN_SHOT.1);
+        assert_eq!((shot.meaning.as_str(), shot.synonyms.as_str(), shot.level.as_str(), shot.topic.as_str()), ("quả táo", "", "A1", "Ẩm thực"));
+        assert_eq!(shot.collocations, "apple juice, apple pie, green apple");
+    }
+
+    #[test]
+    fn the_longer_explanation_takes_accented_labels() {
+        let text = "TYPE: verb\nNGHĨA: đàm phán\nĐỒNG NGHĨA: bargain, discuss\nTRÁI NGHĨA: none\nCỤM TỪ: negotiate a deal\nCẤP ĐỘ: Level b2 (upper)\nCHỦ ĐỀ: Công việc\nHope this helps: yes";
+        let e = parse_explain(text);
+        assert_eq!(e.meaning, "đàm phán");
+        assert_eq!(e.synonyms, "bargain, discuss");
+        assert_eq!(e.antonyms, "");
+        assert_eq!(e.collocations, "negotiate a deal");
+        assert_eq!(e.level, "B2");
+        assert_eq!(e.topic, "Công việc");
+        assert_eq!(fold_label("**Giải thích**"), "GIAITHICH");
+        assert_eq!(cefr("c1"), "C1");
+        assert_eq!(cefr("D4"), "");
+    }
+
+    #[test]
+    fn a_checked_sentence_says_right_or_wrong() {
+        let c = parse_check(CHECK_SHOT.1, "I must finish report before deadline.");
+        assert!(!c.ok);
+        assert_eq!(c.corrected, "I must finish the report before the deadline.");
+        assert!(c.explain.starts_with("Cần thêm mạo từ") && c.better.starts_with("The deadline"));
+        let yes = parse_check("ĐÚNG: Có\nSỬA: She is reliable.\nGIẢI THÍCH: Câu đúng.\nmore praise", "She is reliable.");
+        assert!(yes.ok);
+        assert_eq!(yes.explain, "Câu đúng. more praise");
+        // No verdict: an unchanged sentence is right, a changed one is not.
+        assert!(parse_check("SUA: She is reliable!\nGIAITHICH: Tốt.", "she is reliable").ok);
+        assert!(!parse_check("SUA: She is a reliable friend.", "She is reliable.").ok);
+        assert_eq!(parse_check("GIAITHICH: x", "Same.").corrected, "Same.");
+    }
+
+    #[test]
+    fn a_story_keeps_its_paragraphs_and_colons() {
+        let s = parse_story(STORY_SHOT.1);
+        assert_eq!(s.title, "A Long Day at the Airport");
+        assert!(s.story.starts_with("Mai packed") && s.story.ends_with("to tell."));
+        assert!(s.translation.starts_with("Mai đóng"));
+        let loose = parse_story("Title: Rain\nStory: It rained.\nStill, she said: we go.\nThe end.\nDịch: Trời mưa.\nHết.");
+        assert_eq!(loose.story, "It rained. Still, she said: we go. The end.");
+        assert_eq!(loose.translation, "Trời mưa. Hết.");
+        assert_eq!(parse_story("Once upon a time.").story, "Once upon a time.");
     }
 
     #[test]
@@ -611,9 +1037,31 @@ mod tests {
         let text = "1. Hotel | khách sạn\n2) passport - hộ chiếu\n**luggage**: hành lý\nhotel | trùng\n航班 | chuyến bay\nSure, here you go\nboarding pass | thẻ lên máy bay";
         let s = parse_suggestions(text, &["Passport".into()]);
         let words: Vec<&str> = s.iter().map(|s| s.word.as_str()).collect();
-        assert_eq!(words, ["hotel", "luggage", "boarding pass"]);
+        // A Chinese word is a word too; each course keeps its own (see `suggest`).
+        assert_eq!(words, ["hotel", "luggage", "航班", "boarding pass"]);
         assert_eq!(s[0].meaning, "khách sạn");
         assert_eq!(s[0].ipa, "/hoʊˈtɛl/");
         assert_eq!(parse_suggestions(SUGGEST_SHOT.1, &[]).len(), 8);
+    }
+
+    #[test]
+    fn chinese_answers_parse() {
+        let e = parse_explain(EXPLAIN_ZH_SHOT.1);
+        assert_eq!((e.meaning.as_str(), e.level.as_str(), e.collocations.as_str()), ("quả táo", "HSK1", "苹果汁, 红苹果, 吃苹果"));
+        assert_eq!(e.example, "我每天早上吃一个苹果。");
+        assert!(e.example_reading.starts_with("Wǒ měitiān"), "{}", e.example_reading);
+        assert_eq!([level_of("hsk 4"), level_of("B2"), level_of("HSK"), level_of("")], ["HSK4", "B2", "", ""]);
+        // Full-width bars and colons, as Chinese answers have them; a word is one script or the other.
+        let s = parse_suggestions("1. 机场｜sân bay\n护照：hộ chiếu\nhotel | khách sạn\n飞机 plane | máy bay", &["护照".into()]);
+        assert_eq!(s.iter().map(|s| s.word.as_str()).collect::<Vec<_>>(), ["机场", "hotel"]);
+        assert_eq!(s[0].ipa, "jīchǎng");
+        assert_eq!(parse_suggestions(SUGGEST_ZH_SHOT.1, &[]).len(), 8);
+        assert_eq!(parse_suggestions(EXTRACT_ZH_SHOT.1, &[]).len(), 5);
+        let story = parse_story("TITLE：机场\nSTORY：她说：我们走吧。\n很好。\nDICH：Cô ấy nói: đi thôi.");
+        assert_eq!((story.title.as_str(), story.story.as_str()), ("机场", "她说：我们走吧。 很好。"));
+        let shot = parse_story(STORY_ZH_SHOT.1);
+        assert!(shot.story.starts_with("小美") && shot.story.contains("纪念品。飞机") && shot.translation.starts_with("Tiểu Mỹ"));
+        let check = parse_check(CHECK_ZH_SHOT.1, "我喜欢很吃中国菜。");
+        assert_eq!((check.ok, check.corrected.as_str()), (false, "我很喜欢吃中国菜。"));
     }
 }

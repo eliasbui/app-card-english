@@ -1,12 +1,17 @@
-//! The words and the settings, in one SQLite file in the data folder, and the SM-2 schedule of review.
+//! The words and the settings, in one SQLite file in the data folder, the FSRS schedule of review and the log of
+//! answers that undo and the statistics read.
 
+use crate::{fsrs, pron};
 use rusqlite::{Connection, OptionalExtension, Row, params};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::path::Path;
 
-const DAY: i64 = 86_400;
+pub const DAY: i64 = 86_400;
 /// A forgotten word comes back within the same session.
 const RELEARN_SECONDS: i64 = 600;
+/// The version of the tables in `PRAGMA user_version`; `migrate` brings an older file up to it.
+const SCHEMA: i64 = 2;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -20,10 +25,27 @@ pub struct Word {
     pub example: String,
     pub example_vi: String,
     pub note: String,
+    pub synonyms: String,
+    pub antonyms: String,
+    pub collocations: String,
+    /// The CEFR level A1 to C2, HSK1 to HSK9 for Chinese, or empty.
+    pub level: String,
+    pub topic: String,
+    /// "en" or "zh", from the script of the word; each is a course of its own.
+    pub lang: String,
+    /// Chinese: the Sino-Vietnamese reading of the word.
+    pub hanviet: String,
+    /// Chinese: the pinyin of the example.
+    pub example_reading: String,
     pub created: i64,
     pub due: i64,
+    /// Days until the next review, 0 while a forgotten word is learned again.
     pub interval: f64,
-    pub ease: f64,
+    /// FSRS: the days until the chance of recall falls to 90%, 0 before the first review.
+    pub stability: f64,
+    /// FSRS: 1 to 10.
+    pub difficulty: f64,
+    pub last_review: i64,
     pub reps: i64,
     pub lapses: i64,
     /// When the word was first reviewed, 0 while it is still new.
@@ -33,7 +55,7 @@ pub struct Word {
 }
 
 pub fn open(path: &Path) -> rusqlite::Result<Connection> {
-    let db = Connection::open(path)?;
+    let mut db = Connection::open(path)?;
     // The file holds API keys and the ChatGPT tokens: readable by its owner only.
     #[cfg(unix)]
     for suffix in ["", "-wal", "-shm"] {
@@ -41,6 +63,12 @@ pub fn open(path: &Path) -> rusqlite::Result<Connection> {
         let file = format!("{}{suffix}", path.display());
         let _ = std::fs::set_permissions(file, std::fs::Permissions::from_mode(0o600));
     }
+    init(&mut db)?;
+    Ok(db)
+}
+
+/// The tables of the first version, then what later versions added.
+fn init(db: &mut Connection) -> rusqlite::Result<()> {
     db.execute_batch(
         "PRAGMA journal_mode = WAL;
          PRAGMA busy_timeout = 3000;
@@ -81,11 +109,80 @@ pub fn open(path: &Path) -> rusqlite::Result<Connection> {
              PRIMARY KEY (day, provider, model)
          );",
     )?;
-    Ok(db)
+    migrate(db)
 }
 
-const COLUMNS: &str = "id, word, ipa, pos, meaning, explain, example, example_vi, note, created, due, \
-                       interval, ease, reps, lapses, learned_at, score";
+/// Version 1: FSRS in place of SM-2, the longer explanation, and the log of answers.
+const V1: &str = "
+    ALTER TABLE words ADD COLUMN stability REAL NOT NULL DEFAULT 0;
+    ALTER TABLE words ADD COLUMN difficulty REAL NOT NULL DEFAULT 0;
+    ALTER TABLE words ADD COLUMN last_review INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE words ADD COLUMN synonyms TEXT NOT NULL DEFAULT '';
+    ALTER TABLE words ADD COLUMN antonyms TEXT NOT NULL DEFAULT '';
+    ALTER TABLE words ADD COLUMN collocations TEXT NOT NULL DEFAULT '';
+    ALTER TABLE words ADD COLUMN level TEXT NOT NULL DEFAULT '';
+    ALTER TABLE words ADD COLUMN topic TEXT NOT NULL DEFAULT '';
+    CREATE TABLE reviews (
+        id INTEGER PRIMARY KEY,
+        word_id INTEGER NOT NULL,
+        at INTEGER NOT NULL,
+        rating INTEGER NOT NULL,
+        -- The schedule of the word before the answer, which undo puts back.
+        prev TEXT NOT NULL
+    );
+    CREATE INDEX reviews_word ON reviews (word_id, id);
+    CREATE INDEX reviews_at ON reviews (at);";
+
+/// Version 2: Chinese, a course of its own.
+const V2: &str = "
+    ALTER TABLE words ADD COLUMN lang TEXT NOT NULL DEFAULT 'en';
+    ALTER TABLE words ADD COLUMN hanviet TEXT NOT NULL DEFAULT '';
+    ALTER TABLE words ADD COLUMN example_reading TEXT NOT NULL DEFAULT '';
+    CREATE INDEX words_lang ON words (lang, learned_at, due);";
+
+fn user_version(db: &Connection) -> rusqlite::Result<i64> {
+    db.query_row("PRAGMA user_version", [], |r| r.get(0))
+}
+
+fn migrate(db: &mut Connection) -> rusqlite::Result<()> {
+    if user_version(db)? >= SCHEMA {
+        return Ok(());
+    }
+    // Under the write lock and checked again inside it: every thread opens its own connection.
+    let tx = db.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+    if user_version(&tx)? < 1 {
+        tx.execute_batch(V1)?;
+        let old: Vec<(i64, f64, f64, i64)> = {
+            let mut stmt = tx.prepare("SELECT id, interval, ease, due FROM words WHERE learned_at > 0")?;
+            stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?.collect::<rusqlite::Result<_>>()?
+        };
+        for (id, interval, ease, due) in old {
+            let m = fsrs::from_sm2(interval, ease);
+            let last = if interval >= 1.0 { due - (interval * DAY as f64) as i64 } else { due - RELEARN_SECONDS };
+            tx.execute(
+                "UPDATE words SET stability = ?2, difficulty = ?3, last_review = ?4 WHERE id = ?1",
+                params![id, m.stability, m.difficulty, last],
+            )?;
+        }
+    }
+    if user_version(&tx)? < 2 {
+        tx.execute_batch(V2)?;
+        // Chinese words added before there was a course for them move to it, with their readings.
+        for mut w in select(&tx, "WHERE ?1 = ?1", [0])?.into_iter().filter(|w| pron::is_chinese(&w.word)) {
+            derive(&mut w);
+            tx.execute(
+                "UPDATE words SET lang = ?2, ipa = ?3, hanviet = ?4, example_reading = ?5 WHERE id = ?1",
+                params![w.id, w.lang, w.ipa, w.hanviet, w.example_reading],
+            )?;
+        }
+    }
+    tx.pragma_update(None, "user_version", SCHEMA)?;
+    tx.commit()
+}
+
+const COLUMNS: &str = "id, word, ipa, pos, meaning, explain, example, example_vi, note, synonyms, antonyms, collocations, \
+                       level, topic, created, due, interval, stability, difficulty, last_review, reps, lapses, learned_at, score, \
+                       lang, hanviet, example_reading";
 
 fn row(r: &Row) -> rusqlite::Result<Word> {
     Ok(Word {
@@ -98,14 +195,24 @@ fn row(r: &Row) -> rusqlite::Result<Word> {
         example: r.get(6)?,
         example_vi: r.get(7)?,
         note: r.get(8)?,
-        created: r.get(9)?,
-        due: r.get(10)?,
-        interval: r.get(11)?,
-        ease: r.get(12)?,
-        reps: r.get(13)?,
-        lapses: r.get(14)?,
-        learned_at: r.get(15)?,
-        score: r.get(16)?,
+        synonyms: r.get(9)?,
+        antonyms: r.get(10)?,
+        collocations: r.get(11)?,
+        level: r.get(12)?,
+        topic: r.get(13)?,
+        created: r.get(14)?,
+        due: r.get(15)?,
+        interval: r.get(16)?,
+        stability: r.get(17)?,
+        difficulty: r.get(18)?,
+        last_review: r.get(19)?,
+        reps: r.get(20)?,
+        lapses: r.get(21)?,
+        learned_at: r.get(22)?,
+        score: r.get(23)?,
+        lang: r.get(24)?,
+        hanviet: r.get(25)?,
+        example_reading: r.get(26)?,
     })
 }
 
@@ -118,7 +225,7 @@ pub fn list(db: &Connection, query: &str) -> rusqlite::Result<Vec<Word>> {
     let like = format!("%{}%", query.trim());
     select(
         db,
-        "WHERE word LIKE ?1 OR meaning LIKE ?1 ORDER BY created DESC",
+        "WHERE word LIKE ?1 OR meaning LIKE ?1 OR topic LIKE ?1 ORDER BY created DESC",
         [like],
     )
 }
@@ -127,27 +234,73 @@ pub fn get(db: &Connection, id: i64) -> rusqlite::Result<Option<Word>> {
     Ok(select(db, "WHERE id = ?1", [id])?.pop())
 }
 
+pub fn find(db: &Connection, word: &str) -> rusqlite::Result<Option<Word>> {
+    Ok(select(db, "WHERE word = ?1", [word.trim()])?.pop())
+}
+
+/// What a word takes from its text: its language, and the readings it was given none of.
+fn derive(w: &mut Word) {
+    w.word = w.word.trim().to_owned();
+    let chinese = pron::is_chinese(&w.word);
+    w.lang = if chinese { "zh" } else { "en" }.into();
+    if w.ipa.trim().is_empty() {
+        w.ipa = pron::ipa(&w.word);
+    }
+    if chinese {
+        if w.hanviet.trim().is_empty() {
+            w.hanviet = pron::hanviet(&w.word);
+        }
+        if w.example_reading.trim().is_empty() && pron::is_chinese(&w.example) {
+            w.example_reading = pron::pinyin(&w.example);
+        }
+    }
+}
+
 /// Inserts a new word or, with an id, changes the text of one; the schedule is left as it is.
 pub fn save(db: &Connection, w: &Word, now: i64) -> rusqlite::Result<i64> {
-    let word = w.word.trim();
+    let mut w = w.clone();
+    derive(&mut w);
     if w.id == 0 {
         db.execute(
-            "INSERT INTO words (word, ipa, pos, meaning, explain, example, example_vi, note, created, due)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)",
-            params![word, w.ipa, w.pos, w.meaning, w.explain, w.example, w.example_vi, w.note, now],
+            "INSERT INTO words (word, ipa, pos, meaning, explain, example, example_vi, note, synonyms, antonyms,
+                                collocations, level, topic, lang, hanviet, example_reading, created, due)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?17)",
+            params![w.word, w.ipa, w.pos, w.meaning, w.explain, w.example, w.example_vi, w.note, w.synonyms, w.antonyms,
+                    w.collocations, w.level, w.topic, w.lang, w.hanviet, w.example_reading, now],
         )?;
         Ok(db.last_insert_rowid())
     } else {
         db.execute(
             "UPDATE words SET word = ?2, ipa = ?3, pos = ?4, meaning = ?5, explain = ?6, example = ?7,
-             example_vi = ?8, note = ?9 WHERE id = ?1",
-            params![w.id, word, w.ipa, w.pos, w.meaning, w.explain, w.example, w.example_vi, w.note],
+             example_vi = ?8, note = ?9, synonyms = ?10, antonyms = ?11, collocations = ?12, level = ?13, topic = ?14,
+             lang = ?15, hanviet = ?16, example_reading = ?17
+             WHERE id = ?1",
+            params![w.id, w.word, w.ipa, w.pos, w.meaning, w.explain, w.example, w.example_vi, w.note, w.synonyms,
+                    w.antonyms, w.collocations, w.level, w.topic, w.lang, w.hanviet, w.example_reading],
         )?;
         Ok(w.id)
     }
 }
 
+/// Inserts a word with its schedule as it is, for a restored copy.
+pub fn insert(db: &Connection, w: &Word) -> rusqlite::Result<i64> {
+    let mut w = w.clone();
+    derive(&mut w);
+    db.execute(
+        "INSERT INTO words (word, ipa, pos, meaning, explain, example, example_vi, note, synonyms, antonyms, collocations,
+                            level, topic, created, due, interval, stability, difficulty, last_review, reps, lapses,
+                            learned_at, score, lang, hanviet, example_reading)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23,
+                 ?24, ?25, ?26)",
+        params![w.word, w.ipa, w.pos, w.meaning, w.explain, w.example, w.example_vi, w.note, w.synonyms,
+                w.antonyms, w.collocations, w.level, w.topic, w.created, w.due, w.interval, w.stability, w.difficulty,
+                w.last_review, w.reps, w.lapses, w.learned_at, w.score, w.lang, w.hanviet, w.example_reading],
+    )?;
+    Ok(db.last_insert_rowid())
+}
+
 pub fn delete(db: &Connection, id: i64) -> rusqlite::Result<()> {
+    db.execute("DELETE FROM reviews WHERE word_id = ?1", [id])?;
     db.execute("DELETE FROM words WHERE id = ?1", [id]).map(|_| ())
 }
 
@@ -155,22 +308,23 @@ pub fn set_score(db: &Connection, id: i64, score: i64) -> rusqlite::Result<()> {
     db.execute("UPDATE words SET score = ?2 WHERE id = ?1", [id, score]).map(|_| ())
 }
 
-/// What a session works through: the reviews that are due, then as many new words as today still allows.
-pub fn session(db: &Connection, now: i64, day_start: i64) -> rusqlite::Result<Vec<Word>> {
-    let mut words = select(db, "WHERE learned_at > 0 AND due <= ?1 ORDER BY due", [now])?;
-    let left = new_left(db, day_start)?;
-    words.extend(select(db, "WHERE learned_at = 0 ORDER BY created LIMIT ?1", [left])?);
+/// What a session of a course ("en" or "zh") works through: the reviews that are due, then as many new words as
+/// today still allows.
+pub fn session(db: &Connection, now: i64, day_start: i64, lang: &str) -> rusqlite::Result<Vec<Word>> {
+    let mut words = select(db, "WHERE learned_at > 0 AND due <= ?1 AND lang = ?2 ORDER BY due", params![now, lang])?;
+    let left = new_left(db, day_start, lang)?;
+    words.extend(select(db, "WHERE learned_at = 0 AND lang = ?2 ORDER BY created LIMIT ?1", params![left, lang])?);
     Ok(words)
 }
 
-/// How many new words may still be started today.
-fn new_left(db: &Connection, day_start: i64) -> rusqlite::Result<i64> {
+/// How many new words of a course may still be started today; each course has `new_per_day` of its own.
+fn new_left(db: &Connection, day_start: i64, lang: &str) -> rusqlite::Result<i64> {
     let per_day: i64 = setting(db, "new_per_day")?
         .and_then(|v| v.parse().ok())
         .unwrap_or(10);
     let today: i64 = db.query_row(
-        "SELECT count(*) FROM words WHERE learned_at > 0 AND learned_at >= ?1",
-        [day_start],
+        "SELECT count(*) FROM words WHERE learned_at > 0 AND learned_at >= ?1 AND (?2 = '' OR lang = ?2)",
+        params![day_start, lang],
         |r| r.get(0),
     )?;
     Ok((per_day - today).max(0))
@@ -183,58 +337,148 @@ pub struct Stats {
     pub new_today: i64,
     pub new_waiting: i64,
     pub learned: i64,
+    /// Answers ever given, and since `day_start`.
+    pub reviews: i64,
+    pub reviews_today: i64,
+    /// Words whose last pronunciation scored 90 or more.
+    pub perfect: i64,
 }
 
-pub fn stats(db: &Connection, now: i64, day_start: i64) -> rusqlite::Result<Stats> {
-    let count = |sql: &str, arg: i64| db.query_row(sql, [arg], |r| r.get::<_, i64>(0));
-    let waiting = count("SELECT count(*) FROM words WHERE learned_at = 0 AND ?1 = ?1", 0)?;
+/// The counts of a course, or of both when `lang` is empty; `new_today` only means something for one course.
+pub fn stats(db: &Connection, now: i64, day_start: i64, lang: &str) -> rusqlite::Result<Stats> {
+    let count = |filter: &str, arg: i64| {
+        let sql = format!("SELECT count(*) FROM words WHERE (?2 = '' OR lang = ?2) AND {filter}");
+        db.query_row(&sql, params![arg, lang], |r| r.get::<_, i64>(0))
+    };
+    let reviews = |since: i64| {
+        let sql = "SELECT count(*) FROM reviews r JOIN words w ON w.id = r.word_id WHERE r.at >= ?1 AND (?2 = '' OR w.lang = ?2)";
+        db.query_row(sql, params![since, lang], |r| r.get::<_, i64>(0))
+    };
+    let waiting = count("learned_at = 0 AND ?1 = ?1", 0)?;
     Ok(Stats {
-        total: count("SELECT count(*) FROM words WHERE ?1 = ?1", 0)?,
-        due: count("SELECT count(*) FROM words WHERE learned_at > 0 AND due <= ?1", now)?,
-        new_today: new_left(db, day_start)?.min(waiting),
+        total: count("?1 = ?1", 0)?,
+        due: count("learned_at > 0 AND due <= ?1", now)?,
+        new_today: new_left(db, day_start, lang)?.min(waiting),
         new_waiting: waiting,
-        learned: count("SELECT count(*) FROM words WHERE learned_at > 0 AND ?1 = ?1", 0)?,
+        learned: count("learned_at > 0 AND ?1 = ?1", 0)?,
+        reviews: reviews(i64::MIN)?,
+        reviews_today: reviews(day_start)?,
+        perfect: count("score >= ?1", 90)?,
     })
 }
 
-/// Records an answer: 1 forgot, 3 hard, 4 good, 5 easy.
-pub fn grade(db: &Connection, id: i64, quality: u8, now: i64) -> rusqlite::Result<Option<Word>> {
+/// The reviews of a course due on each of the next `days` days, the first also counting those that are overdue;
+/// `day_start` is the learner's midnight.
+pub fn forecast(db: &Connection, day_start: i64, days: usize, lang: &str) -> rusqlite::Result<Vec<i64>> {
+    let mut out = vec![0; days.max(1)];
+    let end = day_start + out.len() as i64 * DAY;
+    let mut stmt = db.prepare("SELECT due FROM words WHERE learned_at > 0 AND due < ?1 AND (?2 = '' OR lang = ?2)")?;
+    for due in stmt.query_map(params![end, lang], |r| r.get::<_, i64>(0))? {
+        let day = ((due? - day_start).max(0) / DAY) as usize;
+        let last = out.len() - 1;
+        out[day.min(last)] += 1;
+    }
+    Ok(out)
+}
+
+/// The words of a course answered since `since`, most recent first, or, when there are none, the words learned last.
+pub fn recent_words(db: &Connection, since: i64, limit: i64, lang: &str) -> rusqlite::Result<Vec<String>> {
+    let words = |sql: &str| -> rusqlite::Result<Vec<String>> {
+        let mut stmt = db.prepare(sql)?;
+        stmt.query_map(params![since, limit, lang], |r| r.get(0))?.collect()
+    };
+    let today = words(
+        "SELECT word FROM words WHERE id IN (SELECT word_id FROM reviews WHERE at >= ?1) AND lang = ?3
+         ORDER BY last_review DESC LIMIT ?2",
+    )?;
+    if !today.is_empty() {
+        return Ok(today);
+    }
+    words("SELECT word FROM words WHERE learned_at > 0 AND lang = ?3 AND ?1 = ?1 ORDER BY last_review DESC LIMIT ?2")
+}
+
+/// Every answer as a copy keeps it: the word, when, and how it went.
+pub fn review_log(db: &Connection) -> rusqlite::Result<Vec<serde_json::Value>> {
+    let mut stmt = db.prepare("SELECT w.word, r.at, r.rating FROM reviews r JOIN words w ON w.id = r.word_id ORDER BY r.id")?;
+    stmt.query_map([], |r| Ok(json!({ "word": r.get::<_, String>(0)?, "at": r.get::<_, i64>(1)?, "rating": r.get::<_, i64>(2)? })))?
+        .collect()
+}
+
+/// Records an answer, 1 forgot to 4 easy, and keeps the schedule it replaces so that the answer can be undone.
+pub fn grade(db: &Connection, id: i64, rating: u8, now: i64, retention: f64) -> rusqlite::Result<Option<Word>> {
     let Some(mut w) = get(db, id)? else {
         return Ok(None);
     };
-    sm2(&mut w, quality, now);
-    db.execute(
-        "UPDATE words SET due = ?2, interval = ?3, ease = ?4, reps = ?5, lapses = ?6, learned_at = ?7
-         WHERE id = ?1",
-        params![w.id, w.due, w.interval, w.ease, w.reps, w.lapses, w.learned_at],
+    let prev = json!({
+        "due": w.due, "interval": w.interval, "stability": w.stability, "difficulty": w.difficulty,
+        "last_review": w.last_review, "reps": w.reps, "lapses": w.lapses, "learned_at": w.learned_at,
+    });
+    schedule(&mut w, rating, now, retention);
+    let tx = db.unchecked_transaction()?;
+    write_schedule(&tx, &w)?;
+    tx.execute(
+        "INSERT INTO reviews (word_id, at, rating, prev) VALUES (?1, ?2, ?3, ?4)",
+        params![w.id, now, rating.clamp(1, 4), prev.to_string()],
     )?;
+    tx.commit()?;
     Ok(Some(w))
 }
 
-/// SuperMemo 2: the gap grows by the ease after the first two days and six days, a lapse starts over.
-pub fn sm2(w: &mut Word, quality: u8, now: i64) {
-    let q = f64::from(quality.clamp(0, 5));
+/// Puts a word back as it was before its last answer, and forgets that answer.
+pub fn undo(db: &Connection, id: i64) -> rusqlite::Result<Option<Word>> {
+    let last: Option<(i64, String)> = db
+        .query_row("SELECT id, prev FROM reviews WHERE word_id = ?1 ORDER BY id DESC LIMIT 1", [id], |r| {
+            Ok((r.get(0)?, r.get(1)?))
+        })
+        .optional()?;
+    let (Some((review, prev)), Some(mut w)) = (last, get(db, id)?) else {
+        return Ok(None);
+    };
+    let p: serde_json::Value = serde_json::from_str(&prev).unwrap_or_default();
+    let int = |key: &str| p[key].as_i64().unwrap_or(0);
+    let real = |key: &str| p[key].as_f64().unwrap_or(0.0);
+    (w.due, w.last_review, w.reps, w.lapses, w.learned_at) = (int("due"), int("last_review"), int("reps"), int("lapses"), int("learned_at"));
+    (w.interval, w.stability, w.difficulty) = (real("interval"), real("stability"), real("difficulty"));
+    let tx = db.unchecked_transaction()?;
+    write_schedule(&tx, &w)?;
+    tx.execute("DELETE FROM reviews WHERE id = ?1", [review])?;
+    tx.commit()?;
+    Ok(Some(w))
+}
+
+fn write_schedule(db: &Connection, w: &Word) -> rusqlite::Result<()> {
+    db.execute(
+        "UPDATE words SET due = ?2, interval = ?3, stability = ?4, difficulty = ?5, last_review = ?6, reps = ?7,
+         lapses = ?8, learned_at = ?9 WHERE id = ?1",
+        params![w.id, w.due, w.interval, w.stability, w.difficulty, w.last_review, w.reps, w.lapses, w.learned_at],
+    )
+    .map(|_| ())
+}
+
+/// FSRS: the memory of the word after the answer, then the day it is next due. A forgotten word comes back in ten
+/// minutes, within the same session.
+pub fn schedule(w: &mut Word, rating: u8, now: i64, retention: f64) {
+    let rating = rating.clamp(1, 4);
+    let memory = (w.stability > 0.0).then_some(fsrs::Memory { stability: w.stability, difficulty: w.difficulty });
+    let days = if w.last_review > 0 { (now - w.last_review).max(0) / DAY } else { 0 };
+    let m = fsrs::next(memory, days, rating);
+    (w.stability, w.difficulty) = (m.stability, m.difficulty);
     if w.learned_at == 0 {
         w.learned_at = now;
     }
-    if quality < 3 {
-        w.reps = 0;
-        w.lapses += 1;
+    w.reps += 1;
+    w.last_review = now;
+    if rating == 1 {
+        // Only a word that had been remembered can be forgotten; a new one is still being learned.
+        if w.interval >= 1.0 {
+            w.lapses += 1;
+        }
         w.interval = 0.0;
         w.due = now + RELEARN_SECONDS;
     } else {
-        w.reps += 1;
-        w.interval = match w.reps {
-            1 => 1.0,
-            2 => 6.0,
-            _ => (w.interval * w.ease).round(),
-        };
-        if quality == 3 {
-            w.interval = (w.interval * 0.8).max(1.0).round();
-        }
+        w.interval = fsrs::interval(m.stability, retention);
         w.due = now + (w.interval * DAY as f64) as i64;
     }
-    w.ease = (w.ease + 0.1 - (5.0 - q) * (0.08 + (5.0 - q) * 0.02)).max(1.3);
 }
 
 /// One day of study, by the local date of the learner (`2026-10-26`).
@@ -256,6 +500,16 @@ pub fn add_xp(db: &Connection, day: &str, xp: i64, correct: Option<bool>) -> rus
         "INSERT INTO activity (day, xp, answers, correct) VALUES (?1, ?2, ?3, ?4)
          ON CONFLICT(day) DO UPDATE SET xp = xp + ?2, answers = answers + ?3, correct = correct + ?4",
         params![day, xp, answers, right],
+    )
+    .map(|_| ())
+}
+
+/// Takes back the experience and the answer of an undone review.
+pub fn take_back_xp(db: &Connection, day: &str, xp: i64, correct: bool) -> rusqlite::Result<()> {
+    db.execute(
+        "UPDATE activity SET xp = max(0, xp - ?2), answers = max(0, answers - 1), correct = max(0, correct - ?3)
+         WHERE day = ?1",
+        params![day, xp, i64::from(correct)],
     )
     .map(|_| ())
 }
@@ -346,25 +600,142 @@ pub fn set_setting(db: &Connection, key: &str, value: &str) -> rusqlite::Result<
 mod tests {
     use super::*;
 
+    fn memory() -> Connection {
+        open(Path::new(":memory:")).unwrap()
+    }
+
+    fn add(db: &Connection, word: &str, now: i64) -> i64 {
+        save(db, &Word { word: word.into(), ..Word::default() }, now).unwrap()
+    }
+
     #[test]
-    fn sm2_grows_the_gap_and_a_lapse_resets_it() {
-        let mut w = Word { ease: 2.5, ..Word::default() };
-        sm2(&mut w, 4, 100);
-        assert_eq!((w.reps, w.interval, w.learned_at), (1, 1.0, 100));
-        sm2(&mut w, 4, 200);
-        assert_eq!(w.interval, 6.0);
-        sm2(&mut w, 5, 300);
-        // Two "good" answers leave the ease at 2.5; this "easy" raises it only after it is used.
-        assert_eq!((w.interval, w.ease), (15.0, 2.6));
-        sm2(&mut w, 1, 400);
-        assert_eq!((w.reps, w.lapses, w.due), (0, 1, 400 + RELEARN_SECONDS));
-        assert!(w.ease >= 1.3);
-        assert_eq!(w.learned_at, 100);
+    fn fsrs_schedules_and_a_forgotten_word_comes_back_in_ten_minutes() {
+        let db = memory();
+        let id = add(&db, "negotiate", 0);
+        let w = grade(&db, id, 3, 1_000, 0.9).unwrap().unwrap();
+        assert_eq!((w.interval, w.due, w.reps, w.learned_at, w.last_review), (2.0, 1_000 + 2 * DAY, 1, 1_000, 1_000));
+        assert!((w.stability - 2.3065).abs() < 1e-9);
+        let w = grade(&db, id, 3, 1_000 + 2 * DAY, 0.9).unwrap().unwrap();
+        assert_eq!(w.interval, 11.0);
+        let at = w.due;
+        let w = grade(&db, id, 1, at, 0.9).unwrap().unwrap();
+        assert_eq!((w.interval, w.due, w.lapses), (0.0, at + RELEARN_SECONDS, 1));
+        // Forgotten again while it is being learned again: no second lapse.
+        let w = grade(&db, id, 1, at + RELEARN_SECONDS, 0.9).unwrap().unwrap();
+        assert_eq!(w.lapses, 1);
+        assert_eq!(get(&db, id).unwrap().unwrap(), w);
+        // A new word forgotten at once has never been remembered.
+        let other = add(&db, "itinerary", 0);
+        assert_eq!(grade(&db, other, 1, 5, 0.9).unwrap().unwrap().lapses, 0);
+        // A higher retention brings the review sooner.
+        let mut keen = Word { stability: 10.0, difficulty: 5.0, last_review: 0, interval: 10.0, ..Word::default() };
+        let mut easy = keen.clone();
+        schedule(&mut keen, 3, 10 * DAY, 0.95);
+        schedule(&mut easy, 3, 10 * DAY, 0.8);
+        assert!(keen.interval < easy.interval);
+    }
+
+    #[test]
+    fn undo_puts_the_word_back_and_forgets_the_answer() {
+        let db = memory();
+        let id = add(&db, "deadline", 0);
+        let before = get(&db, id).unwrap().unwrap();
+        grade(&db, id, 4, 100, 0.9).unwrap();
+        let first = get(&db, id).unwrap().unwrap();
+        grade(&db, id, 1, 100 + 9 * DAY, 0.9).unwrap();
+        assert_eq!(undo(&db, id).unwrap().unwrap(), first);
+        assert_eq!(get(&db, id).unwrap().unwrap(), first);
+        assert_eq!(undo(&db, id).unwrap().unwrap(), before);
+        assert_eq!(undo(&db, id).unwrap(), None);
+        assert_eq!(stats(&db, 0, 0, "").unwrap().reviews, 0);
+        grade(&db, id, 3, 200, 0.9).unwrap();
+        delete(&db, id).unwrap();
+        assert_eq!(stats(&db, 0, 0, "").unwrap().reviews, 0);
+    }
+
+    #[test]
+    fn an_sm2_file_moves_to_fsrs() {
+        let mut db = Connection::open_in_memory().unwrap();
+        db.execute_batch(
+            "CREATE TABLE words (id INTEGER PRIMARY KEY, word TEXT NOT NULL UNIQUE COLLATE NOCASE, ipa TEXT NOT NULL DEFAULT '',
+                 pos TEXT NOT NULL DEFAULT '', meaning TEXT NOT NULL DEFAULT '', explain TEXT NOT NULL DEFAULT '',
+                 example TEXT NOT NULL DEFAULT '', example_vi TEXT NOT NULL DEFAULT '', note TEXT NOT NULL DEFAULT '',
+                 created INTEGER NOT NULL, due INTEGER NOT NULL, interval REAL NOT NULL DEFAULT 0, ease REAL NOT NULL DEFAULT 2.5,
+                 reps INTEGER NOT NULL DEFAULT 0, lapses INTEGER NOT NULL DEFAULT 0, learned_at INTEGER NOT NULL DEFAULT 0,
+                 score INTEGER NOT NULL DEFAULT -1);
+             INSERT INTO words (word, meaning, created, due, interval, ease, reps, learned_at) VALUES ('old', 'cũ', 1, 700000, 6, 2.5, 2, 5);
+             INSERT INTO words (word, created, due) VALUES ('new', 1, 1);
+             INSERT INTO words (word, created, due) VALUES ('你好', 1, 1);",
+        )
+        .unwrap();
+        init(&mut db).unwrap();
+        init(&mut db).unwrap();
+        assert_eq!(user_version(&db).unwrap(), SCHEMA);
+        let old = find(&db, "OLD").unwrap().unwrap();
+        assert_eq!((old.stability, old.last_review, old.meaning.as_str()), (6.0, 700_000 - 6 * DAY, "cũ"));
+        assert!((old.difficulty - 2.118104).abs() < 1e-5);
+        let new = find(&db, "new").unwrap().unwrap();
+        assert_eq!((new.stability, new.last_review, new.lang.as_str()), (0.0, 0, "en"));
+        // A Chinese word added before the course existed moves to it, with its pinyin.
+        let chinese = find(&db, "你好").unwrap().unwrap();
+        assert_eq!((chinese.lang.as_str(), chinese.ipa.as_str()), ("zh", "nǐhǎo"));
+        // The next answer goes on from the converted memory instead of starting over.
+        let next = grade(&db, old.id, 3, 700_000, 0.9).unwrap().unwrap();
+        assert!(next.interval > 6.0, "{next:?}");
+    }
+
+    #[test]
+    fn the_forecast_counts_reviews_by_day() {
+        let db = memory();
+        for (word, due) in [("a", -5), ("b", 10), ("c", DAY + 1), ("d", 3 * DAY), ("e", 30 * DAY)] {
+            let id = add(&db, word, 0);
+            db.execute("UPDATE words SET learned_at = 1, due = ?2 WHERE id = ?1", [id, due]).unwrap();
+        }
+        add(&db, "new", 0);
+        assert_eq!(forecast(&db, 0, 7, "en").unwrap(), [2, 1, 0, 1, 0, 0, 0]);
+        assert_eq!(forecast(&db, 0, 1, "").unwrap(), [2]);
+        assert_eq!(forecast(&db, 0, 7, "zh").unwrap(), [0; 7]);
+    }
+
+    #[test]
+    fn chinese_words_are_a_course_of_their_own() {
+        let db = memory();
+        set_setting(&db, "new_per_day", "1").unwrap();
+        let en = add(&db, "deadline", 0);
+        let zh = save(&db, &Word { word: " 学习 ".into(), example: "我每天学习中文。".into(), ..Word::default() }, 0).unwrap();
+        add(&db, "苹果", 0);
+        let w = get(&db, zh).unwrap().unwrap();
+        assert_eq!((w.word.as_str(), w.lang.as_str(), w.ipa.as_str(), w.hanviet.as_str()), ("学习", "zh", "xuéxí", "học tập"));
+        assert!(w.example_reading.starts_with("wǒ měitiān xuéxí"), "{}", w.example_reading);
+        let english = get(&db, en).unwrap().unwrap();
+        assert_eq!((english.lang.as_str(), english.hanviet.as_str(), english.example_reading.as_str()), ("en", "", ""));
+        // Each course has its own new word today.
+        let words = |lang| session(&db, 10, 0, lang).unwrap().into_iter().map(|w| w.word).collect::<Vec<_>>();
+        assert_eq!(words("en"), ["deadline"]);
+        assert_eq!(words("zh"), ["学习"]);
+        grade(&db, zh, 3, 10, 0.9).unwrap();
+        assert!(words("zh").is_empty());
+        assert_eq!(words("en"), ["deadline"]);
+        let (course, all) = (stats(&db, 10, 0, "zh").unwrap(), stats(&db, 10, 0, "").unwrap());
+        assert_eq!((course.total, course.learned, course.reviews, all.total, all.reviews), (2, 1, 1, 3, 1));
+        assert_eq!(recent_words(&db, 0, 8, "zh").unwrap(), ["学习"]);
+        assert!(recent_words(&db, 0, 8, "en").unwrap().is_empty());
+    }
+
+    #[test]
+    fn recent_words_prefer_todays_answers() {
+        let db = memory();
+        let (a, b) = (add(&db, "alpha", 0), add(&db, "beta", 0));
+        grade(&db, a, 3, 10, 0.9).unwrap();
+        assert_eq!(recent_words(&db, 100, 8, "en").unwrap(), ["alpha"]);
+        grade(&db, b, 3, 200, 0.9).unwrap();
+        assert_eq!(recent_words(&db, 100, 8, "en").unwrap(), ["beta"]);
+        assert_eq!(recent_words(&db, 0, 8, "en").unwrap(), ["beta", "alpha"]);
     }
 
     #[test]
     fn experience_adds_up_by_day() {
-        let db = open(Path::new(":memory:")).unwrap();
+        let db = memory();
         add_xp(&db, "2026-10-25", 10, Some(true)).unwrap();
         add_xp(&db, "2026-10-26", 10, Some(false)).unwrap();
         add_xp(&db, "2026-10-26", 3, None).unwrap();
@@ -372,12 +743,14 @@ mod tests {
         assert_eq!(total, 23);
         assert_eq!(days[0], Day { day: "2026-10-26".into(), xp: 13, answers: 1, correct: 0 });
         assert_eq!(days[1].correct, 1);
+        take_back_xp(&db, "2026-10-25", 12, true).unwrap();
+        assert_eq!(activity(&db, 30).unwrap().0[1], Day { day: "2026-10-25".into(), xp: 0, answers: 0, correct: 0 });
         assert!(is_day("2026-10-26") && !is_day("2026-1-26") && !is_day("2026-10-2x"));
     }
 
     #[test]
     fn usage_is_measured_per_provider_and_period() {
-        let db = open(Path::new(":memory:")).unwrap();
+        let db = memory();
         add_usage(&db, "2026-09-01", "gemini", "m", true, 100, 20).unwrap();
         add_usage(&db, "2026-10-20", "gemini", "m", true, 10, 5).unwrap();
         add_usage(&db, "2026-10-26", "gemini", "m", true, 30, 10).unwrap();
@@ -394,19 +767,19 @@ mod tests {
 
     #[test]
     fn a_session_holds_due_reviews_and_todays_new_words() {
-        let db = open(Path::new(":memory:")).unwrap();
+        let db = memory();
         set_setting(&db, "new_per_day", "1").unwrap();
         for word in ["one", "two", "three"] {
-            save(&db, &Word { word: word.into(), ..Word::default() }, 10).unwrap();
+            add(&db, word, 10);
         }
-        let first = session(&db, 20, 0).unwrap();
+        let first = session(&db, 20, 0, "en").unwrap();
         assert_eq!(first.iter().map(|w| w.word.as_str()).collect::<Vec<_>>(), ["one"]);
-        grade(&db, first[0].id, 1, 20).unwrap();
+        grade(&db, first[0].id, 1, 20, 0.9).unwrap();
         // The forgotten word is due again in ten minutes, and today's one new word is used up.
-        assert!(session(&db, 21, 0).unwrap().is_empty());
-        let later = session(&db, 20 + RELEARN_SECONDS, 0).unwrap();
+        assert!(session(&db, 21, 0, "en").unwrap().is_empty());
+        let later = session(&db, 20 + RELEARN_SECONDS, 0, "en").unwrap();
         assert_eq!(later.iter().map(|w| w.word.as_str()).collect::<Vec<_>>(), ["one"]);
-        let s = stats(&db, 20 + RELEARN_SECONDS, 0).unwrap();
-        assert_eq!((s.total, s.due, s.new_today, s.new_waiting), (3, 1, 0, 2));
+        let s = stats(&db, 20 + RELEARN_SECONDS, 0, "en").unwrap();
+        assert_eq!((s.total, s.due, s.new_today, s.new_waiting, s.reviews, s.reviews_today), (3, 1, 0, 2, 1, 1));
     }
 }

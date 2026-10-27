@@ -55,3 +55,27 @@ jobs:
         with:
           files: dist/*.zip
           generate_release_notes: true
+
+  # Points the Homebrew cask in eliasbui/homebrew-card-english at the new zip. It needs a token that may push to the
+  # tap, as the HOMEBREW_TAP_TOKEN secret; without one the release still goes out and the step says how to do it.
+  homebrew:
+    needs: publish
+    runs-on: ubuntu-latest
+    env:
+      TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: app-macOS
+          path: dist
+      - name: Update the cask
+        if: env.TAP_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          gh auth setup-git
+          scripts/update-cask.sh "${GITHUB_REF_NAME#v}" "dist/CardEnglish-${GITHUB_REF_NAME#v}-macos.zip"
+      - name: No token for the tap
+        if: env.TAP_TOKEN == ''
+        run: echo "::notice::HOMEBREW_TAP_TOKEN is not set; run scripts/update-cask.sh ${GITHUB_REF_NAME#v} to point the Homebrew cask at this release"

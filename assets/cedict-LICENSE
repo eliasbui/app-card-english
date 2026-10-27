@@ -1,0 +1,18 @@
+assets/cedict.txt
+
+Nội dung: mỗi dòng là một mục từ gồm chữ phồn thể, chữ giản thể và phiên âm pinyin, dạng
+"traditional simplified [pin1 yin1]".
+
+Nguồn: CC-CEDICT
+  https://www.mdbg.net/chinese/dictionary?page=cc-cedict
+  https://cc-cedict.org
+
+Ghi công: MDBG và những người đóng góp cho CC-CEDICT.
+
+Phiên bản dùng ở đây: bản ngày 2026-10-27.
+
+Thay đổi so với bản gốc: đã bỏ toàn bộ phần định nghĩa tiếng Anh, chỉ giữ lại chữ viết và pinyin.
+
+Giấy phép: file này là tác phẩm phái sinh của CC-CEDICT và được phát hành theo cùng giấy phép,
+Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0).
+  https://creativecommons.org/licenses/by-sa/4.0/

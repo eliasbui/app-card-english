@@ -2,247 +2,635 @@
 <html lang="vi">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:">
 <title>Card English</title>
 <script>document.documentElement.dataset.theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";</script>
 <style>
-  :root { color-scheme: light; --bg: #f5f7fb; --surface: #fff; --surface-2: #fafbfc; --hover: #f3f4f6; --text: #1f2937;
-          --muted: #6b7280; --line: #e5e7eb; --line-strong: #c7cdd6; --shadow: rgba(0, 0, 0, .06);
-          --accent: #2563eb; --accent-hover: #1d4ed8; --blue: #2563eb; --blue-soft: #e8efff;
-          --green: #15803d; --green-soft: #ecf8ef; --green-line: #b7e4c2; --red: #b91c1c; --red-soft: #fdecec;
-          --amber: #d97706; --amber-soft: #fff3dc; --orange: #f59e0b; --banner: #fff7e6; --banner-line: #f5d08a;
-          --skeleton-a: #f0f2f5; --skeleton-b: #e5e8ee; --fresh: #dcfce7; --toast-bg: #111827; --toast-text: #fff; }
-  :root[data-theme="dark"] { color-scheme: dark; --bg: #0b1220; --surface: #151e2e; --surface-2: #111a29; --hover: #1f2a3d;
-          --text: #e2e8f0; --muted: #94a3b8; --line: #2a364a; --line-strong: #3d4c66; --shadow: rgba(0, 0, 0, .4);
-          --blue: #7cb3ff; --blue-soft: #1c2f4d; --green: #4ade80; --green-soft: #12301f; --green-line: #1f5133;
-          --red: #f87171; --red-soft: #3a1717; --amber: #fbbf24; --amber-soft: #3a2a0c; --orange: #fbbf24;
-          --banner: #33260c; --banner-line: #6b4f12; --skeleton-a: #1b2536; --skeleton-b: #243045; --fresh: #14532d;
-          --toast-bg: #e2e8f0; --toast-text: #0f172a; }
+  :root { color-scheme: light; --bg: #f4f6f9; --surface: #fff; --surface-2: #f8f9fb; --raised: #fff; --hover: #eef1f5;
+          --text: #141820; --text-2: #3e4552; --muted: #687080; --faint: #9aa1ad; --line: #e4e7ec; --line-strong: #cfd4dc;
+          --accent: #2554e8; --accent-hover: #1d45cf; --accent-soft: #ebf0fe; --accent-text: #1f4bd6; --on-accent: #fff;
+          --hero-a: #2c5ff2; --hero-b: #1b3fbf;
+          --orange: #e8860c; --green: #12804a; --green-soft: #e8f6ee; --green-line: #b6e2c8;
+          --red: #c42b2b; --red-soft: #fdeded; --red-line: #f3c4c4; --amber: #b25e09; --amber-soft: #fff4df; --amber-line: #f4d59b;
+          --shadow: 0 1px 2px rgba(20, 24, 32, .05); --shadow-md: 0 2px 4px rgba(20, 24, 32, .04), 0 10px 28px rgba(20, 24, 32, .08);
+          --shadow-lg: 0 24px 64px rgba(20, 24, 32, .24); --backdrop: rgba(15, 18, 25, .45);
+          --skeleton-a: #eff1f4; --skeleton-b: #e3e6eb; --fresh: #dfe7fd; --toast-bg: #141820; --toast-text: #fff; }
+  :root[data-theme="dark"] { color-scheme: dark; --bg: #0d1016; --surface: #151922; --surface-2: #1a1f29; --raised: #2a303c; --hover: #212734;
+          --text: #e7eaf0; --text-2: #c2c8d3; --muted: #959eac; --faint: #677080; --line: #252b37; --line-strong: #353d4c;
+          --accent: #3d6df2; --accent-hover: #5a83f5; --accent-soft: #1a2442; --accent-text: #8eadff; --on-accent: #fff;
+          --hero-a: #2650df; --hero-b: #18348f;
+          --orange: #ffad42; --green: #4fd68b; --green-soft: #11291c; --green-line: #1d4a31;
+          --red: #ff7a7a; --red-soft: #341819; --red-line: #5a2a2a; --amber: #fbbf4a; --amber-soft: #33270e; --amber-line: #5a4413;
+          --shadow: none; --shadow-md: 0 10px 28px rgba(0, 0, 0, .35); --shadow-lg: 0 24px 64px rgba(0, 0, 0, .6); --backdrop: rgba(0, 0, 0, .6);
+          --skeleton-a: #1a1f29; --skeleton-b: #242a36; --fresh: #1e2b55; --toast-bg: #e7eaf0; --toast-text: #0d1016; }
+  /* The colours the learner can choose besides blue, each dark enough for white text on its buttons. */
+  :root[data-palette="pink"] { --accent: #d63374; --accent-hover: #c02566; --accent-soft: #fdebf3; --accent-text: #c02566; --fresh: #fbdbe8; --hero-a: #f06aa2; --hero-b: #cf3a80; }
+  :root[data-theme="dark"][data-palette="pink"] { --accent: #cf3a80; --accent-hover: #dc5592; --accent-soft: #3a1a2b; --accent-text: #f8a5c6; --fresh: #4a1f34; --hero-a: #c43d7c; --hero-b: #8a2457; }
+  :root[data-palette="purple"] { --accent: #7c3aed; --accent-hover: #6d28d9; --accent-soft: #f1ebfe; --accent-text: #6d28d9; --fresh: #e6dcfd; --hero-a: #9b6cf6; --hero-b: #6d3fd8; }
+  :root[data-theme="dark"][data-palette="purple"] { --accent: #7c4ddf; --accent-hover: #8f66e6; --accent-soft: #2a2145; --accent-text: #c4b1fc; --fresh: #33285a; --hero-a: #7449d8; --hero-b: #4b2a9e; }
   * { box-sizing: border-box; }
-  body { margin: 0; font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--text); background: var(--bg);
-         display: flex; height: 100vh; overflow: hidden; }
-  nav { width: 210px; background: var(--surface); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 16px 10px; }
-  nav h1 { font-size: 17px; margin: 0 8px 4px; color: var(--blue); }
-  nav .level { margin: 0 8px 16px; font-size: 12px; color: var(--muted); }
-  nav .level .progress { margin-top: 4px; height: 6px; }
-  nav button { text-align: left; border: 0; background: none; padding: 9px 12px; border-radius: 8px; font-size: 14px; color: var(--text);
-               cursor: pointer; transition: background .15s, transform .15s; }
-  nav button:hover { background: var(--hover); transform: translateX(2px); }
-  nav button.active { background: var(--blue-soft); color: var(--blue); font-weight: 600; }
-  nav .foot { margin-top: auto; font-size: 12px; color: var(--muted); padding: 0 8px; }
-  #update-banner { display: none; background: var(--banner); border: 1px solid var(--banner-line); border-radius: 8px; padding: 8px; margin: 0 0 10px; font-size: 12px; }
-  main { flex: 1; overflow-y: auto; padding: 24px 32px; }
-  section { display: none; max-width: 880px; margin: 0 auto; }
-  section.active { display: block; animation: rise .35s ease; }
-  h2 { margin: 0 0 16px; font-size: 20px; }
-  h3 { margin: 22px 0 10px; font-size: 15px; }
-  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-  .grow { flex: 1; }
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 14px; }
-  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 14px; }
-  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px; transition: transform .2s, box-shadow .2s; }
-  .stat:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(37, 99, 235, .10); }
-  .stat b { display: block; font-size: 26px; color: var(--blue); }
-  .stat span { color: var(--muted); font-size: 13px; }
-  .hero { display: grid; grid-template-columns: 150px 1fr; gap: 22px; align-items: center;
-          background: linear-gradient(135deg, #2563eb, #1e40af); color: #fff; border: 0; }
-  .hero .muted { color: #c7d7ff; }
-  .ring { position: relative; width: 150px; height: 150px; }
-  .ring svg { transform: rotate(-90deg); }
-  .ring circle { fill: none; stroke-width: 12; }
-  .ring .track { stroke: rgba(255, 255, 255, .2); }
-  .ring .fill { stroke: #fff; stroke-linecap: round; transition: stroke-dashoffset 1.2s cubic-bezier(.2, .8, .2, 1); }
-  .ring .label { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-  .ring .label b { font-size: 28px; }
-  .ring.done .fill { stroke: #fde68a; }
-  .streak { font-size: 22px; font-weight: 700; }
-  .streak.hot { animation: glow 1.6s ease-in-out infinite; }
-  .quote { margin-top: 10px; font-style: italic; min-height: 22px; transition: opacity .4s; }
-  .week { display: flex; gap: 10px; align-items: flex-end; height: 110px; margin-top: 6px; }
-  .week .bar { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); height: 100%; justify-content: flex-end; }
-  .week .bar div { width: 100%; max-width: 40px; background: var(--blue-soft); border-radius: 6px 6px 3px 3px; height: 0; transition: height .9s cubic-bezier(.2, .8, .2, 1); }
-  .week .bar.goal div { background: var(--blue); }
-  .week .bar.today span { color: var(--blue); font-weight: 700; }
-  button.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 9px; padding: 7px 14px; font-size: 14px; cursor: pointer; color: var(--text);
-               transition: transform .12s, box-shadow .15s, background .15s, border-color .15s; }
-  button.btn:hover:not(:disabled) { border-color: var(--line-strong); transform: translateY(-1px); box-shadow: 0 3px 10px var(--shadow); }
-  button.btn:active:not(:disabled) { transform: scale(.97); }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  button.primary:hover:not(:disabled) { background: var(--accent-hover); }
-  button.big { padding: 12px 26px; font-size: 16px; border-radius: 12px; }
-  button.pulse { animation: pulse 2s infinite; }
-  button.danger { color: var(--red); }
-  button.small { padding: 3px 9px; font-size: 12px; }
-  button:disabled { opacity: .5; cursor: default; }
-  input, textarea, select { font: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; background: var(--surface); color: var(--text); }
-  input:focus, textarea:focus, select:focus { outline: 2px solid var(--blue-soft); border-color: var(--blue); }
-  textarea { width: 100%; resize: vertical; min-height: 38px; }
-  label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
-  .grid2 input { width: 100%; }
+  body { margin: 0; font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", sans-serif;
+         color: var(--text); background: var(--bg); display: flex; height: 100vh; overflow: hidden; -webkit-font-smoothing: antialiased; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  a { color: var(--accent-text); }
+  code { padding: 1px 6px; border-radius: 6px; background: var(--hover); font: 12.5px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; user-select: all; }
   .muted { color: var(--muted); }
+  .small { font-size: 12.5px; }
   .error { color: var(--red); }
+  .error:empty { display: none; }
   .ok { color: var(--green); }
-  .tag { display: inline-block; font-size: 11px; padding: 1px 8px; border-radius: 99px; background: var(--blue-soft); color: var(--blue); }
+  .hidden { display: none !important; }
+  /* Elements that only make sense for one course; the other course's rule stays unmatched so the browser's own display for the tag applies. */
+  .only-zh, .only-en { display: none; }
+  :root[data-course="zh"] .only-zh { display: revert; }
+  :root[data-course="en"] .only-en { display: revert; }
+  :root[data-course="zh"] .flash .word { font-size: 56px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .row.actions { margin-top: 14px; }
+  .row.center { justify-content: center; }
+  .grow { flex: 1; min-width: 0; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* The cartoon stickers: one sheet, made by examples/make_stickers.rs, cut out by background-position. */
+  .st { display: inline-block; flex-shrink: 0; width: 48px; height: 48px; background-image: url("__STICKERS__"); background-repeat: no-repeat; vertical-align: middle; }
+  /* stickers: written by examples/make_stickers.rs */
+  .st { background-size: 800% 500%; }
+  .st-mascot { background-position: 0.0000% 0.0000%; }
+  .st-mascot-cheer { background-position: 14.2857% 0.0000%; }
+  .st-mascot-sleep { background-position: 28.5714% 0.0000%; }
+  .st-mascot-empty { background-position: 42.8571% 0.0000%; }
+  .st-mascot-think { background-position: 57.1429% 0.0000%; }
+  .st-mascot-zh { background-position: 71.4286% 0.0000%; }
+  .st-nav-home { background-position: 85.7143% 0.0000%; }
+  .st-nav-words { background-position: 100.0000% 0.0000%; }
+  .st-nav-practice { background-position: 0.0000% 25.0000%; }
+  .st-nav-stats { background-position: 14.2857% 25.0000%; }
+  .st-nav-settings { background-position: 28.5714% 25.0000%; }
+  .st-mode-flash { background-position: 42.8571% 25.0000%; }
+  .st-mode-fill { background-position: 57.1429% 25.0000%; }
+  .st-mode-choice { background-position: 71.4286% 25.0000%; }
+  .st-mode-dict { background-position: 85.7143% 25.0000%; }
+  .st-mode-speak { background-position: 100.0000% 25.0000%; }
+  .st-mode-write { background-position: 0.0000% 50.0000%; }
+  .st-mode-story { background-position: 14.2857% 50.0000%; }
+  .st-ai { background-position: 28.5714% 50.0000%; }
+  .st-clock { background-position: 42.8571% 50.0000%; }
+  .st-streak { background-position: 57.1429% 50.0000%; }
+  .st-fb-right { background-position: 71.4286% 50.0000%; }
+  .st-fb-wrong { background-position: 85.7143% 50.0000%; }
+  .st-ach-first { background-position: 100.0000% 50.0000%; }
+  .st-ach-streak7 { background-position: 0.0000% 75.0000%; }
+  .st-ach-streak30 { background-position: 14.2857% 75.0000%; }
+  .st-ach-streak100 { background-position: 28.5714% 75.0000%; }
+  .st-ach-words { background-position: 42.8571% 75.0000%; }
+  .st-ach-learned { background-position: 57.1429% 75.0000%; }
+  .st-ach-reviews { background-position: 71.4286% 75.0000%; }
+  .st-ach-perfect { background-position: 85.7143% 75.0000%; }
+  .st-ach-goal { background-position: 100.0000% 75.0000%; }
+  .st-ach-xp { background-position: 0.0000% 100.0000%; }
+  /* stickers: end */
+
+  nav { width: 224px; flex-shrink: 0; display: flex; flex-direction: column; gap: 2px; padding: 18px 12px 14px;
+        background: var(--surface); border-right: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 0 6px 16px; }
+  .brand .st { width: 46px; height: 46px; animation: bob 4s ease-in-out infinite; }
+  .brand b { display: block; font-size: 16px; letter-spacing: -.01em; }
+  .brand span { font-size: 12px; color: var(--muted); }
+  #course-switch { display: flex; margin: 0 6px 14px; }
+  #course-switch label { flex: 1; justify-content: center; }
+  nav .nav { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 10px; border: 0; border-radius: 10px; background: none;
+             color: var(--text-2); font-size: 14px; text-align: left; cursor: pointer; transition: background .15s, color .15s; }
+  nav .nav .st { width: 30px; height: 30px; margin: -4px 0; transition: transform .25s; }
+  nav .nav:hover { background: var(--hover); color: var(--text); }
+  nav .nav:hover .st, nav .nav.active .st { transform: rotate(-7deg) scale(1.1); }
+  nav .nav.active { background: var(--accent-soft); color: var(--accent-text); font-weight: 600; }
+  .count { margin-left: auto; min-width: 22px; padding: 0 7px; border-radius: 99px; background: var(--hover); color: var(--muted);
+           font-size: 12px; font-weight: 600; line-height: 20px; text-align: center; font-variant-numeric: tabular-nums; }
+  .count:empty { display: none; }
+  .count.hot { background: var(--accent); color: var(--on-accent); }
+  nav .nav.active .count:not(.hot) { background: var(--raised); color: var(--accent-text); }
+  nav .foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+  .level-box { padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); }
+  .level-box .progress { height: 6px; margin: 8px 0 6px; }
+  .level-box .progress div { background: var(--orange); }
+  .level-box small { display: block; font-size: 12px; color: var(--muted); }
+  #update-banner { display: none; padding: 10px 12px; border-radius: 10px; background: var(--accent-soft); color: var(--accent-text); font-size: 12.5px; }
+  #update-banner code { display: inline-block; margin-top: 4px; }
+  .version { padding: 0 4px; font-size: 12px; color: var(--muted); }
+
+  main { flex: 1; min-width: 0; overflow-y: auto; padding: 28px 36px 48px; }
+  section { display: none; max-width: 920px; margin: 0 auto; }
+  section.active { display: block; animation: rise .3s ease; }
+  .page-head { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+  .page-head h2 { margin: 0; font-size: 24px; line-height: 1.25; letter-spacing: -.02em; }
+  .page-head p { margin: 2px 0 0; color: var(--muted); }
+  h3.group { display: flex; align-items: center; gap: 8px; margin: 28px 0 10px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  h3.group.first { margin-top: 0; }
+  h3.group .st { width: 28px; height: 28px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px; margin-bottom: 14px; box-shadow: var(--shadow); }
+  .card-title { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .card-title .st { width: 36px; height: 36px; margin: -8px 0; }
+  .eyebrow, .prompt-label { font-size: 13px; font-weight: 600; color: var(--muted); }
+
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 14px; border: 1px solid var(--line-strong);
+         border-radius: 10px; background: var(--surface); color: var(--text); font-size: 14px; font-weight: 500; line-height: 20px;
+         cursor: pointer; white-space: nowrap; transition: background .15s, border-color .15s, box-shadow .15s, transform .1s; }
+  .btn:hover:not(:disabled) { background: var(--hover); }
+  .btn:active:not(:disabled) { transform: translateY(1px); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); box-shadow: 0 1px 2px rgba(20, 24, 32, .18); }
+  .btn.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+  .btn.big { padding: 11px 22px; border-radius: 12px; font-size: 15px; font-weight: 600; }
+  .btn.small { padding: 3px 10px; border-radius: 8px; font-size: 13px; }
+  .btn.danger { color: var(--red); }
+  .btn.danger:hover:not(:disabled) { background: var(--red-soft); border-color: var(--red-line); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn.pulse { animation: pulse 2.2s infinite; }
+  /* The sign-in button OpenAI asks for: black, with its label. */
+  .btn.chatgpt { background: #000; border-color: #000; color: #fff; font-weight: 600; padding: 9px 18px; }
+  .btn.chatgpt:hover:not(:disabled) { background: #262626; }
+  :root[data-theme="dark"] .btn.chatgpt { background: #fff; border-color: #fff; color: #000; }
+  :root[data-theme="dark"] .btn.chatgpt:hover:not(:disabled) { background: #e5e5e5; }
+  kbd { padding: 0 5px; border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 5px; background: var(--surface-2);
+        color: var(--muted); font: 11px/16px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  .btn.primary kbd { color: rgba(255, 255, 255, .85); border-color: rgba(255, 255, 255, .35); background: rgba(255, 255, 255, .12); }
+
+  input, textarea, select { padding: 8px 11px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface);
+                            color: var(--text); line-height: 20px; transition: border-color .15s, box-shadow .15s; }
+  input::placeholder, textarea::placeholder { color: var(--faint); }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  input[type="range"] { padding: 0; border: 0; accent-color: var(--accent); box-shadow: none; }
+  textarea { width: 100%; min-height: 42px; resize: vertical; }
+  label { display: block; margin: 12px 0 5px; font-size: 12.5px; font-weight: 500; color: var(--text-2); }
+  label.inline { display: inline-flex; align-items: center; gap: 8px; margin: 0; color: var(--muted); font-size: 13px; }
+  #practice-source { max-width: 200px; }
+  .grid2, .grid3 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+  .grid3 { grid-template-columns: repeat(3, 1fr); }
+  .grid2 input, .grid3 input, .grid2 select, .grid3 select { width: 100%; }
+  /* Choices drawn as buttons over real radio inputs, which keep the keyboard and the screen reader working. */
+  .seg { position: relative; display: inline-flex; gap: 2px; padding: 3px; border-radius: 11px; background: var(--hover); }
+  .seg input, .tiles input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+  .seg label { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 5px 12px; border-radius: 8px; color: var(--text-2);
+               font-size: 13px; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s; }
+  .seg label:hover { color: var(--text); }
+  .seg input:checked + label { background: var(--raised); color: var(--text); box-shadow: 0 1px 2px rgba(20, 24, 32, .1), 0 0 0 1px var(--line); }
+  .seg input:focus-visible + label, .tiles input:focus-visible + .tile { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .seg .n { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .switch { position: relative; display: flex; align-items: center; gap: 10px; margin: 14px 0 0; color: var(--text); font-size: 14px; font-weight: 400; cursor: pointer; }
+  .switch input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .switch i { position: relative; flex-shrink: 0; width: 38px; height: 22px; border-radius: 99px; background: var(--line-strong); transition: background .2s; }
+  .switch i::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff;
+                     box-shadow: 0 1px 2px rgba(0, 0, 0, .25); transition: transform .2s; }
+  .switch input:checked + i { background: var(--accent); }
+  .switch input:checked + i::after { transform: translateX(16px); }
+  .switch input:focus-visible + i { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .tag { display: inline-flex; align-items: center; padding: 1px 9px; border-radius: 99px; background: var(--accent-soft); color: var(--accent-text);
+         font-size: 12px; font-weight: 500; line-height: 18px; white-space: nowrap; }
   .tag.due { background: var(--red-soft); color: var(--red); }
   .tag.new { background: var(--amber-soft); color: var(--amber); }
-  table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
-  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
-  th { font-size: 12px; color: var(--muted); font-weight: 600; background: var(--surface-2); }
-  /* Rows stay still when the list is drawn again; only a word just saved lights up once. */
-  tbody tr.fresh { animation: fresh 1.6s ease; }
-  td .acts { white-space: nowrap; }
-  .flash { text-align: center; padding: 34px 24px; min-height: 320px; perspective: 1000px; }
-  .flash .word { font-size: 42px; font-weight: 700; margin: 6px 0; }
-  .flash .ipa { font-size: 20px; color: var(--blue); }
-  .flash .meaning { font-size: 22px; margin: 14px 0 6px; font-weight: 600; }
-  .flash .example { font-style: italic; margin-top: 12px; }
+  .tag.ok { background: var(--green-soft); color: var(--green); }
+  .tag.plain { background: var(--hover); color: var(--muted); }
+  .progress { height: 8px; border-radius: 99px; overflow: hidden; background: var(--hover); }
+  .progress div { width: 0; height: 100%; border-radius: 99px; background: var(--accent); transition: width .5s cubic-bezier(.2, .8, .2, 1); }
+
+  .hero { display: flex; align-items: center; gap: 16px; padding: 24px 26px; border: 0; color: #fff;
+          background: linear-gradient(135deg, var(--hero-a), var(--hero-b)); box-shadow: 0 10px 28px rgba(20, 24, 32, .16); }
+  :root[data-theme="dark"] .hero { box-shadow: none; }
+  .hero-main { flex: 1; min-width: 0; }
+  .hero-mascot { width: 136px; height: 136px; margin: -10px 0; filter: drop-shadow(0 6px 12px rgba(0, 0, 0, .18)); animation: bob 3.2s ease-in-out infinite; }
+  .hero .eyebrow { color: rgba(255, 255, 255, .8); }
+  .hero-nums { display: flex; gap: 40px; margin: 10px 0 2px; }
+  .hero-nums b { display: block; font-size: 42px; font-weight: 700; line-height: 1.1; letter-spacing: -.02em; }
+  .hero-nums span { font-size: 13px; color: rgba(255, 255, 255, .85); }
+  .hero p { margin: 10px 0 18px; color: rgba(255, 255, 255, .92); }
+  .hero .btn { background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .3); color: #fff; }
+  .hero .btn:hover:not(:disabled) { background: rgba(255, 255, 255, .22); }
+  .hero .btn.primary { background: #fff; border-color: #fff; color: var(--hero-b); box-shadow: none; }
+  .hero .btn.primary:hover:not(:disabled) { background: #f4f1ff; }
+  .dash { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 14px; }
+  .dash .card { margin: 0; }
+  .goal-body { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+  .goal-body .muted { flex: 1; min-width: 100px; font-size: 13px; }
+  .ring { position: relative; width: 92px; height: 92px; flex-shrink: 0; }
+  .ring svg { display: block; transform: rotate(-90deg); }
+  .ring circle { fill: none; stroke-width: 9; }
+  .ring .track { stroke: var(--hover); }
+  .ring .fill { stroke: var(--accent); stroke-linecap: round; transition: stroke-dashoffset 1.2s cubic-bezier(.2, .8, .2, 1); }
+  .ring.done .fill { stroke: var(--green); }
+  .ring .label { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.15; }
+  .ring .label b { font-size: 22px; }
+  .ring .label span { font-size: 11px; color: var(--muted); }
+  .big-num { display: flex; align-items: baseline; gap: 8px; margin-bottom: 2px; }
+  .big-num b { font-size: 34px; font-weight: 700; line-height: 1.1; letter-spacing: -.02em; }
+  #streak { color: var(--orange); }
+  #streak.hot { animation: glow 1.8s ease-in-out infinite; }
+  #streak-text { font-size: 13px; }
+  .quote { margin-top: 10px; font-size: 13px; font-style: italic; color: var(--muted); transition: opacity .4s; }
+  .stack { display: flex; height: 8px; margin: 12px 0 10px; border-radius: 99px; overflow: hidden; background: var(--hover); }
+  .stack span { height: 100%; width: 0; transition: width .8s cubic-bezier(.2, .8, .2, 1); }
+  .stack .k { background: var(--green); }
+  .stack .d { background: var(--red); }
+  .stack .n { background: var(--amber); }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
+  .legend .k { color: var(--green); }
+  .legend .d { color: var(--red); }
+  .legend .n { color: var(--amber); }
+  .card-title #week-total, .card-title #forecast-total { font-weight: 500; }
+  .week { display: flex; gap: 10px; align-items: flex-end; height: 128px; }
+  .week .bar { flex: 1; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 6px;
+               font-size: 12px; color: var(--muted); }
+  .week .bar small { font-size: 11px; font-variant-numeric: tabular-nums; }
+  .week .bar div { width: 100%; max-width: 44px; height: 0; border-radius: 7px 7px 4px 4px; background: var(--accent-soft);
+                   transition: height .9s cubic-bezier(.2, .8, .2, 1); }
+  .week .bar.goal div, .forecast .bar div { background: var(--accent); }
+  .week .bar.today span { color: var(--accent-text); font-weight: 700; }
+  /* While a session runs, only the card is on the page. */
+  #page-home.studying .page-head, #page-home.studying .dash, #page-home.studying #week-card, #page-practice.practicing .page-head { display: none; }
+
+  .study-bar { display: flex; align-items: center; gap: 10px; max-width: 680px; margin: 0 auto 14px; }
+  #practice.story .study-bar .progress, #practice.story #practice-count { visibility: hidden; }
+  .combo { min-width: 120px; text-align: right; font-weight: 700; color: var(--orange); }
+  .combo:empty { display: none; }
+  .flash { max-width: 680px; min-height: 360px; margin: 0 auto; padding: 30px 32px 26px; text-align: center; box-shadow: var(--shadow-md); perspective: 1000px; }
+  .flash .word { margin: 12px 0 6px; font-size: 44px; font-weight: 700; line-height: 1.15; letter-spacing: -.02em; overflow-wrap: anywhere; }
+  .flash .mode-st { width: 64px; height: 64px; margin-bottom: 4px; animation: popIn .5s cubic-bezier(.2, 1.4, .4, 1); }
+  .ipa { font-size: 18px; color: var(--accent-text); }
+  .flash #back .ipa, .flash #pback .ipa { margin-top: 14px; }
+  .meaning { margin: 14px 0 6px; font-size: 22px; font-weight: 600; line-height: 1.35; }
+  .meaning.small { font-size: 17px; margin-top: 8px; }
+  .explain { max-width: 540px; margin: 0 auto; color: var(--muted); }
+  .example { display: flex; align-items: flex-start; gap: 10px; max-width: 560px; margin: 16px auto 0; padding: 12px 14px 12px 16px;
+             border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); text-align: left; }
+  .example .en { font-style: italic; }
+  .example .vi { margin-top: 2px; color: var(--muted); }
+  .extra { display: grid; gap: 3px; max-width: 560px; margin: 12px auto 0; font-size: 13.5px; text-align: left; }
+  .extra span { display: inline-block; min-width: 124px; color: var(--muted); }
+  .note { max-width: 560px; margin: 12px auto 0; color: var(--muted); font-size: 13px; }
   .flip-out { animation: flipOut .18s ease-in forwards; }
   .flip-in { animation: flipIn .25s ease-out; }
   .slide-in { animation: slideIn .3s ease-out; }
   .shake { animation: shake .45s; }
   .pop { animation: pop .4s; }
-  .grades { display: flex; gap: 10px; justify-content: center; margin-top: 22px; }
-  .grades button { min-width: 110px; }
-  .progress { height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; }
-  .progress div { height: 100%; background: linear-gradient(90deg, var(--accent), #60a5fa); width: 0; transition: width .5s cubic-bezier(.2, .8, .2, 1); }
-  .combo { font-weight: 700; color: var(--orange); min-width: 120px; text-align: right; }
-  .meter { height: 12px; background: var(--line); border-radius: 99px; overflow: hidden; margin: 6px 0; }
-  .meter div { height: 100%; width: 0; border-radius: 99px; transition: width 1s cubic-bezier(.2, .8, .2, 1), background .3s; }
-  .score { font-size: 28px; font-weight: 700; }
-  .pron { margin-top: 16px; padding: 12px; border: 1px dashed var(--line); border-radius: 10px; text-align: left; }
-  .rec-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--red); margin-right: 6px; animation: blink 1s infinite; }
-  .options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
-  .options button { padding: 14px; font-size: 15px; text-align: left; }
-  .options button:disabled { opacity: 1; }
-  .options button.right { border-color: var(--green); background: var(--green-soft); animation: pop .4s; }
-  .options button.wrong { border-color: var(--red); background: var(--red-soft); animation: shake .45s; }
-  .question { font-size: 22px; font-weight: 600; margin: 8px 0; }
-  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0; }
-  .chips button { border: 1px solid var(--line); background: var(--surface); color: var(--text); border-radius: 99px; padding: 5px 13px; cursor: pointer; font-size: 13px; transition: all .15s; }
-  .chips button:hover { border-color: var(--blue); color: var(--blue); transform: translateY(-1px); }
-  .suggestions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
-  .sugg { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: flex; gap: 8px; align-items: center; animation: rise .35s ease both; }
+  .grades { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+  .grades .btn:not(.big) { min-width: 112px; padding: 9px 16px; }
+  .btn.g-again { color: var(--red); }
+  .btn.g-again:hover:not(:disabled) { background: var(--red-soft); border-color: var(--red-line); }
+  .btn.g-hard { color: var(--amber); }
+  .btn.g-hard:hover:not(:disabled) { background: var(--amber-soft); border-color: var(--amber-line); }
+  .btn.g-good { color: var(--accent-text); }
+  .btn.g-good:hover:not(:disabled) { background: var(--accent-soft); border-color: var(--accent); }
+  .btn.g-easy { color: var(--green); }
+  .btn.g-easy:hover:not(:disabled) { background: var(--green-soft); border-color: var(--green-line); }
+  .pron { max-width: 560px; margin: 18px auto 0; padding: 14px 16px; border: 1px dashed var(--line-strong); border-radius: 12px; text-align: left; }
+  .pron-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-bottom: 10px; }
+  .pron textarea { margin-bottom: 8px; }
+  .result, .check-result { margin-top: 10px; }
+  .result:empty, .check-result:empty { display: none; }
+  .score { font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .meter { height: 8px; margin: 6px 0; border-radius: 99px; overflow: hidden; background: var(--hover); }
+  .meter div { width: 0; height: 100%; border-radius: 99px; transition: width 1s cubic-bezier(.2, .8, .2, 1), background .3s; }
+  .rec-dot { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 50%; background: var(--red); animation: blink 1s infinite; }
+  .verdict { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .fb { width: 40px; height: 40px; animation: popIn .5s cubic-bezier(.2, 1.4, .4, 1); }
+  .thinking { display: flex; align-items: center; gap: 10px; color: var(--muted); }
+  .thinking.center { justify-content: center; margin: 30px 0 16px; }
+  .thinking .st { width: 48px; height: 48px; animation: bob 1.6s ease-in-out infinite; }
+  .done { padding: 12px 0 4px; }
+  .done > .st { width: 120px; height: 120px; animation: popIn .6s cubic-bezier(.2, 1.4, .4, 1); }
+  .done-xp { margin: 6px 0 4px; font-size: 48px; font-weight: 800; letter-spacing: -.02em; color: var(--orange); }
+  .done-score { margin: 6px 0 4px; font-size: 48px; font-weight: 800; letter-spacing: -.02em; }
+  .done-score span { font-size: 26px; color: var(--muted); }
+  .done .row { justify-content: center; margin-top: 18px; }
+  .review { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-top: 10px; }
+  .question { margin: 6px 0; font-size: 24px; font-weight: 600; line-height: 1.35; }
+  .options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; max-width: 600px; margin: 22px auto 0; }
+  .options .btn { justify-content: flex-start; padding: 13px 14px; border-radius: 12px; font-size: 15px; text-align: left; white-space: normal; }
+  .options .btn:disabled { opacity: 1; }
+  .options .btn.right { border-color: var(--green); background: var(--green-soft); animation: pop .4s; }
+  .options .btn.wrong { border-color: var(--red); background: var(--red-soft); animation: shake .45s; }
+  .opt-n { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 22px; height: 22px; margin-right: 6px;
+           border-radius: 6px; background: var(--hover); color: var(--muted); font-size: 12px; font-weight: 600; }
+  .fill-row { display: flex; justify-content: center; gap: 8px; margin-top: 22px; }
+  .fill-row input { width: 300px; font-size: 16px; text-align: center; }
+  .fill-row.wide input { width: min(520px, 100%); }
+  #fill-result { margin-top: 14px; }
+  #fill-result .ok, #fill-result .error { display: flex; align-items: center; justify-content: center; gap: 8px; }
+  mark.miss { padding: 0 3px; border-radius: 4px; background: var(--red-soft); color: var(--red); }
+  .story { max-width: 640px; margin: 0 auto; text-align: left; }
+  .story h3 { margin: 2px 0 0; font-size: 22px; }
+  .story .story-st { width: 72px; height: 72px; }
+  .story-text { font-size: 16.5px; line-height: 1.8; }
+  .story b.hl { color: var(--accent-text); border-bottom: 2px solid var(--accent-soft); cursor: pointer; }
+  .story details { margin: 4px 0 12px; }
+  .story summary { color: var(--accent-text); font-weight: 600; cursor: pointer; }
+  .story .review { justify-content: flex-start; }
+  .story .row { margin-top: 14px; }
+  .skeleton.tall { height: 150px; max-width: 560px; margin: 0 auto; }
+
+  #editor { margin-top: 16px; padding-top: 4px; border-top: 1px solid var(--line); }
+  #editor-status { margin: 12px 0 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+  .chips button { padding: 5px 13px; border: 1px solid var(--line-strong); border-radius: 99px; background: var(--surface); color: var(--text-2);
+                  font-size: 13px; cursor: pointer; transition: border-color .15s, color .15s, background .15s; }
+  .chips button:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
+  #suggest-card > .row .st { width: 44px; height: 44px; margin: -8px 0; }
+  #suggest-tabs { margin: 12px 0 2px; }
+  #passage { min-height: 96px; margin-top: 12px; }
+  #suggest-text .row { margin-top: 8px; }
+  #suggest-status { margin-top: 12px; }
+  #suggest-status:empty { display: none; }
+  .suggestions { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin-top: 12px; }
+  .suggestions:empty { display: none; }
+  #suggest-actions { margin-top: 12px; }
+  .sugg { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; animation: rise .35s ease both; }
   .sugg.added { background: var(--green-soft); border-color: var(--green-line); }
-  .skeleton { height: 54px; border-radius: 12px; background: linear-gradient(90deg, var(--skeleton-a) 25%, var(--skeleton-b) 50%, var(--skeleton-a) 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; }
-  .float-xp { position: fixed; z-index: 50; font-weight: 800; color: var(--orange); pointer-events: none; animation: floatUp 1.1s ease-out forwards; text-shadow: 0 1px 0 var(--bg); }
-  /* Not drawn at all until there is something to say. */
-  #toast { display: none; position: fixed; top: 18px; left: 50%; transform: translateX(-50%); background: var(--toast-bg); color: var(--toast-text); padding: 12px 20px;
-           border-radius: 12px; z-index: 60; box-shadow: 0 10px 30px rgba(0, 0, 0, .2); font-weight: 600; }
+  .skeleton { height: 58px; border-radius: 12px; background: linear-gradient(90deg, var(--skeleton-a) 25%, var(--skeleton-b) 50%, var(--skeleton-a) 75%);
+              background-size: 200% 100%; animation: shimmer 1.2s infinite; }
+  .list-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 22px 0 12px; }
+  .list-tools input { min-width: 200px; }
+  .list-card { padding: 0; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  th, td { padding: 11px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+  th { background: var(--surface-2); color: var(--muted); font-size: 12px; font-weight: 600; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr[data-id] { cursor: pointer; transition: background .12s; }
+  tbody tr[data-id]:hover { background: var(--surface-2); }
+  /* Rows stay still when the list is drawn again; only a word just saved lights up once. */
+  tbody tr.fresh { animation: fresh 1.6s ease; }
+  .col-word { width: 28%; }
+  .col-status { width: 150px; }
+  .col-act { width: 78px; }
+  .word-link { padding: 0; border: 0; background: none; color: var(--text); font-size: 14.5px; font-weight: 600; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+  .word-link:hover { color: var(--accent-text); }
+  td .sub { margin-top: 2px; overflow: hidden; color: var(--muted); font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
+  td.acts { text-align: right; }
+  td.empty { padding: 28px 20px; color: var(--muted); text-align: center; }
+  .empty .st, .empty-mini .st { display: block; width: 104px; height: 104px; margin: 0 auto 8px; }
+  .empty-mini { padding: 8px 0; text-align: center; }
+  .empty-mini .st { width: 72px; height: 72px; }
+
+  .modes { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; margin-bottom: 6px; }
+  .mode { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-height: 176px; padding: 18px 20px; border: 1px solid var(--line);
+          border-radius: 16px; background: var(--surface); box-shadow: var(--shadow); color: var(--text); text-align: left; cursor: pointer;
+          transition: border-color .15s, box-shadow .15s, transform .15s; }
+  .mode .st { width: 64px; height: 64px; margin: -4px 0 4px -6px; }
+  .mode:hover { border-color: var(--accent); box-shadow: var(--shadow-md); transform: translateY(-2px); }
+  .mode:hover .st { animation: wiggle .6s ease; }
+  .mode b { font-size: 16px; }
+  .mode span:not(.st) { color: var(--muted); font-size: 13.5px; }
+  .mode em { margin-top: auto; padding-top: 6px; color: var(--accent-text); font-size: 13.5px; font-style: normal; font-weight: 600; }
+
+  .minis { display: grid; grid-template-columns: repeat(auto-fit, minmax(122px, 1fr)); gap: 12px; margin-bottom: 14px; }
+  .mini { margin: 0; padding: 14px 16px; }
+  .mini span { display: block; color: var(--muted); font-size: 12.5px; }
+  .mini b { display: block; margin: 2px 0; font-size: 24px; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+  .mini small { display: block; color: var(--muted); font-size: 12px; }
+  .heat-box { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 20px 32px; }
+  .heat-months { display: grid; grid-template-columns: repeat(12, 20px); gap: 5px; margin: 0 0 6px 28px; color: var(--muted); font-size: 11px; white-space: nowrap; }
+  .heat-body { display: flex; gap: 8px; }
+  .heat-days { display: grid; grid-template-rows: repeat(7, 20px); gap: 5px; width: 20px; color: var(--muted); font-size: 11px; line-height: 20px; }
+  .heat { display: grid; grid-auto-flow: column; grid-template-rows: repeat(7, 20px); grid-auto-columns: 20px; gap: 5px; }
+  .heat i { border-radius: 5px; background: var(--hover); }
+  .heat i.future { background: transparent; }
+  .heat i.h1, .heat i.h2, .heat i.h3, .heat i.h4, .heat-key i.h1, .heat-key i.h2, .heat-key i.h3, .heat-key i.h4 { background: var(--accent); }
+  .heat i.h1, .heat-key i.h1 { opacity: .3; }
+  .heat i.h2, .heat-key i.h2 { opacity: .55; }
+  .heat i.h3, .heat-key i.h3 { opacity: .8; }
+  .heat i.today { outline: 2px solid var(--text-2); outline-offset: 1px; }
+  .heat-key { display: flex; align-items: center; gap: 4px; margin-top: 10px; color: var(--muted); font-size: 11.5px; }
+  .heat-key i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; background: var(--hover); }
+  .heat-side { flex: 1; min-width: 180px; }
+  .heat-side b { display: block; font-size: 22px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid-2 .card { margin: 0; }
+  .hard-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+  .hard-row:last-child { border-bottom: 0; }
+  .hard-row > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .achievements { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .ach { display: flex; align-items: center; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); }
+  .ach .st { width: 60px; height: 60px; }
+  .ach:not(.done) .st { filter: grayscale(1); opacity: .45; }
+  .ach.done { border-color: var(--accent); background: var(--accent-soft); }
+  .ach.done:hover .st { animation: wiggle .6s ease; }
+  .ach .progress { height: 6px; margin: 6px 0 2px; }
+  .ach small { color: var(--muted); font-size: 12px; }
+
+  .tiles { position: relative; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+  .tile { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; margin: 0; padding: 12px 14px; border: 1px solid var(--line-strong);
+          border-radius: 12px; color: var(--text); font-size: 14px; font-weight: 400; cursor: pointer; transition: border-color .15s, background .15s; }
+  .tile:hover { border-color: var(--accent); }
+  .tile span { color: var(--muted); font-size: 12.5px; }
+  .tile em { margin-top: auto; padding-top: 6px; font-style: normal; }
+  .tiles input:checked + .tile { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+  details.provider { padding: 0; }
+  details.provider summary { padding: 15px 20px; list-style: none; cursor: pointer; }
+  details.provider summary::-webkit-details-marker { display: none; }
+  /* The layout sits on a child: older Safari cannot make a summary a flex container. */
+  .sum { display: flex; align-items: center; gap: 10px; }
+  .sum b { font-size: 15px; }
+  .sum::after { content: "Mở"; min-width: 52px; color: var(--muted); font-size: 13px; text-align: right; }
+  details.provider[open] .sum::after { content: "Thu gọn"; }
+  details.provider[open] summary { border-bottom: 1px solid var(--line); }
+  .pbody { padding: 16px 20px 20px; }
+  .pbody > p:first-child { margin-top: 0; }
+  .model-select { min-width: 320px; max-width: 100%; }
+  .model-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .pbody > div:first-child .model-row { padding-top: 0; }
+  .dl { margin: 10px 0 0; }
+  .usage { margin-top: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); font-size: 13px; }
+  .usage-title { margin-bottom: 8px; font-weight: 600; }
+  .usage-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 8px; }
+  .usage-grid div { display: flex; flex-direction: column; }
+  .usage-grid span, .usage-grid small { color: var(--muted); font-size: 12px; }
+  .usage-grid b { font-size: 16px; font-variant-numeric: tabular-nums; }
+  .setting-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+  .setting-row + .setting-row { margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .setting-row > div:first-child { flex: 1; min-width: 220px; }
+  .time-row { display: flex; align-items: center; gap: 8px; }
+  .time-row input { flex: 1; min-width: 0; }
+  .data-dir { display: flex; flex-direction: column; gap: 4px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .data-dir code { padding: 0; background: none; font-size: 12.5px; overflow-wrap: anywhere; }
+  #data-result { margin-top: 10px; }
+  #data-result:empty { display: none; }
+
+  .modal { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--backdrop); }
+  .dialog { width: 100%; max-width: 460px; max-height: calc(100vh - 48px); overflow-y: auto; padding: 24px; border: 1px solid var(--line);
+            border-radius: 18px; background: var(--surface); box-shadow: var(--shadow-lg); animation: rise .25s ease; }
+  .dialog h3 { margin: 0 0 8px; font-size: 17px; }
+  .word-dialog { max-width: 600px; }
+  .wd-head { display: flex; align-items: flex-start; gap: 8px; }
+  .wd-word { font-size: 30px; font-weight: 700; line-height: 1.2; letter-spacing: -.02em; overflow-wrap: anywhere; }
+  .word-dialog .ipa { margin-top: 2px; }
+  .word-dialog .explain, .word-dialog .example, .word-dialog .note, .word-dialog .pron, .word-dialog .extra { max-width: none; margin-left: 0; margin-right: 0; }
+  .wd-meta { margin-top: 12px; font-size: 13px; }
+  .wd-actions { margin-top: 18px; }
+  #toast { display: none; position: fixed; top: 18px; left: 50%; z-index: 80; max-width: min(560px, calc(100vw - 40px)); padding: 11px 18px;
+           border-radius: 12px; background: var(--toast-bg); color: var(--toast-text); font-weight: 600; box-shadow: var(--shadow-lg); transform: translateX(-50%); }
   #toast.show { display: block; animation: toastIn .35s cubic-bezier(.2, .8, .2, 1); }
-  #confetti { position: fixed; inset: 0; pointer-events: none; z-index: 55; }
-  a { color: var(--blue); }
-  .usage { margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); font-size: 13px; }
-  .provider-head { display: flex; align-items: center; gap: 10px; }
-  .provider-head h3 { margin: 0; flex: 1; }
-  /* The sign-in button OpenAI asks for: black, with its label. */
-  button.chatgpt { background: #000; border-color: #000; color: #fff; font-weight: 600; padding: 9px 18px; }
-  :root[data-theme="dark"] button.chatgpt { background: #fff; border-color: #fff; color: #000; }
-  .modal { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); display: flex; align-items: center; justify-content: center; z-index: 70; }
-  .modal .dialog { background: var(--surface); border-radius: 16px; padding: 24px; max-width: 440px; box-shadow: 0 20px 50px rgba(0, 0, 0, .3); animation: rise .25s ease; }
-  .hidden { display: none !important; }
-  /* While a session runs, only the card is on the page. */
-  #page-home.studying .hero, #page-home.studying .stats, #page-home.studying #week-card { display: none; }
-  kbd { font-size: 11px; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; color: var(--muted); }
-  button.primary kbd { color: #dbe6ff; border-color: #6b93f0; }
+  #confetti { position: fixed; inset: 0; z-index: 75; pointer-events: none; }
+  .float-xp { position: fixed; z-index: 76; color: var(--orange); font-weight: 800; pointer-events: none; text-shadow: 0 1px 0 var(--bg); animation: floatUp 1.1s ease-out forwards; }
+
   @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   @keyframes flipOut { to { transform: rotateY(90deg); opacity: .6; } }
   @keyframes flipIn { from { transform: rotateY(-90deg); opacity: .6; } to { transform: none; opacity: 1; } }
   @keyframes slideIn { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
   @keyframes shake { 0%, 100% { transform: none; } 20%, 60% { transform: translateX(-8px); } 40%, 80% { transform: translateX(8px); } }
-  @keyframes pop { 0% { transform: scale(1); } 40% { transform: scale(1.08); } 100% { transform: scale(1); } }
-  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, .45); } 70% { box-shadow: 0 0 0 14px rgba(37, 99, 235, 0); } 100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); } }
-  @keyframes glow { 0%, 100% { text-shadow: 0 0 0 rgba(253, 230, 138, 0); } 50% { text-shadow: 0 0 14px rgba(253, 230, 138, .9); } }
+  @keyframes pop { 0% { transform: scale(1); } 40% { transform: scale(1.06); } 100% { transform: scale(1); } }
+  @keyframes popIn { 0% { transform: scale(.3); opacity: 0; } 70% { transform: scale(1.12); opacity: 1; } 100% { transform: scale(1); } }
+  @keyframes bob { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-7px) rotate(2deg); } }
+  @keyframes wiggle { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-9deg) scale(1.06); } 75% { transform: rotate(7deg) scale(1.06); } }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 255, 255, .55); } 70% { box-shadow: 0 0 0 12px rgba(255, 255, 255, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0); } }
+  @keyframes glow { 0%, 100% { text-shadow: 0 0 0 rgba(232, 134, 12, 0); } 50% { text-shadow: 0 0 14px rgba(232, 134, 12, .55); } }
   @keyframes floatUp { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(-60px) scale(1.3); } }
   @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
   @keyframes toastIn { from { opacity: 0; transform: translate(-50%, -20px); } to { opacity: 1; transform: translateX(-50%); } }
   @keyframes fresh { from { background: var(--fresh); } to { background: transparent; } }
   @keyframes blink { 50% { opacity: .2; } }
+  @media (max-width: 900px) {
+    nav { width: 196px; }
+    main { padding: 22px 22px 40px; }
+    .dash { grid-template-columns: 1fr 1fr; }
+    .dash .vocab-card { grid-column: 1 / -1; }
+    .grid3, .grid-2 { grid-template-columns: 1fr 1fr; }
+    .grid-2 { grid-template-columns: 1fr; }
+    .hero-nums { gap: 28px; }
+    .hero-mascot { width: 96px; height: 96px; }
+  }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
 </head>
 <body>
 <canvas id="confetti"></canvas>
-<div id="toast"></div>
+<div id="toast" role="status" aria-live="polite"></div>
 <div id="modal" class="modal hidden">
-  <div class="dialog">
-    <h3 style="margin-top:0">Bạn đang dùng gói ChatGPT</h3>
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <h3 id="modal-title">Bạn đang dùng gói ChatGPT</h3>
     <p>Các yêu cầu AI trong Card English (giải thích nghĩa, gợi ý từ mới) sẽ dùng hạn mức trong gói ChatGPT của bạn. Bạn có thể xem và giới hạn mức dùng của app trong cài đặt ChatGPT.</p>
     <div class="row"><button class="btn primary" id="btn-modal-ok">Đã hiểu</button><button class="btn" data-link="https://chatgpt.com/settings/usage">Quản lý hạn mức</button></div>
   </div>
 </div>
+<div id="word-modal" class="modal hidden">
+  <div class="dialog word-dialog" id="word-detail" role="dialog" aria-modal="true" aria-label="Chi tiết từ"></div>
+</div>
+<input type="file" id="import-file" accept=".csv,.tsv,.txt,.json" hidden>
 <nav>
-  <h1>Card English</h1>
-  <div class="level"><span id="level-text">Cấp 1</span><div class="progress"><div id="level-bar"></div></div></div>
-  <button data-page="home" class="active">Học hôm nay</button>
-  <button data-page="words">Từ vựng</button>
-  <button data-page="practice">Bài tập</button>
-  <button data-page="settings">Cài đặt</button>
+  <div class="brand"><span class="st st-mascot" aria-hidden="true"></span><div><b>Card English</b><span>Học từ vựng mỗi ngày</span></div></div>
+  <div class="seg" id="course-switch" role="radiogroup" aria-label="Khóa học">
+    <input type="radio" name="course" id="course-en" value="en" checked><label for="course-en">Tiếng Anh</label>
+    <input type="radio" name="course" id="course-zh" value="zh"><label for="course-zh">Tiếng Trung</label>
+  </div>
+  <button class="nav active" data-page="home" aria-current="page"><span class="st st-nav-home" aria-hidden="true"></span>Học hôm nay<span class="count" id="nc-home"></span></button>
+  <button class="nav" data-page="words"><span class="st st-nav-words" aria-hidden="true"></span>Từ vựng<span class="count" id="nc-words"></span></button>
+  <button class="nav" data-page="practice"><span class="st st-nav-practice" aria-hidden="true"></span>Bài tập</button>
+  <button class="nav" data-page="stats"><span class="st st-nav-stats" aria-hidden="true"></span>Thống kê</button>
+  <button class="nav" data-page="settings"><span class="st st-nav-settings" aria-hidden="true"></span>Cài đặt</button>
   <div class="foot">
+    <div class="level-box">
+      <div class="row"><b class="grow" id="level-text">Cấp 1</b><span class="muted num" id="level-xp"></span></div>
+      <div class="progress"><div id="level-bar"></div></div>
+      <small id="level-next"></small>
+    </div>
     <div id="update-banner"></div>
-    <div>Phiên bản <span id="version"></span></div>
+    <div class="version">Phiên bản <span id="version"></span></div>
   </div>
 </nav>
 <main>
   <section id="page-home" class="active">
-    <h2>Học hôm nay</h2>
-    <div class="card hero">
-      <div class="ring" id="goal-ring">
-        <svg width="150" height="150"><circle class="track" cx="75" cy="75" r="62"/><circle class="fill" id="goal-fill" cx="75" cy="75" r="62"/></svg>
-        <div class="label"><b id="goal-xp">0</b><span class="muted" id="goal-of">/ 50 XP</span></div>
+    <header class="page-head"><div><h2 id="greeting">Học hôm nay</h2><p id="today-date"></p></div></header>
+    <div id="session-start" class="card hero">
+      <div class="hero-main">
+        <div class="eyebrow">Buổi học hôm nay</div>
+        <div class="hero-nums">
+          <div><b id="st-due" class="num">0</b><span>từ cần ôn</span></div>
+          <div><b id="st-new" class="num">0</b><span>từ mới</span></div>
+        </div>
+        <p id="session-hint"></p>
+        <div class="row">
+          <button class="btn primary big" id="btn-start">Bắt đầu học</button>
+          <button class="btn big" id="btn-go-suggest">AI gợi ý từ mới</button>
+        </div>
       </div>
-      <div>
-        <div class="streak" id="streak">Bắt đầu chuỗi ngày học của bạn</div>
-        <div class="muted" id="goal-text"></div>
-        <div class="quote" id="quote"></div>
-      </div>
-    </div>
-    <div class="stats">
-      <div class="stat"><b id="st-due">0</b><span>Từ cần ôn</span></div>
-      <div class="stat"><b id="st-new">0</b><span>Từ mới hôm nay</span></div>
-      <div class="stat"><b id="st-learned">0</b><span>Đã học</span></div>
-      <div class="stat"><b id="st-total">0</b><span>Tổng số từ</span></div>
-    </div>
-    <div id="session-start" class="card">
-      <p id="session-hint" class="muted"></p>
-      <div class="row">
-        <button class="btn primary big" id="btn-start">Bắt đầu học</button>
-        <button class="btn" id="btn-go-suggest">AI gợi ý từ mới</button>
-      </div>
+      <span class="st st-mascot hero-mascot" id="hero-mascot" aria-hidden="true"></span>
     </div>
     <div id="session" class="hidden">
-      <div class="row"><div class="grow progress"><div id="session-bar"></div></div><span id="session-count" class="muted"></span></div>
+      <div class="study-bar">
+        <div class="grow progress"><div id="session-bar"></div></div>
+        <span id="session-count" class="muted num"></span>
+        <button class="btn small hidden" id="btn-undo">Hoàn tác <kbd>Z</kbd></button>
+        <button class="btn small" id="btn-session-quit">Kết thúc</button>
+      </div>
       <div class="card flash" id="session-card"></div>
     </div>
+    <div class="dash">
+      <div class="card">
+        <div class="card-title">Mục tiêu hôm nay</div>
+        <div class="goal-body">
+          <div class="ring" id="goal-ring">
+            <svg width="92" height="92" viewBox="0 0 92 92" aria-hidden="true"><circle class="track" cx="46" cy="46" r="40"/><circle class="fill" id="goal-fill" cx="46" cy="46" r="40"/></svg>
+            <div class="label"><b class="num" id="goal-xp">0</b><span id="goal-of">/ 50 XP</span></div>
+          </div>
+          <div class="muted" id="goal-text"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="grow">Chuỗi ngày học</span><span class="st st-streak" aria-hidden="true"></span></div>
+        <div class="big-num"><b class="num" id="streak">0</b><span class="muted">ngày</span></div>
+        <div class="muted" id="streak-text"></div>
+        <div class="quote" id="quote"></div>
+      </div>
+      <div class="card vocab-card">
+        <div class="card-title">Kho từ của bạn</div>
+        <div class="big-num"><b class="num" id="st-total">0</b><span class="muted">từ</span></div>
+        <div class="stack"><span class="k" id="vbar-known"></span><span class="d" id="vbar-due"></span><span class="n" id="vbar-new"></span></div>
+        <div class="legend"><span><b class="k" id="vb-known">0</b> đang nhớ</span><span><b class="d" id="vb-due">0</b> cần ôn</span><span><b class="n" id="vb-new">0</b> chưa học</span></div>
+      </div>
+    </div>
     <div class="card" id="week-card">
-      <div class="row"><b class="grow">7 ngày gần đây</b><span class="muted" id="week-total"></span></div>
+      <div class="card-title"><span class="grow">7 ngày gần đây</span><span id="week-total"></span></div>
       <div class="week" id="week"></div>
     </div>
   </section>
 
   <section id="page-words">
-    <h2>Từ vựng</h2>
+    <header class="page-head">
+      <div class="grow"><h2>Từ vựng</h2><p id="word-count"></p></div>
+      <button class="btn" id="btn-open-suggest">AI gợi ý từ mới</button>
+    </header>
     <div class="card">
       <div class="row">
-        <input id="new-word" class="grow" placeholder="Nhập từ hoặc cụm từ tiếng Anh muốn học" maxlength="80">
+        <input id="new-word" class="grow" placeholder="Nhập từ hoặc cụm từ tiếng Anh muốn học" maxlength="80" aria-label="Từ muốn học">
         <button class="btn primary" id="btn-add">Tra và thêm</button>
         <button class="btn" id="btn-manual">Tự nhập</button>
       </div>
       <div id="editor" class="hidden">
         <p id="editor-status" class="muted"></p>
         <div class="grid2">
-          <div><label>Từ</label><input id="f-word" maxlength="80"></div>
-          <div><label>Phiên âm (IPA)</label><input id="f-ipa"></div>
-          <div><label>Loại từ</label><input id="f-pos"></div>
-          <div><label>Nghĩa tiếng Việt</label><input id="f-meaning"></div>
+          <div><label for="f-word">Từ</label><input id="f-word" maxlength="80"></div>
+          <div><label for="f-ipa">Phiên âm (IPA)</label><input id="f-ipa"></div>
+          <div><label for="f-pos">Loại từ</label><input id="f-pos"></div>
+          <div><label for="f-meaning">Nghĩa tiếng Việt</label><input id="f-meaning"></div>
         </div>
-        <label>Giải thích cách dùng</label><textarea id="f-explain"></textarea>
+        <label for="f-explain">Giải thích cách dùng</label><textarea id="f-explain"></textarea>
         <div class="grid2">
-          <div><label>Câu ví dụ</label><textarea id="f-example"></textarea></div>
-          <div><label>Dịch câu ví dụ</label><textarea id="f-example_vi"></textarea></div>
+          <div><label for="f-example">Câu ví dụ</label><textarea id="f-example"></textarea></div>
+          <div><label for="f-example_vi">Dịch câu ví dụ</label><textarea id="f-example_vi"></textarea></div>
         </div>
-        <label>Ghi chú</label><textarea id="f-note"></textarea>
-        <div class="row" style="margin-top:12px">
+        <div class="grid2 only-zh">
+          <div><label for="f-hanviet">Âm Hán Việt</label><input id="f-hanviet"></div>
+          <div><label for="f-example_reading">Pinyin câu ví dụ</label><input id="f-example_reading"></div>
+        </div>
+        <div class="grid3">
+          <div><label for="f-synonyms">Đồng nghĩa</label><input id="f-synonyms"></div>
+          <div><label for="f-antonyms">Trái nghĩa</label><input id="f-antonyms"></div>
+          <div><label for="f-collocations">Cụm từ hay gặp</label><input id="f-collocations"></div>
+        </div>
+        <div class="grid2">
+          <div><label for="f-level">Cấp độ (CEFR)</label>
+            <select id="f-level"><option value="">Chưa rõ</option><option>A1</option><option>A2</option><option>B1</option><option>B2</option><option>C1</option><option>C2</option></select></div>
+          <div><label for="f-topic">Chủ đề</label><input id="f-topic" list="topic-list" maxlength="40"><datalist id="topic-list"></datalist></div>
+        </div>
+        <label for="f-note">Ghi chú</label><textarea id="f-note"></textarea>
+        <div class="row actions">
           <button class="btn primary" id="btn-save">Lưu</button>
           <button class="btn" id="btn-listen">Nghe</button>
           <button class="btn" id="btn-reexplain">Hỏi lại AI</button>
@@ -251,87 +639,235 @@
         </div>
       </div>
     </div>
-    <div class="card" id="suggest-card">
-      <div class="row"><b class="grow">AI gợi ý từ mới</b><button class="btn" id="btn-suggest-learned">Theo từ bạn đã học</button></div>
-      <div class="chips" id="topics"></div>
-      <div class="row">
-        <input id="topic" class="grow" placeholder="Hoặc nhập chủ đề bạn quan tâm, ví dụ: phỏng vấn xin việc" maxlength="80">
-        <button class="btn primary" id="btn-suggest">Gợi ý</button>
+    <div class="card hidden" id="suggest-card">
+      <div class="row"><span class="st st-ai" aria-hidden="true"></span><b class="grow">AI gợi ý từ mới</b><button class="btn small" id="btn-suggest-close">Đóng</button></div>
+      <div class="seg" id="suggest-tabs" role="radiogroup" aria-label="Cách gợi ý">
+        <input type="radio" name="suggest-tab" id="sgt-topic" value="topic" checked><label for="sgt-topic">Theo chủ đề</label>
+        <input type="radio" name="suggest-tab" id="sgt-text" value="text"><label for="sgt-text">Từ đoạn văn</label>
       </div>
-      <div id="suggest-status" class="muted" style="margin-top:8px"></div>
+      <div id="suggest-topic">
+        <div class="chips" id="topics"></div>
+        <div class="row">
+          <input id="topic" class="grow" placeholder="Hoặc nhập chủ đề bạn quan tâm, ví dụ: phỏng vấn xin việc" maxlength="80" aria-label="Chủ đề">
+          <button class="btn primary" id="btn-suggest">Gợi ý</button>
+          <button class="btn" id="btn-suggest-learned">Theo từ bạn đã học</button>
+        </div>
+      </div>
+      <div id="suggest-text" class="hidden">
+        <textarea id="passage" maxlength="4000" placeholder="Dán một đoạn văn, bài báo hay email tiếng Anh, AI sẽ chọn những từ đáng học" aria-label="Đoạn văn"></textarea>
+        <div class="row"><button class="btn primary" id="btn-extract">Tìm từ đáng học</button><span class="muted small" id="passage-count"></span></div>
+      </div>
+      <div id="suggest-status" class="muted"></div>
       <div class="suggestions" id="suggestions"></div>
-      <div class="row hidden" id="suggest-actions" style="margin-top:10px"><button class="btn primary" id="btn-add-all">Thêm tất cả</button></div>
+      <div class="row hidden" id="suggest-actions"><button class="btn primary" id="btn-add-all">Thêm tất cả</button></div>
     </div>
-    <div class="row" style="margin-bottom:10px">
-      <input id="search" class="grow" placeholder="Tìm theo từ hoặc nghĩa">
-      <span id="word-count" class="muted"></span>
+    <div class="list-tools">
+      <input id="search" class="grow" placeholder="Tìm theo từ, nghĩa hoặc chủ đề" aria-label="Tìm từ">
+      <select id="topic-filter" aria-label="Chủ đề"><option value="">Mọi chủ đề</option></select>
+      <div class="seg" id="word-filter" role="radiogroup" aria-label="Lọc theo trạng thái">
+        <input type="radio" name="word-filter" id="wf-all" value="all" checked><label for="wf-all">Tất cả <span class="n" id="wfn-all"></span></label>
+        <input type="radio" name="word-filter" id="wf-new" value="new"><label for="wf-new">Mới <span class="n" id="wfn-new"></span></label>
+        <input type="radio" name="word-filter" id="wf-due" value="due"><label for="wf-due">Cần ôn <span class="n" id="wfn-due"></span></label>
+        <input type="radio" name="word-filter" id="wf-known" value="known"><label for="wf-known">Đang nhớ <span class="n" id="wfn-known"></span></label>
+      </div>
     </div>
-    <div id="pron-panel" class="card hidden"></div>
-    <table>
-      <thead><tr><th>Từ</th><th>Nghĩa</th><th>Trạng thái</th><th>Phát âm</th><th></th></tr></thead>
-      <tbody id="word-rows"></tbody>
-    </table>
+    <div class="card list-card">
+      <table>
+        <thead><tr><th class="col-word">Từ</th><th>Nghĩa</th><th class="col-status">Trạng thái</th><th class="col-act"></th></tr></thead>
+        <tbody id="word-rows"></tbody>
+      </table>
+    </div>
   </section>
 
   <section id="page-practice">
-    <h2>Bài tập</h2>
-    <div id="practice-menu" class="card">
-      <p class="muted">Bài tập lấy từ danh sách của bạn. Mỗi câu đúng được 5 XP, trả lời đúng liên tiếp được thưởng thêm. Câu sai với từ đã học sẽ được đưa lại vào lịch ôn sớm.</p>
-      <div class="row">
-        <button class="btn primary" data-kind="flash">Flashcard</button>
-        <button class="btn primary" data-kind="fill">Điền từ</button>
-        <button class="btn primary" data-kind="choice">Chọn đáp án</button>
-        <label style="margin:0 0 0 12px">Số câu</label>
-        <select id="practice-size"><option>5</option><option selected>10</option><option>20</option></select>
+    <header class="page-head">
+      <div class="grow"><h2>Bài tập</h2><p>Luyện thêm với các từ trong danh sách của bạn.</p></div>
+      <label class="inline" for="practice-source">Luyện</label>
+      <select id="practice-source"><option value="all">Tất cả từ</option><option value="hard">Từ hay quên</option><option value="weak">Phát âm yếu</option></select>
+      <span class="muted">Số câu</span>
+      <div class="seg" role="radiogroup" aria-label="Số câu mỗi lượt">
+        <input type="radio" name="practice-size" id="ps-5" value="5"><label for="ps-5">5</label>
+        <input type="radio" name="practice-size" id="ps-10" value="10" checked><label for="ps-10">10</label>
+        <input type="radio" name="practice-size" id="ps-20" value="20"><label for="ps-20">20</label>
       </div>
+    </header>
+    <div id="practice-menu">
+      <h3 class="group first">Ôn luyện</h3>
+      <div class="modes">
+        <button class="mode" data-kind="flash"><span class="st st-mode-flash" aria-hidden="true"></span><b>Flashcard</b><span>Lật thẻ, nghe phát âm và tự đánh giá đã thuộc hay chưa.</span><em>Bắt đầu</em></button>
+        <button class="mode" data-kind="fill"><span class="st st-mode-fill" aria-hidden="true"></span><b>Điền từ</b><span>Điền từ còn thiếu vào câu ví dụ, hoặc viết từ theo nghĩa tiếng Việt.</span><em>Bắt đầu</em></button>
+        <button class="mode" data-kind="choice"><span class="st st-mode-choice" aria-hidden="true"></span><b>Chọn đáp án</b><span>Chọn nghĩa đúng của từ, hoặc từ đúng với nghĩa, trong bốn lựa chọn.</span><em>Bắt đầu</em></button>
+        <button class="mode" data-kind="dict"><span class="st st-mode-dict" aria-hidden="true"></span><b>Nghe chép</b><span>Nghe app đọc một từ hay cả câu rồi gõ lại cho đúng chính tả.</span><em>Bắt đầu</em></button>
+        <button class="mode" data-kind="speak"><span class="st st-mode-speak" aria-hidden="true"></span><b>Luyện nói</b><span>Đọc to từng từ, máy chấm điểm phát âm ngay trên máy.</span><em>Bắt đầu</em></button>
+      </div>
+      <h3 class="group">Học cùng AI</h3>
+      <div class="modes">
+        <button class="mode" data-kind="write"><span class="st st-mode-write" aria-hidden="true"></span><b>Đặt câu</b><span>Tự viết câu với từ đã học, AI sửa lỗi và giải thích bằng tiếng Việt.</span><em>Bắt đầu</em></button>
+        <button class="mode" data-kind="story"><span class="st st-mode-story" aria-hidden="true"></span><b>Truyện ngắn</b><span>AI viết một truyện ngắn dùng các từ bạn vừa ôn, kèm bản dịch.</span><em>Đọc truyện</em></button>
+      </div>
+      <p class="muted">Mỗi câu đúng được 5 XP, trả lời đúng liên tiếp được thưởng thêm. Câu sai với từ đã học sẽ được đưa lại vào lịch ôn sớm.</p>
       <p id="practice-error" class="error"></p>
     </div>
     <div id="practice" class="hidden">
-      <div class="row"><div class="grow progress"><div id="practice-bar"></div></div><span id="practice-count" class="muted"></span>
-        <span class="combo" id="combo"></span><button class="btn small" id="btn-practice-quit">Dừng</button></div>
+      <div class="study-bar">
+        <div class="grow progress"><div id="practice-bar"></div></div>
+        <span id="practice-count" class="muted num"></span>
+        <span class="combo" id="combo"></span>
+        <button class="btn small" id="btn-practice-quit">Dừng</button>
+      </div>
       <div class="card flash" id="practice-card"></div>
     </div>
   </section>
 
-  <section id="page-settings">
-    <h2>Cài đặt</h2>
-    <div class="card">
-      <h3 style="margin-top:0">Trí tuệ nhân tạo</h3>
-      <label>Dùng AI nào để giải thích nghĩa và gợi ý từ mới</label>
-      <select id="s-ai_provider">
-        <option value="local">Model trên máy (Qwen 0.5B): miễn phí, chạy offline</option>
-        <option value="codex">ChatGPT qua Codex: dùng được cả tài khoản Free</option>
-        <option value="chatgpt">ChatGPT: dùng gói Plus hoặc Pro của bạn</option>
-        <option value="gemini">Gemini: API key miễn phí từ Google AI Studio</option>
-        <option value="deepseek">DeepSeek: API key, trả phí theo lượt</option>
-      </select>
-      <p class="muted">Khi AI đang chọn bị lỗi hoặc hết hạn mức, app tự chuyển sang nguồn khác đã sẵn sàng và cho bạn biết.</p>
-    </div>
-    <div class="card" id="pv-codex"></div>
-    <div class="card" id="pv-chatgpt"></div>
-    <div class="card" id="pv-gemini"></div>
-    <div class="card" id="pv-deepseek"></div>
-    <div class="card" id="pv-local">
-      <div class="provider-head"><h3>Model trên máy</h3><span id="tag-local"></span></div>
-      <div id="model-llm" style="margin-top:12px"></div>
-      <div id="model-stt" style="margin-top:12px"></div>
-      <div id="usage-local"></div>
+  <section id="page-stats">
+    <header class="page-head"><div><h2>Thống kê</h2><p>Bạn đã đi được bao xa, và những ngày sắp tới.</p></div></header>
+    <div class="minis">
+      <div class="card mini"><span>Tổng XP</span><b id="ss-xp">0</b><small id="ss-level"></small></div>
+      <div class="card mini"><span>Chuỗi hiện tại</span><b id="ss-streak">0</b><small id="ss-freeze"></small></div>
+      <div class="card mini"><span>Chuỗi dài nhất</span><b id="ss-longest">0</b><small>ngày liên tiếp</small></div>
+      <div class="card mini"><span>Trả lời đúng, 30 ngày</span><b id="ss-acc">-</b><small id="ss-answers"></small></div>
+      <div class="card mini"><span>Lượt ôn</span><b id="ss-reviews">0</b><small id="ss-today"></small></div>
     </div>
     <div class="card">
-      <h3 style="margin-top:0">Học tập, nhắc nhở và giao diện</h3>
-      <div class="grid2">
-        <div><label>Số từ mới mỗi ngày</label><input id="s-new_per_day" type="number" min="1" max="200"></div>
-        <div><label>Mục tiêu XP mỗi ngày</label><input id="s-daily_goal" type="number" min="10" max="1000" step="10"></div>
-        <div><label>Nhắc học mỗi bao nhiêu giờ (0 là tắt)</label><input id="s-remind_hours" type="number" min="0" max="24"></div>
-        <div><label>Giao diện</label><select id="s-theme" style="width:100%"><option value="system">Theo hệ thống</option><option value="light">Sáng</option><option value="dark">Tối</option></select></div>
+      <div class="card-title">Lịch học 12 tuần</div>
+      <div class="heat-box">
+        <div>
+          <div class="heat-months" id="heat-months"></div>
+          <div class="heat-body">
+            <div class="heat-days"><span>T2</span><span></span><span>T4</span><span></span><span>T6</span><span></span><span>CN</span></div>
+            <div class="heat" id="heat"></div>
+          </div>
+          <div class="heat-key">Ít <i></i><i class="h1"></i><i class="h2"></i><i class="h3"></i><i class="h4"></i> Nhiều, theo mục tiêu XP</div>
+        </div>
+        <div class="heat-side"><b id="heat-days-count">0</b><span class="muted" id="heat-summary"></span></div>
       </div>
-      <p class="muted">Nhắc nhở chạy khi app còn ở khay hệ thống. Đóng cửa sổ không tắt app; muốn thoát hãy chọn Thoát trên icon ở khay.</p>
     </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title"><span class="grow">Dự báo ôn tập 7 ngày tới</span><span id="forecast-total"></span></div>
+        <div class="week forecast" id="forecast"></div>
+      </div>
+      <div class="card">
+        <div class="card-title"><span class="grow">Từ hay quên</span><button class="btn small" id="btn-practice-hard">Luyện ngay</button></div>
+        <div id="hard-list"></div>
+      </div>
+    </div>
+    <h3 class="group"><span class="grow">Thành tích</span><span id="ach-count"></span></h3>
+    <div class="achievements" id="achievements"></div>
+  </section>
+
+  <section id="page-settings">
+    <header class="page-head"><div><h2>Cài đặt</h2><p>Nguồn AI, lịch học, nhắc nhở, giọng đọc và dữ liệu.</p></div></header>
+    <h3 class="group first"><span class="st st-ai" aria-hidden="true"></span>Trí tuệ nhân tạo</h3>
     <div class="card">
-      <h3 style="margin-top:0">Phiên bản</h3>
-      <div class="row"><span>Đang dùng bản <b id="s-version"></b></span><button class="btn" id="btn-update">Kiểm tra cập nhật</button></div>
-      <p id="update-result" class="muted"></p>
-      <p class="muted">Dữ liệu lưu tại: <span id="data-dir"></span></p>
+      <div class="card-title">Dùng AI nào để giải thích nghĩa, gợi ý từ, chấm câu và viết truyện</div>
+      <div class="tiles" id="ai-tiles" role="radiogroup" aria-label="Nguồn AI">
+        <input type="radio" name="ai_provider" id="ai-local" value="local"><label class="tile" for="ai-local"><b>Model trên máy</b><span>Qwen 0.5B, miễn phí, chạy offline</span><em id="pt-local"></em></label>
+        <input type="radio" name="ai_provider" id="ai-codex" value="codex"><label class="tile" for="ai-codex"><b>ChatGPT qua Codex</b><span>Dùng được cả tài khoản Free</span><em id="pt-codex"></em></label>
+        <input type="radio" name="ai_provider" id="ai-chatgpt" value="chatgpt"><label class="tile" for="ai-chatgpt"><b>ChatGPT</b><span>Dùng gói Plus hoặc Pro của bạn</span><em id="pt-chatgpt"></em></label>
+        <input type="radio" name="ai_provider" id="ai-gemini" value="gemini"><label class="tile" for="ai-gemini"><b>Gemini</b><span>API key miễn phí từ Google AI Studio</span><em id="pt-gemini"></em></label>
+        <input type="radio" name="ai_provider" id="ai-deepseek" value="deepseek"><label class="tile" for="ai-deepseek"><b>DeepSeek</b><span>API key, trả phí theo lượt</span><em id="pt-deepseek"></em></label>
+      </div>
+      <p class="muted">Khi AI đang chọn bị lỗi hoặc hết hạn mức, app tự chuyển sang nguồn khác đã sẵn sàng và cho bạn biết. Mở từng nguồn bên dưới để thiết lập.</p>
+    </div>
+    <details class="card provider" id="pd-local"><summary><span class="sum"><b>Model trên máy</b><span class="grow"></span><span class="row" id="ps-local"></span></span></summary>
+      <div class="pbody"><div id="model-llm"></div><div id="model-stt"></div><div id="model-sttzh"></div><div id="usage-local"></div></div></details>
+    <details class="card provider" id="pd-codex"><summary><span class="sum"><b>ChatGPT qua Codex</b><span class="grow"></span><span class="row" id="ps-codex"></span></span></summary><div class="pbody" id="pv-codex"></div></details>
+    <details class="card provider" id="pd-chatgpt"><summary><span class="sum"><b>ChatGPT</b><span class="grow"></span><span class="row" id="ps-chatgpt"></span></span></summary><div class="pbody" id="pv-chatgpt"></div></details>
+    <details class="card provider" id="pd-gemini"><summary><span class="sum"><b>Gemini</b><span class="grow"></span><span class="row" id="ps-gemini"></span></span></summary><div class="pbody" id="pv-gemini"></div></details>
+    <details class="card provider" id="pd-deepseek"><summary><span class="sum"><b>DeepSeek</b><span class="grow"></span><span class="row" id="ps-deepseek"></span></span></summary><div class="pbody" id="pv-deepseek"></div></details>
+
+    <h3 class="group">Học tập</h3>
+    <div class="card">
+      <div class="grid3">
+        <div><label for="s-new_per_day">Số từ mới mỗi ngày</label><input id="s-new_per_day" type="number" min="1" max="200"></div>
+        <div><label for="s-daily_goal">Mục tiêu XP mỗi ngày</label><input id="s-daily_goal" type="number" min="10" max="1000" step="10"></div>
+        <div><label for="s-desired_retention">Mức ghi nhớ mong muốn</label>
+          <select id="s-desired_retention"><option value="0.8">80%, ôn ít</option><option value="0.85">85%</option><option value="0.9">90%, khuyên dùng</option><option value="0.95">95%, nhớ chắc</option></select></div>
+      </div>
+      <p class="muted">Lịch ôn dùng FSRS, thuật toán Anki đang dùng: mỗi từ có độ khó và độ bền trí nhớ riêng, và được hẹn ôn đúng lúc khả năng nhớ giảm xuống mức bạn chọn.</p>
+      <label class="switch"><input type="checkbox" id="s-streak_freeze"><i></i>Cho phép nghỉ một ngày mỗi tuần mà vẫn giữ chuỗi ngày học</label>
+    </div>
+
+    <h3 class="group"><span class="st st-clock" aria-hidden="true"></span>Nhắc nhở</h3>
+    <div class="card">
+      <div class="grid3">
+        <div><label for="s-remind_hours">Nhắc sau mỗi (giờ, 0 là tắt)</label><input id="s-remind_hours" type="number" min="0" max="24"></div>
+        <div><label for="s-remind_at">Nhắc hằng ngày lúc</label><input id="s-remind_at" type="time"></div>
+        <div><label for="s-quiet_from">Không nhắc từ ... đến ...</label>
+          <div class="time-row"><input id="s-quiet_from" type="time" aria-label="Bắt đầu giờ yên lặng"><input id="s-quiet_to" type="time" aria-label="Hết giờ yên lặng"></div></div>
+      </div>
+      <p class="muted">Để trống ô giờ nếu không dùng. Nhắc nhở chạy khi app còn ở khay hệ thống; đóng cửa sổ không tắt app, muốn thoát hãy chọn Thoát trên icon ở khay.</p>
+      <label class="switch"><input type="checkbox" id="s-tray_count"><i></i>Hiện số từ cần học bên cạnh icon trên thanh menu</label>
+      <label class="switch"><input type="checkbox" id="s-autostart"><i></i>Mở cùng máy tính, chỉ chạy ở khay để nhắc học đúng giờ</label>
+    </div>
+
+    <h3 class="group">Giọng đọc</h3>
+    <div class="card">
+      <div class="setting-row">
+        <div><b>Giọng</b><div class="muted">Anh-Mỹ hay Anh-Anh, và giọng cụ thể nếu máy có nhiều giọng.</div></div>
+        <div class="seg" id="s-accent" role="radiogroup" aria-label="Giọng">
+          <input type="radio" name="accent" id="ac-en-US" value="en-US"><label for="ac-en-US">Anh-Mỹ</label>
+          <input type="radio" name="accent" id="ac-en-GB" value="en-GB"><label for="ac-en-GB">Anh-Anh</label>
+        </div>
+        <select id="s-voice" aria-label="Giọng cụ thể"></select>
+      </div>
+      <div class="setting-row">
+        <div><b>Tốc độ đọc</b><div class="muted" id="rate-label"></div></div>
+        <input id="s-speech_rate" type="range" min="0.6" max="1.3" step="0.05" aria-label="Tốc độ đọc">
+        <button class="btn" id="btn-voice-test">Nghe thử</button>
+      </div>
+      <p class="muted small" id="voice-note"></p>
+    </div>
+
+    <h3 class="group">Phím tắt thêm từ</h3>
+    <div class="card">
+      <div class="setting-row">
+        <div><b>Thêm từ đang sao chép</b><div class="muted">Sao chép một từ hoặc một đoạn văn ở bất kỳ app nào, bấm phím tắt: Card English mở ra và tra từ đó, hoặc tìm các từ đáng học trong đoạn văn.</div></div>
+        <select id="s-hotkey" aria-label="Phím tắt"></select>
+      </div>
+      <p class="error" id="hotkey-error"></p>
+    </div>
+
+    <h3 class="group">Giao diện</h3>
+    <div class="card">
+      <div class="setting-row">
+        <div><b>Chế độ màu</b><div class="muted">Sáng, tối hoặc theo cài đặt của hệ thống.</div></div>
+        <div class="seg" id="s-theme" role="radiogroup" aria-label="Chế độ màu">
+          <input type="radio" name="theme" id="th-system" value="system"><label for="th-system">Theo hệ thống</label>
+          <input type="radio" name="theme" id="th-light" value="light"><label for="th-light">Sáng</label>
+          <input type="radio" name="theme" id="th-dark" value="dark"><label for="th-dark">Tối</label>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div><b>Màu chủ đạo</b><div class="muted">Màu của nút, thanh tiến độ và thẻ chào mừng.</div></div>
+        <div class="seg" id="s-palette" role="radiogroup" aria-label="Màu chủ đạo">
+          <input type="radio" name="palette" id="pl-blue" value="blue"><label for="pl-blue">Xanh dương</label>
+          <input type="radio" name="palette" id="pl-pink" value="pink"><label for="pl-pink">Hồng</label>
+          <input type="radio" name="palette" id="pl-purple" value="purple"><label for="pl-purple">Tím</label>
+        </div>
+      </div>
+    </div>
+
+    <h3 class="group">Dữ liệu</h3>
+    <div class="card">
+      <div class="row">
+        <button class="btn" id="btn-export">Xuất danh sách CSV</button>
+        <button class="btn" id="btn-backup">Sao lưu toàn bộ</button>
+        <button class="btn" id="btn-import">Nhập từ file</button>
+        <button class="btn" id="btn-open-backups">Mở thư mục sao lưu tự động</button>
+      </div>
+      <p class="muted">CSV mở được bằng Excel và nhập được vào Anki. Bản sao lưu JSON giữ cả lịch ôn, điểm XP và lịch sử trả lời, nhưng không có cài đặt hay khóa API. Nhập từ file nhận CSV, file Anki (.txt) và bản sao lưu JSON; từ đã có được giữ nguyên. Mỗi ngày app tự sao lưu một bản và giữ 7 bản gần nhất.</p>
+      <p id="data-result"></p>
+      <div class="data-dir"><span class="muted">Dữ liệu lưu tại</span><code id="data-dir"></code></div>
+    </div>
+
+    <h3 class="group">Phiên bản</h3>
+    <div class="card">
+      <div class="row">
+        <div class="grow"><b>Card English <span id="s-version"></span></b><div class="muted" id="update-result">Kiểm tra bản mới trên GitHub Releases.</div></div>
+        <button class="btn" id="btn-update">Kiểm tra cập nhật</button>
+      </div>
     </div>
   </section>
 </main>
@@ -346,6 +882,11 @@ const nowSec = () => Math.floor(Date.now() / 1000);
 const pad = (n) => String(n).padStart(2, "0");
 const localDay = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const hasHan = (s) => /[\u4e00-\u9fff]/.test(s);
+const courseOf = () => (state.settings.course || "en");
+/// A cartoon sticker from the sheet.
+const st = (name, cls = "") => `<span class="st st-${name} ${cls}" aria-hidden="true"></span>`;
+const shortDate = (sec) => new Date(sec * 1000).toLocaleDateString("vi-VN", { day: "numeric", month: "numeric" });
 
 const app = {
   seq: 0,
@@ -367,7 +908,8 @@ const app = {
 };
 window.app = app;
 
-let state = { settings: {}, models: {}, words: [], editing: null, xpToday: 0, totalXp: 0, days: [], celebrated: "" };
+let state = { settings: {}, models: {}, words: [], editing: null, xpToday: 0, totalXp: 0, days: [], celebrated: "", stats: null, forecast: [],
+              platform: "", hotkeys: [], brew: false };
 
 function onEvent(name, data) {
   if (name === "update") showUpdate(data);
@@ -377,12 +919,13 @@ function onEvent(name, data) {
     const t = $("mb-" + data.group);
     if (t) t.textContent = `${(data.done / 1e6).toFixed(0)} / ${(data.total / 1e6).toFixed(0)} MB`;
   }
+  if (name === "quick_add") quickAdd(data);
 }
 
 // Motion: confetti, floating experience, toasts and counters.
 const confetti = (() => {
   const canvas = $("confetti"), ctx = canvas.getContext("2d");
-  const colors = ["#2563eb", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#fde68a"];
+  const colors = ["#f9a8d4", "#c4b5fd", "#a7f3d0", "#fde68a", "#93c5fd", "#fdba74"];
   let parts = [], running = false;
   function frame() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -412,7 +955,7 @@ function toast(text) {
   t.textContent = text;
   t.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove("show"), 2600);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 2800);
 }
 
 function floatXp(amount, near) {
@@ -464,17 +1007,38 @@ async function gainXp(amount, near, correct) {
 function renderLevel() {
   const level = levelOf(state.totalXp);
   const base = levelXp(level), next = levelXp(level + 1);
-  $("level-text").textContent = `Cấp ${level} - ${state.totalXp} XP`;
+  $("level-text").textContent = `Cấp ${level}`;
+  $("level-xp").textContent = `${state.totalXp} XP`;
+  $("level-next").textContent = `Còn ${next - state.totalXp} XP lên cấp ${level + 1}`;
   $("level-bar").style.width = (100 * (state.totalXp - base)) / (next - base) + "%";
 }
 
-function streakOf(days) {
+/// The run of study days up to today, the longest run, and the missed days the current run bridged: with the
+/// freeze on, one missed day in seven does not break a run. Today only counts once something was studied.
+function streaks(days, freeze) {
   const active = new Set(days.filter((d) => d.xp > 0).map((d) => d.day));
-  const d = new Date();
-  if (!active.has(localDay(d))) d.setDate(d.getDate() - 1);
-  let n = 0;
-  while (active.has(localDay(d))) { n++; d.setDate(d.getDate() - 1); }
-  return n;
+  const first = [...active].sort()[0];
+  if (!first) return { current: 0, longest: 0, frozen: 0 };
+  const today = localDay();
+  let run = 0, longest = 0, frozen = 0, lastBridge = -Infinity, missed = false;
+  const d = new Date(first + "T00:00:00");
+  for (let i = 0; localDay(d) <= today && i < 5000; i++, d.setDate(d.getDate() + 1)) {
+    const key = localDay(d);
+    if (active.has(key)) {
+      run++;
+      missed = false;
+    } else if (key === today) {
+      // Today is not over yet.
+    } else if (freeze && !missed && run > 0 && i - lastBridge >= 7) {
+      missed = true;
+      frozen++;
+      lastBridge = i;
+    } else {
+      [run, frozen, missed, lastBridge] = [0, 0, false, -Infinity];
+    }
+    longest = Math.max(longest, run);
+  }
+  return { current: run, longest, frozen };
 }
 
 const QUOTES = [
@@ -493,30 +1057,40 @@ function rotateQuote() {
   setTimeout(() => { q.textContent = QUOTES[Math.floor(Math.random() * QUOTES.length)]; q.style.opacity = 1; }, 400);
 }
 
+function renderGreeting() {
+  const h = new Date().getHours();
+  $("greeting").textContent = h >= 5 && h < 11 ? "Chào buổi sáng" : h >= 11 && h < 13 ? "Chào buổi trưa" : h >= 13 && h < 18 ? "Chào buổi chiều" : "Chào buổi tối";
+  $("today-date").textContent = new Date().toLocaleDateString("vi-VN", { weekday: "long", day: "numeric", month: "long" });
+}
+
+const RING = 2 * Math.PI * 40;
 function renderGoal() {
   const goal = state.settings.daily_goal || 50;
-  const circumference = 2 * Math.PI * 62;
   const fill = $("goal-fill");
-  fill.style.strokeDasharray = circumference;
-  fill.style.strokeDashoffset = circumference * (1 - Math.min(1, state.xpToday / goal));
+  fill.style.strokeDasharray = RING;
+  fill.style.strokeDashoffset = RING * (1 - Math.min(1, state.xpToday / goal));
   countUp($("goal-xp"), state.xpToday);
   $("goal-of").textContent = `/ ${goal} XP`;
   $("goal-ring").classList.toggle("done", state.xpToday >= goal);
   const left = goal - state.xpToday;
   $("goal-text").textContent = left > 0 ? `Còn ${left} XP nữa để hoàn thành mục tiêu hôm nay.` : "Đã hoàn thành mục tiêu hôm nay. Học thêm để lên cấp nhanh hơn!";
-  const streak = streakOf(state.days);
-  $("streak").textContent = streak > 0 ? `Chuỗi ${streak} ngày học liên tiếp` : "Bắt đầu chuỗi ngày học của bạn hôm nay";
-  $("streak").classList.toggle("hot", streak >= 3);
+  const run = streaks(state.days, state.settings.streak_freeze);
+  countUp($("streak"), run.current);
+  $("streak-text").textContent = (run.current === 0 ? "Học hôm nay để bắt đầu chuỗi ngày học."
+    : state.xpToday > 0 ? "Học liên tiếp, tính cả hôm nay." : "Học hôm nay để giữ chuỗi.")
+    + (run.frozen ? ` Đã dùng ${run.frozen} ngày nghỉ.` : "");
+  $("streak").classList.toggle("hot", run.current >= 3);
 }
 
 function renderWeek() {
-  const byDay = Object.fromEntries(state.days.map((d) => [d.day, d.xp]));
+  const byDay = Object.fromEntries(state.days.map((d) => [d.day, d]));
   const goal = state.settings.daily_goal || 50;
   const names = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
   const list = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(); d.setDate(d.getDate() - i);
-    list.push({ day: localDay(d), xp: byDay[localDay(d)] || 0, name: i === 0 ? "Nay" : names[d.getDay()] });
+    const day = byDay[localDay(d)] || { xp: 0, answers: 0, correct: 0 };
+    list.push({ ...day, day: localDay(d), name: i === 0 ? "Nay" : names[d.getDay()] });
   }
   const top = Math.max(goal, ...list.map((d) => d.xp));
   const before = Object.fromEntries([...$("week").querySelectorAll("[data-day]")].map((b) => [b.dataset.day, b.style.height]));
@@ -527,98 +1101,213 @@ function renderWeek() {
   // The start height is laid out first, so that the change animates.
   void $("week").offsetHeight;
   $("week").querySelectorAll("[data-h]").forEach((b) => (b.style.height = b.dataset.h + "%"));
-  $("week-total").textContent = `${list.reduce((s, d) => s + d.xp, 0)} XP trong tuần`;
+  const sum = (key) => list.reduce((s, d) => s + d[key], 0);
+  $("week-total").textContent = `${sum("xp")} XP trong tuần` + (sum("answers") ? `, trả lời đúng ${Math.round((100 * sum("correct")) / sum("answers"))}%` : "");
 }
+
+// The counts beside the menu: what is left to study today and the size of the list.
+function setBadges(s) {
+  const n = s.due + s.new_today;
+  $("nc-home").textContent = n || "";
+  $("nc-home").classList.toggle("hot", n > 0);
+  $("nc-words").textContent = s.total || "";
+}
+const refreshBadges = () => app.call("stats", { day_start: dayStart() }).then((r) => { state.stats = r.words; state.statsAll = r.all; setBadges(r.words); }).catch(() => {});
 
 // Navigation
-document.querySelectorAll("nav button[data-page]").forEach((b) =>
-  b.addEventListener("click", () => go(b.dataset.page)));
+document.querySelectorAll("nav [data-page]").forEach((b) => b.addEventListener("click", () => go(b.dataset.page)));
 function go(page) {
-  document.querySelectorAll("nav button[data-page]").forEach((b) => b.classList.toggle("active", b.dataset.page === page));
+  document.querySelectorAll("nav [data-page]").forEach((b) => {
+    b.classList.toggle("active", b.dataset.page === page);
+    b.toggleAttribute("aria-current", b.dataset.page === page);
+  });
   document.querySelectorAll("main section").forEach((s) => s.classList.toggle("active", s.id === "page-" + page));
-  if (page === "home") refreshHome();
-  if (page === "words") loadWords();
+  document.querySelector("main").scrollTop = 0;
+  reloadPage(page);
   if (page === "settings") loadUsage();
 }
+function reloadPage(page) {
+  if (page === "home") refreshHome();
+  if (page === "words") loadWords();
+  if (page === "practice") state.sources = loadPracticeSources();
+  if (page === "stats") refreshStats();
+}
 
-// Speech: the web view's own voices when it has English ones, else the system's through the app.
+// The learner's course: English or Chinese. Switching ends any running session or exercise, since the words
+// on screen belong to the other course, and reloads whatever the current page shows.
+function applyCourse() {
+  const zh = courseOf() === "zh";
+  document.documentElement.dataset.course = courseOf();
+  const radio = $("course-" + courseOf());
+  if (radio) radio.checked = true;
+  $("new-word").placeholder = zh ? "Nhập từ tiếng Trung (chữ Hán) muốn học" : "Nhập từ hoặc cụm từ tiếng Anh muốn học";
+  document.querySelector('label[for="f-word"]').textContent = zh ? "Từ (chữ Hán)" : "Từ";
+  document.querySelector('label[for="f-ipa"]').textContent = zh ? "Pinyin" : "Phiên âm (IPA)";
+  $("f-level").innerHTML = `<option value="">Chưa rõ</option>` + (zh
+    ? [1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => `<option value="HSK${n}">HSK ${n}</option>`).join("")
+    : ["A1", "A2", "B1", "B2", "C1", "C2"].map((v) => `<option>${v}</option>`).join(""));
+  renderTopicChips();
+}
+$("course-switch").addEventListener("change", (e) => switchCourse(e.target.value));
+async function switchCourse(course) {
+  if (course === courseOf()) return;
+  if (session) endSession();
+  if (practice) quitPractice();
+  state.settings = await app.call("set_setting", { key: "course", value: course });
+  applyCourse();
+  reloadPage(document.querySelector("main section.active").id.slice(5));
+  refreshBadges();
+}
+
+// Speech: the web view's own English voices, the one chosen in the settings first, else the system's through the app.
+const englishVoices = () => (window.speechSynthesis ? speechSynthesis.getVoices().filter((v) => /^en([-_]|$)/i.test(v.lang)) : []);
+const voiceLang = (v) => v.lang.replace("_", "-");
+function pickVoice() {
+  const list = englishVoices(), s = state.settings;
+  return list.find((v) => v.name === s.voice) || list.find((v) => voiceLang(v) === (s.accent || "en-US"))
+    || list.find((v) => voiceLang(v) === "en-US") || list[0];
+}
+// A Mandarin voice for Chinese text: zh-CN first, then zh-TW; zh-HK and Cantonese (yue) never match.
+function pickZhVoice() {
+  if (!window.speechSynthesis) return null;
+  const all = speechSynthesis.getVoices();
+  return all.find((v) => voiceLang(v).toLowerCase() === "zh-cn") || all.find((v) => voiceLang(v).toLowerCase() === "zh-tw");
+}
 function speak(text, slow = false) {
   if (!text) return;
-  const voices = window.speechSynthesis ? speechSynthesis.getVoices().filter((v) => v.lang.startsWith("en")) : [];
-  if (voices.length) {
+  const rate = +state.settings.speech_rate || 0.95;
+  const zh = hasHan(text);
+  const voice = zh ? pickZhVoice() : pickVoice();
+  if (voice) {
     const u = new SpeechSynthesisUtterance(text);
-    u.voice = voices.find((v) => v.lang === "en-US") || voices[0];
-    u.lang = u.voice.lang;
-    u.rate = slow ? 0.6 : 0.95;
+    u.voice = voice;
+    u.lang = voice.lang;
+    u.rate = rate * (slow ? 0.65 : 1);
     speechSynthesis.cancel();
     speechSynthesis.speak(u);
   } else {
-    app.call("speak", { text, slow }).catch(() => {});
+    app.call("speak", { text, slow, accent: zh ? "zh-CN" : (state.settings.accent || "en-US"), rate }).catch(() => {});
   }
 }
-if (window.speechSynthesis) speechSynthesis.getVoices();
+if (window.speechSynthesis) {
+  speechSynthesis.getVoices();
+  speechSynthesis.onvoiceschanged = () => renderVoices();
+}
 
-// Pronunciation practice, shared by the session, the word list and the exercises.
-function pronWidget(container, word) {
+// Pronunciation practice, shared by the session, the word list and the exercises: the word, and its example
+// sentence when it has a short one. `onScore` hears of every score.
+function pronWidget(container, word, { onScore } = {}) {
+  const zh = (word.lang || "en") === "zh";
+  const sentence = word.example && (zh ? word.example.length <= 30 : word.example.split(/\s+/).length <= 20) ? word.example : "";
   container.innerHTML = `
-    <div class="row"><b>Luyện phát âm</b><span class="muted">Bấm Ghi âm, đọc to từ "${esc(word.word)}", rồi bấm Dừng.</span></div>
-    <div class="row" style="margin-top:8px">
-      <button class="btn" data-a="listen">Nghe mẫu</button>
-      <button class="btn" data-a="slow">Nghe chậm</button>
-      <button class="btn primary" data-a="rec">Ghi âm</button>
+    <div class="pron-head"><b>Luyện phát âm</b><span class="muted">Bấm Ghi âm, đọc to rồi bấm Dừng.</span></div>
+    <div class="row">
+      <button class="btn small" data-a="listen">Nghe mẫu</button>
+      <button class="btn small" data-a="slow">Nghe chậm</button>
+      <button class="btn small primary" data-a="rec">Ghi âm từ</button>
+      ${sentence ? '<button class="btn small" data-a="rec-sentence">Đọc cả câu ví dụ</button>' : ""}
     </div>
-    <div class="result" style="margin-top:10px"></div>`;
-  const rec = container.querySelector('[data-a="rec"]');
+    <div class="result"></div>`;
+  const buttons = { rec: container.querySelector('[data-a="rec"]'), sentence: container.querySelector('[data-a="rec-sentence"]') };
   const result = container.querySelector(".result");
-  let recording = false, timer = null;
+  let active = null;
   container.querySelector('[data-a="listen"]').onclick = () => speak(word.word);
   container.querySelector('[data-a="slow"]').onclick = () => speak(word.word, true);
   const stop = async () => {
-    clearTimeout(timer);
-    recording = false;
-    rec.disabled = true;
-    rec.textContent = "Đang chấm điểm...";
+    const take = active;
+    if (!take) return;
+    clearTimeout(take.timer);
+    active = null;
+    take.button.disabled = true;
+    take.button.textContent = "Đang chấm điểm...";
     try {
-      const s = await app.call("rec_stop", { target: word.word, id: word.id || 0 });
-      word.score = s.score;
+      const s = await app.call("rec_stop", { target: take.target, id: take.id });
+      if (take.id) word.score = s.score;
       const color = s.score >= 75 ? "var(--green)" : s.score >= 50 ? "var(--orange)" : "var(--red)";
       result.innerHTML = `
-        <div class="row"><span class="score" style="color:${color}"><span class="num">0</span>/100</span><span>${esc(s.message)}</span></div>
+        <div class="row"><span class="score" style="color:${color}"><span class="num">0</span>/100</span><span>${esc(s.message)}</span>
+          ${s.score >= 75 ? st("fb-right", "fb") : ""}</div>
         <div class="meter"><div style="background:${color}"></div></div>
-        <div class="muted">Máy nghe được: <b>${esc(s.heard || "(không rõ)")}</b> ${esc(s.heard_ipa)}</div>
-        <div class="muted">Phát âm chuẩn: ${esc(s.target_ipa || word.ipa)}</div>`;
+        <div class="muted">Máy nghe được: <b>${esc(s.heard || "(không rõ)")}</b> ${take.id ? esc(s.heard_ipa) : ""}</div>
+        ${take.id ? `<div class="muted">Phát âm chuẩn: ${esc(s.target_ipa || word.ipa)}</div>` : ""}
+        ${s.missed && s.missed.length ? `<div class="muted">Từ chưa nghe rõ: <b>${s.missed.map(esc).join(", ")}</b></div>` : ""}`;
       countUp(result.querySelector(".num"), s.score);
       requestAnimationFrame(() => (result.querySelector(".meter div").style.width = s.score + "%"));
-      if (s.score >= 90) { confetti(80, rec.getBoundingClientRect().left + 40, rec.getBoundingClientRect().top); gainXp(8, rec); }
-      else if (s.score >= 75) gainXp(5, rec);
+      if (s.score >= 90) { confetti(80, take.button.getBoundingClientRect().left + 40, take.button.getBoundingClientRect().top); gainXp(8, take.button); }
+      else if (s.score >= 75) gainXp(5, take.button);
+      if (onScore) onScore(s.score, take.button);
     } catch (e) {
       result.innerHTML = `<span class="error">${esc(e)}</span>`;
     }
-    rec.disabled = false;
-    rec.textContent = "Ghi âm lại";
+    take.button.disabled = false;
+    take.button.textContent = take.label + " lại";
+    Object.values(buttons).forEach((b) => b && (b.disabled = false));
   };
-  rec.onclick = async () => {
-    if (recording) return stop();
+  const begin = async (button, target, id, label, ms) => {
+    if (active) return active.button === button ? stop() : undefined;
     try {
       await app.call("rec_start");
-      recording = true;
-      rec.textContent = "Dừng và chấm điểm";
+      active = { button, target, id, label, timer: setTimeout(stop, ms) };
+      Object.values(buttons).forEach((b) => b && b !== button && (b.disabled = true));
+      button.textContent = "Dừng và chấm điểm";
       result.innerHTML = `<span class="rec-dot"></span><span class="muted">Đang nghe...</span>`;
-      timer = setTimeout(stop, 5000);
     } catch (e) {
       result.innerHTML = `<span class="error">${esc(e)}</span>`;
     }
+  };
+  buttons.rec.onclick = () => begin(buttons.rec, word.word, word.id || 0, "Ghi âm từ", 5000);
+  // A sentence is not the word's own score, and takes as long as it is; Chinese has no spaces, so it grows per character.
+  if (buttons.sentence) buttons.sentence.onclick = () => begin(buttons.sentence, sentence, 0, "Đọc cả câu ví dụ",
+    Math.min(15000, 2500 + (zh ? 400 * sentence.length : 500 * sentence.split(/\s+/).length)));
+}
+
+// A sentence the learner writes with a word, which the AI corrects. `onDone` hears of each verdict; `xp` gives a
+// little for a right one where nothing else does.
+function sentenceWidget(container, word, onDone, { xp = true } = {}) {
+  container.innerHTML = `
+    <div class="pron-head"><b>Đặt câu với từ này</b><span class="muted">AI sẽ sửa lỗi và giải thích bằng tiếng Việt.</span></div>
+    <textarea rows="2" maxlength="300" placeholder="Viết một câu tiếng ${word.lang === "zh" ? "Trung" : "Anh"} có từ &quot;${esc(word.word)}&quot;" aria-label="Câu của bạn"></textarea>
+    <div class="row"><button class="btn small primary" data-a="check">AI chấm câu</button><span class="muted small" data-a="status"></span></div>
+    <div class="check-result"></div>`;
+  const input = container.querySelector("textarea"), button = container.querySelector('[data-a="check"]');
+  const status = container.querySelector('[data-a="status"]'), result = container.querySelector(".check-result");
+  button.onclick = async () => {
+    const sentence = input.value.trim();
+    if (!sentence) return input.focus();
+    button.disabled = true;
+    result.innerHTML = `<div class="thinking">${st("mascot-think")}<span>AI đang đọc câu của bạn...</span></div>`;
+    try {
+      const r = await app.call("check_sentence", { word: word.word, sentence, day: localDay() });
+      result.innerHTML = `
+        <div class="verdict">${st(r.ok ? "fb-right" : "fb-wrong", "fb")}<b>${r.ok ? "Câu đúng rồi, giỏi quá!" : "Câu cần sửa một chút"}</b></div>
+        ${r.ok ? "" : `<div>Nên viết: <b>${esc(r.corrected)}</b></div>`}
+        ${r.explain ? `<div class="muted">${esc(r.explain)}</div>` : ""}
+        ${r.better ? `<div>Thêm một câu hay: <i>${esc(r.better)}</i> <button class="btn small" data-say="${esc(r.better)}">Nghe</button></div>` : ""}
+        <div class="muted small">${byHtml(r)}</div>`;
+      if (r.ok && xp) gainXp(4, button);
+      status.textContent = "";
+      if (onDone) onDone(r, button);
+    } catch (e) {
+      result.innerHTML = `<span class="error">${esc(e)}</span>`;
+    }
+    button.disabled = false;
+    button.textContent = "Chấm lại";
   };
 }
 
 function wordDetail(w) {
+  const extra = [["Đồng nghĩa", w.synonyms], ["Trái nghĩa", w.antonyms], ["Cụm từ hay gặp", w.collocations]].filter(([, v]) => v);
+  const zh = w.lang === "zh";
   return `
     <div class="ipa">${esc(w.ipa)} ${w.pos ? `<span class="tag">${esc(w.pos)}</span>` : ""}</div>
+    ${zh && w.hanviet ? `<div class="muted">Hán Việt: ${esc(w.hanviet)}</div>` : ""}
     <div class="meaning">${esc(w.meaning)}</div>
-    ${w.explain ? `<div class="muted">${esc(w.explain)}</div>` : ""}
-    ${w.example ? `<div class="example">${esc(w.example)} <button class="btn small" data-say="${esc(w.example)}">Nghe câu</button></div>` : ""}
-    ${w.example_vi ? `<div class="muted">${esc(w.example_vi)}</div>` : ""}
-    ${w.note ? `<div class="muted" style="margin-top:8px">Ghi chú: ${esc(w.note)}</div>` : ""}`;
+    ${w.explain ? `<p class="explain">${esc(w.explain)}</p>` : ""}
+    ${w.example || w.example_vi ? `<div class="example"><div class="grow">
+      ${w.example ? `<div class="en">${esc(w.example)}</div>` : ""}${zh && w.example_reading ? `<div class="muted">${esc(w.example_reading)}</div>` : ""}${w.example_vi ? `<div class="vi">${esc(w.example_vi)}</div>` : ""}</div>
+      ${w.example ? `<button class="btn small" data-say="${esc(w.example)}">Nghe câu</button>` : ""}</div>` : ""}
+    ${extra.length ? `<div class="extra">${extra.map(([k, v]) => `<div><span>${k}</span>${esc(v)}</div>`).join("")}</div>` : ""}
+    ${w.note ? `<p class="note">Ghi chú: ${esc(w.note)}</p>` : ""}`;
 }
 document.addEventListener("click", (e) => {
   const say = e.target.closest("[data-say]");
@@ -649,11 +1338,20 @@ async function refreshHome() {
   const s = r.words;
   state.days = r.days;
   state.totalXp = r.total_xp;
+  state.stats = s;
+  state.statsAll = r.all;
+  state.forecast = r.forecast;
   state.xpToday = (r.days.find((d) => d.day === localDay()) || { xp: 0 }).xp;
+  renderGreeting();
   countUp($("st-due"), s.due);
   countUp($("st-new"), s.new_today);
-  countUp($("st-learned"), s.learned);
   countUp($("st-total"), s.total);
+  const parts = { known: s.learned - s.due, due: s.due, new: s.new_waiting };
+  for (const [k, n] of Object.entries(parts)) {
+    $("vb-" + k).textContent = n;
+    $("vbar-" + k).style.width = (s.total ? (100 * n) / s.total : 0) + "%";
+  }
+  setBadges(s);
   renderLevel();
   renderGoal();
   renderWeek();
@@ -661,34 +1359,43 @@ async function refreshHome() {
   $("session-hint").textContent = s.total === 0
     ? "Chưa có từ nào. Thêm từ bạn muốn học, hoặc để AI gợi ý theo chủ đề."
     : n === 0 ? (s.new_waiting === 0 ? "Bạn đã học hết các từ. Để AI gợi ý thêm từ mới nhé!" : "Bạn đã học xong hôm nay. Có thể luyện thêm ở mục Bài tập.")
-    : `Hôm nay có ${s.due} từ cần ôn và ${s.new_today} từ mới. Khoảng ${Math.max(1, Math.round(n * 0.4))} phút là xong.`;
+    : `Khoảng ${Math.max(1, Math.round(n * 0.4))} phút là xong. Ôn đúng lúc sắp quên giúp bạn nhớ lâu hơn.`;
+  $("hero-mascot").className = "st hero-mascot st-" + (s.total === 0 ? "mascot-empty" : n === 0 ? "mascot-sleep" : courseOf() === "zh" ? "mascot-zh" : "mascot");
   $("btn-start").disabled = n === 0;
   $("btn-start").classList.toggle("pulse", n > 0);
+  checkAchievements();
 }
-$("btn-go-suggest").onclick = () => { go("words"); $("suggest-card").scrollIntoView({ behavior: "smooth" }); $("topic").focus(); };
+$("btn-go-suggest").onclick = () => { go("words"); openSuggest(); };
 
 let session = null;
 $("btn-start").onclick = async () => {
   const words = await app.call("session", { day_start: dayStart() });
   if (!words.length) return refreshHome();
-  session = { queue: words, done: 0, total: words.length, flipped: false, xp: 0, right: 0 };
+  session = { queue: words, done: 0, total: words.length, flipped: false, xp: 0, history: [], seen: [] };
   $("session-start").classList.add("hidden");
   $("session").classList.remove("hidden");
   $("page-home").classList.add("studying");
   showSessionCard();
 };
+$("btn-session-quit").onclick = () => endSession();
+$("btn-undo").onclick = () => undoGrade();
 
 function showSessionCard() {
   const w = session.queue[0];
   const card = $("session-card");
   $("session-bar").style.width = (100 * session.done) / session.total + "%";
   $("session-count").textContent = `${session.done}/${session.total}`;
+  $("btn-undo").classList.toggle("hidden", !session.history.length);
   if (!w) {
-    card.innerHTML = `<div class="question">Hoàn thành buổi học</div>
-      <p>Bạn đã đi hết ${session.total} thẻ và nhận <b>${session.xp} XP</b>.</p>
+    card.innerHTML = `<div class="done">
+      ${st("mascot-cheer")}
+      <div class="prompt-label">Hoàn thành buổi học</div>
+      <div class="done-xp">+${session.xp} XP</div>
+      <p>Bạn đã đi hết ${session.total} thẻ.</p>
       <p class="muted">${QUOTES[Math.floor(Math.random() * QUOTES.length)]}</p>
-      <button class="btn primary big" id="btn-session-end">Về trang chính</button>`;
+      <div class="row"><button class="btn primary big" id="btn-session-end">Về trang chính</button><button class="btn big" id="btn-session-story">Đọc truyện từ các từ vừa học</button></div></div>`;
     $("btn-session-end").onclick = endSession;
+    $("btn-session-story").onclick = () => { const words = session.seen.slice(0, 10); endSession(); startStory(words); };
     slideIn(card);
     confetti(240);
     return;
@@ -698,14 +1405,14 @@ function showSessionCard() {
   card.innerHTML = `
     ${isNew ? '<span class="tag new">Từ mới</span>' : '<span class="tag due">Ôn tập</span>'}
     <div class="word">${esc(w.word)}</div>
-    <div class="row" style="justify-content:center"><button class="btn small" data-say="${esc(w.word)}">Nghe</button></div>
+    <button class="btn small" data-say="${esc(w.word)}">Nghe</button>
     <div id="back" class="hidden">${wordDetail(w)}<div class="pron" id="session-pron"></div></div>
-    <div class="grades" id="flip-row"><button class="btn primary" id="btn-flip">Hiện đáp án <kbd>Space</kbd></button></div>
+    <div class="grades" id="flip-row"><button class="btn primary big" id="btn-flip">Hiện đáp án <kbd>Space</kbd></button></div>
     <div class="grades hidden" id="grade-row">
-      <button class="btn" data-q="1">Quên <kbd>1</kbd></button>
-      <button class="btn" data-q="3">Khó <kbd>2</kbd></button>
-      <button class="btn" data-q="4">Được <kbd>3</kbd></button>
-      <button class="btn" data-q="5">Dễ <kbd>4</kbd></button>
+      <button class="btn g-again" data-q="1">Quên <kbd>1</kbd></button>
+      <button class="btn g-hard" data-q="2">Khó <kbd>2</kbd></button>
+      <button class="btn g-good" data-q="3">Được <kbd>3</kbd></button>
+      <button class="btn g-easy" data-q="4">Dễ <kbd>4</kbd></button>
     </div>`;
   slideIn(card);
   speak(w.word);
@@ -722,16 +1429,20 @@ function flip() {
     pronWidget($("session-pron"), session.queue[0]);
   });
 }
-const GRADE_XP = { 1: 2, 3: 6, 4: 10, 5: 12 };
+/// The experience of each answer of FSRS: 1 forgot, 2 hard, 3 good, 4 easy.
+const GRADE_XP = { 1: 2, 2: 6, 3: 10, 4: 12 };
 async function grade(q, button) {
   if (!session || !session.flipped) return;
   session.flipped = false;
   const w = session.queue.shift();
   const updated = await app.call("grade", { id: w.id, q });
+  session.history.push({ word: w, q, xp: GRADE_XP[q] });
+  if (!session.seen.includes(w.word)) session.seen.push(w.word);
+  refreshBadges();
   session.xp += GRADE_XP[q];
-  gainXp(GRADE_XP[q], button || $("session-card"), q >= 3);
+  gainXp(GRADE_XP[q], button || $("session-card"), q >= 2);
   // A forgotten word comes back at the end of this session.
-  if (q < 3) {
+  if (q === 1) {
     session.queue.push(updated);
     session.total = session.done + session.queue.length;
     $("session-card").classList.add("shake");
@@ -739,6 +1450,30 @@ async function grade(q, button) {
   } else {
     session.done++;
     showSessionCard();
+  }
+}
+/// Takes back the last answer: the word as it was, its experience, and its card in front again.
+async function undoGrade() {
+  const last = session && session.history.pop();
+  if (!last) return;
+  try {
+    const restored = await app.call("undo", { id: last.word.id, day: localDay(), xp: last.xp, correct: last.q >= 2 });
+    if (last.q === 1) {
+      for (let i = session.queue.length - 1; i >= 0; i--) if (session.queue[i].id === last.word.id) { session.queue.splice(i, 1); break; }
+    } else {
+      session.done--;
+    }
+    session.queue.unshift(restored);
+    session.total = session.done + session.queue.length;
+    session.xp -= last.xp;
+    state.xpToday -= last.xp;
+    state.totalXp -= last.xp;
+    renderLevel();
+    refreshBadges();
+    showSessionCard();
+    toast("Đã hoàn tác câu trả lời vừa rồi");
+  } catch (e) {
+    toast(String(e));
   }
 }
 function endSession() {
@@ -751,12 +1486,14 @@ function endSession() {
 document.addEventListener("keydown", (e) => {
   if (!session || !$("page-home").classList.contains("active") || e.target.matches("input, textarea, select")) return;
   if (e.code === "Space") { e.preventDefault(); flip(); }
-  const q = { Digit1: 1, Digit2: 3, Digit3: 4, Digit4: 5 }[e.code];
+  if (e.code === "KeyZ") { e.preventDefault(); undoGrade(); }
+  const q = { Digit1: 1, Digit2: 2, Digit3: 3, Digit4: 4 }[e.code];
   if (q && session.flipped) grade(q, document.querySelector(`#grade-row [data-q="${q}"]`));
 });
 
 // Word list and editor
-const FIELDS = ["word", "ipa", "pos", "meaning", "explain", "example", "example_vi", "note"];
+const FIELDS = ["word", "ipa", "pos", "meaning", "explain", "example", "example_vi", "hanviet", "example_reading", "synonyms", "antonyms", "collocations", "level", "topic", "note"];
+const EXPLAINED = ["pos", "meaning", "explain", "example", "example_vi", "example_reading", "hanviet", "synonyms", "antonyms", "collocations", "level"];
 function openEditor(w, status = "") {
   state.editing = w;
   FIELDS.forEach((f) => ($("f-" + f).value = w[f] || ""));
@@ -769,11 +1506,13 @@ function closeEditor() {
   $("editor").classList.add("hidden");
 }
 async function explainInto(word) {
-  $("editor-status").textContent = "AI đang giải thích từ, chờ vài giây...";
+  $("editor-status").innerHTML = `<span class="thinking">${st("mascot-think")}<span>AI đang giải thích từ, chờ vài giây...</span></span>`;
   $("btn-reexplain").disabled = true;
   try {
     const e = await app.call("explain", { word, day: localDay() });
-    ["pos", "meaning", "explain", "example", "example_vi"].forEach((f) => ($("f-" + f).value = e[f] || ""));
+    EXPLAINED.forEach((f) => ($("f-" + f).value = e[f] || ""));
+    // The topic the learner gave is kept.
+    if (!$("f-topic").value) $("f-topic").value = e.topic || "";
     $("editor-status").innerHTML = `${byHtml(e)} Kiểm tra lại rồi bấm Lưu.`;
   } catch (err) {
     $("editor-status").innerHTML = `<span class="error">${esc(err)}</span> Bạn vẫn có thể tự nhập nghĩa.`;
@@ -798,6 +1537,8 @@ $("btn-reexplain").onclick = () => explainInto($("f-word").value.trim());
 $("btn-save").onclick = async () => {
   const w = { ...state.editing };
   FIELDS.forEach((f) => (w[f] = $("f-" + f).value.trim()));
+  // A changed example sentence makes its old pinyin stale; the backend fills a fresh one in.
+  if (state.editing && w.example !== (state.editing.example || "")) w.example_reading = "";
   try {
     const saved = await app.call("save", { word: w });
     freshIds.add(saved.id);
@@ -810,9 +1551,30 @@ $("btn-save").onclick = async () => {
   }
 };
 
-// AI suggestions
-const TOPICS = ["Giao tiếp hằng ngày", "Du lịch", "Công việc văn phòng", "Công nghệ", "Ẩm thực", "Sức khỏe", "Mua sắm", "Kinh doanh", "Thể thao", "IELTS"];
-$("topics").innerHTML = TOPICS.map((t) => `<button data-topic="${esc(t)}">${esc(t)}</button>`).join("");
+// AI suggestions: by topic or from a passage the learner pastes.
+function openSuggest(tab = "topic") {
+  $("suggest-card").classList.remove("hidden");
+  $("sgt-" + tab).checked = true;
+  showSuggestTab();
+  $("suggest-card").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  (tab === "text" ? $("passage") : $("topic")).focus();
+}
+function showSuggestTab() {
+  const text = $("sgt-text").checked;
+  $("suggest-topic").classList.toggle("hidden", text);
+  $("suggest-text").classList.toggle("hidden", !text);
+}
+$("suggest-tabs").addEventListener("change", showSuggestTab);
+$("btn-open-suggest").onclick = () => ($("suggest-card").classList.contains("hidden") ? openSuggest() : $("suggest-card").classList.add("hidden"));
+$("btn-suggest-close").onclick = () => $("suggest-card").classList.add("hidden");
+const TOPICS = {
+  en: ["Giao tiếp hằng ngày", "Du lịch", "Công việc văn phòng", "Công nghệ", "Ẩm thực", "Sức khỏe", "Mua sắm", "Kinh doanh", "Thể thao", "IELTS"],
+  zh: ["Chào hỏi", "Gia đình", "Ăn uống", "Mua sắm", "Du lịch", "Trường học", "Công việc", "Thời gian", "HSK 1", "HSK 2", "HSK 3"],
+};
+function renderTopicChips() {
+  $("topics").innerHTML = TOPICS[courseOf()].map((t) => `<button data-topic="${esc(t)}">${esc(t)}</button>`).join("");
+}
+renderTopicChips();
 $("topics").addEventListener("click", (e) => {
   const b = e.target.closest("[data-topic]");
   if (b) { $("topic").value = b.dataset.topic; suggest(b.dataset.topic); }
@@ -820,25 +1582,45 @@ $("topics").addEventListener("click", (e) => {
 $("btn-suggest").onclick = () => suggest($("topic").value.trim());
 $("topic").addEventListener("keydown", (e) => { if (e.key === "Enter") suggest($("topic").value.trim()); });
 $("btn-suggest-learned").onclick = () => { $("topic").value = ""; suggest(""); };
+$("btn-extract").onclick = () => extract();
+$("passage").addEventListener("input", () => ($("passage-count").textContent = $("passage").value.length ? `${$("passage").value.length} / 4000 ký tự` : ""));
 let suggestions = [];
-async function suggest(topic) {
-  $("suggest-status").textContent = topic ? `AI đang tìm từ về "${topic}"...` : "AI đang tìm từ liên quan tới những từ bạn đã học...";
+function suggesting(text) {
+  $("suggest-status").innerHTML = `<div class="thinking">${st("mascot-think")}<span>${esc(text)}</span></div>`;
   $("suggestions").innerHTML = Array(6).fill('<div class="skeleton"></div>').join("");
   $("suggest-actions").classList.add("hidden");
+}
+function showSuggestions(found, topic) {
+  suggestions = found.items.map((s) => ({ ...s, topic }));
+  $("suggest-status").innerHTML = `${suggestions.length} từ mới cho bạn. Bấm Thêm để đưa vào danh sách học. ${byHtml(found)}`;
+  $("suggestions").innerHTML = suggestions.map((s, i) => `
+    <div class="sugg" style="animation-delay:${i * 60}ms" id="sg-${i}">
+      <div class="grow"><b>${esc(s.word)}</b> <span class="muted">${esc(s.ipa)}</span><div>${esc(s.meaning)}</div></div>
+      <button class="btn small" data-say="${esc(s.word)}">Nghe</button>
+      <button class="btn small primary" data-add="${i}">Thêm</button>
+    </div>`).join("");
+  $("suggest-actions").classList.remove("hidden");
+}
+function suggestFailed(e) {
+  $("suggestions").innerHTML = "";
+  $("suggest-status").innerHTML = `<span class="error">${esc(e)}</span>`;
+}
+async function suggest(topic) {
+  suggesting(topic ? `AI đang tìm từ về "${topic}"...` : "AI đang tìm từ liên quan tới những từ bạn đã học...");
   try {
-    const found = await app.call("suggest", { topic, day: localDay() });
-    suggestions = found.items;
-    $("suggest-status").innerHTML = `${suggestions.length} từ mới cho bạn. Bấm Thêm để đưa vào danh sách học. ${byHtml(found)}`;
-    $("suggestions").innerHTML = suggestions.map((s, i) => `
-      <div class="sugg" style="animation-delay:${i * 60}ms" id="sg-${i}">
-        <div class="grow"><b>${esc(s.word)}</b> <span class="muted">${esc(s.ipa)}</span><div>${esc(s.meaning)}</div></div>
-        <button class="btn small" data-say="${esc(s.word)}">Nghe</button>
-        <button class="btn small primary" data-add="${i}">Thêm</button>
-      </div>`).join("");
-    $("suggest-actions").classList.remove("hidden");
+    showSuggestions(await app.call("suggest", { topic, day: localDay() }), topic);
   } catch (e) {
-    $("suggestions").innerHTML = "";
-    $("suggest-status").innerHTML = `<span class="error">${esc(e)}</span>`;
+    suggestFailed(e);
+  }
+}
+async function extract() {
+  const text = $("passage").value.trim();
+  if (!text) return $("passage").focus();
+  suggesting("AI đang đọc đoạn văn và chọn từ đáng học...");
+  try {
+    showSuggestions(await app.call("extract", { text, day: localDay() }), "");
+  } catch (e) {
+    suggestFailed(e);
   }
 }
 async function addSuggestion(i, redraw = true) {
@@ -848,7 +1630,7 @@ async function addSuggestion(i, redraw = true) {
   const button = box.querySelector("[data-add]");
   button.disabled = true;
   try {
-    const saved = await app.call("save", { word: { id: 0, word: s.word, meaning: s.meaning, ipa: s.ipa } });
+    const saved = await app.call("save", { word: { id: 0, word: s.word, meaning: s.meaning, ipa: s.ipa, topic: s.topic } });
     freshIds.add(saved.id);
     box.classList.add("added", "pop");
     button.textContent = "Đã thêm";
@@ -856,7 +1638,10 @@ async function addSuggestion(i, redraw = true) {
     // The example and the explanation follow in the background. The table shows none of them, so the data is
     // updated without drawing the list again.
     app.call("explain", { word: s.word, day: localDay() })
-      .then((e) => app.call("save", { word: { ...saved, pos: e.pos, explain: e.explain, example: e.example, example_vi: e.example_vi } }))
+      .then((e) => {
+        const more = Object.fromEntries(EXPLAINED.filter((f) => f !== "meaning").map((f) => [f, e[f] || ""]));
+        return app.call("save", { word: { ...saved, ...more, topic: saved.topic || e.topic || "" } });
+      })
       .then((updated) => {
         const at = state.words.findIndex((x) => x.id === updated.id);
         if (at >= 0) state.words[at] = updated;
@@ -878,89 +1663,195 @@ $("btn-add-all").onclick = async () => {
   confetti(120);
 };
 
+const statusOf = (w) => (w.learned_at === 0 ? "new" : w.due <= nowSec() ? "due" : "known");
 function status(w) {
   if (w.learned_at === 0) return '<span class="tag new">Mới</span>';
   const days = Math.ceil((w.due - nowSec()) / 86400);
   return days <= 0 ? '<span class="tag due">Cần ôn</span>' : `<span class="tag">Ôn sau ${days} ngày</span>`;
 }
+const topicsOf = (words) => [...new Set(words.map((w) => w.topic).filter(Boolean))].sort((a, b) => a.localeCompare(b, "vi"));
+// `list` always answers with every word of both languages; the page keeps only the one being studied.
+async function listCourse(q = "") {
+  const course = courseOf();
+  return (await app.call("list", { q })).filter((w) => (w.lang || "en") === course);
+}
 // Words saved since they were last drawn, which get the highlight once.
 const freshIds = new Set();
 async function loadWords() {
-  state.words = await app.call("list", { q: $("search").value });
-  $("word-count").textContent = `${state.words.length} từ`;
-  $("word-rows").innerHTML = state.words.map((w) => `
-    <tr class="${freshIds.delete(w.id) ? "fresh" : ""}">
-      <td><b>${esc(w.word)}</b><div class="muted">${esc(w.ipa)}</div></td>
-      <td>${esc(w.meaning)}</td>
-      <td>${status(w)}</td>
-      <td>${w.score >= 0 ? w.score + "/100" : '<span class="muted">-</span>'}</td>
-      <td class="acts">
-        <button class="btn small" data-say="${esc(w.word)}">Nghe</button>
-        <button class="btn small" data-act="pron" data-id="${w.id}">Luyện đọc</button>
-        <button class="btn small" data-act="edit" data-id="${w.id}">Sửa</button>
-        <button class="btn small danger" data-act="del" data-id="${w.id}">Xóa</button>
-      </td>
-    </tr>`).join("") || `<tr><td colspan="5" class="muted">Chưa có từ nào.</td></tr>`;
+  state.words = await listCourse($("search").value);
+  renderWords();
+  refreshBadges();
+}
+function renderWords() {
+  const filter = document.querySelector('[name="word-filter"]:checked').value;
+  const topics = topicsOf(state.words), picked = $("topic-filter").value;
+  $("topic-filter").innerHTML = `<option value="">Mọi chủ đề</option>` + topics.map((t) => `<option value="${esc(t)}">${esc(t)}</option>`).join("");
+  $("topic-filter").value = topics.includes(picked) ? picked : "";
+  $("topic-list").innerHTML = topics.map((t) => `<option value="${esc(t)}">`).join("");
+  const inTopic = $("topic-filter").value ? state.words.filter((w) => w.topic === $("topic-filter").value) : state.words;
+  const counts = { all: inTopic.length, new: 0, due: 0, known: 0 };
+  inTopic.forEach((w) => counts[statusOf(w)]++);
+  for (const [k, n] of Object.entries(counts)) $("wfn-" + k).textContent = n;
+  const shown = filter === "all" ? inTopic : inTopic.filter((w) => statusOf(w) === filter);
+  const narrowed = $("search").value.trim() || filter !== "all" || $("topic-filter").value;
+  $("word-count").textContent = narrowed ? `Đang hiện ${shown.length} từ` : `${shown.length} từ trong danh sách của bạn`;
+  $("word-rows").innerHTML = shown.map((w) => `
+    <tr class="${freshIds.delete(w.id) ? "fresh" : ""}" data-id="${w.id}">
+      <td><button class="word-link" data-id="${w.id}">${esc(w.word)}</button><div class="sub">${esc(w.ipa)}${w.lang === "zh" && w.hanviet ? ` (${esc(w.hanviet)})` : ""}</div></td>
+      <td><div>${w.meaning ? esc(w.meaning) : '<span class="muted">Chưa có nghĩa</span>'}</div>${w.example ? `<div class="sub">${esc(w.example)}</div>` : ""}</td>
+      <td>${status(w)}${w.score >= 0 ? `<div class="sub">Phát âm ${w.score}/100</div>` : w.topic ? `<div class="sub">${esc(w.topic)}</div>` : ""}</td>
+      <td class="acts"><button class="btn small" data-say="${esc(w.word)}">Nghe</button></td>
+    </tr>`).join("") || `<tr><td colspan="4" class="empty">${state.words.length
+      ? `${st("mascot-sleep")}Không có từ nào ở mục này.`
+      : `${st("mascot-empty")}Chưa có từ nào. Nhập một từ ở ô phía trên, hoặc bấm AI gợi ý từ mới.`}</td></tr>`;
 }
 let searchTimer;
 $("search").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadWords, 200); });
-$("word-rows").addEventListener("click", async (e) => {
-  const b = e.target.closest("[data-act]");
-  if (!b) return;
-  const w = state.words.find((x) => x.id === +b.dataset.id);
-  if (!w) return;
-  if (b.dataset.act === "edit") { openEditor(w); $("page-words").scrollIntoView({ behavior: "smooth" }); }
-  if (b.dataset.act === "del" && confirm(`Xóa từ "${w.word}"?`)) { await app.call("delete", { id: w.id }); loadWords(); }
-  if (b.dataset.act === "pron") {
-    const panel = $("pron-panel");
-    panel.classList.remove("hidden");
-    pronWidget(panel, w);
-    panel.insertAdjacentHTML("beforeend", '<button class="btn small" style="margin-top:8px" id="btn-pron-close">Đóng</button>');
-    $("btn-pron-close").onclick = () => { panel.classList.add("hidden"); loadWords(); };
-    panel.scrollIntoView({ behavior: "smooth" });
-  }
+$("word-filter").addEventListener("change", renderWords);
+$("topic-filter").addEventListener("change", renderWords);
+$("word-rows").addEventListener("click", (e) => {
+  const row = e.target.closest("tr[data-id]");
+  if (row && !e.target.closest("[data-say]")) openWord(+row.dataset.id);
 });
+
+// One word in full, with pronunciation practice, a sentence to write and what can be done to it.
+let viewing = null;
+function openWord(id) {
+  const w = state.words.find((x) => x.id === id);
+  if (!w) return;
+  viewing = w;
+  const history = w.reps ? `Đã ôn ${w.reps} lần, quên ${w.lapses} lần.${w.learned_at ? ` Lần ôn tới: ${shortDate(w.due)}.` : ""}` : "Chưa ôn lần nào.";
+  $("word-detail").innerHTML = `
+    <div class="wd-head"><div class="wd-word grow">${esc(w.word)}</div>${w.level ? `<span class="tag plain">${esc(w.level)}</span>` : ""}${status(w)}</div>
+    ${wordDetail(w)}
+    <div class="wd-meta muted">${w.topic ? `Chủ đề: ${esc(w.topic)}. ` : ""}${history}</div>
+    <div class="pron" id="wd-pron"></div>
+    <div class="pron" id="wd-write"></div>
+    <div class="row wd-actions">
+      <button class="btn" data-wd="edit">Sửa</button>
+      <button class="btn danger" data-wd="del">Xóa</button>
+      <span class="grow"></span>
+      <button class="btn" data-say="${esc(w.word)}">Nghe</button>
+      <button class="btn primary" data-wd="close">Đóng</button>
+    </div>`;
+  pronWidget($("wd-pron"), w);
+  sentenceWidget($("wd-write"), w);
+  $("word-modal").classList.remove("hidden");
+  $("word-detail").querySelector('[data-wd="close"]').focus({ preventScroll: true });
+}
+function closeWord() {
+  if (!viewing) return;
+  viewing = null;
+  $("word-modal").classList.add("hidden");
+  // The pronunciation score may have changed.
+  loadWords();
+}
+$("word-modal").addEventListener("click", async (e) => {
+  if (e.target === $("word-modal")) return closeWord();
+  const b = e.target.closest("[data-wd]");
+  const w = viewing;
+  if (!b || !w) return;
+  if (b.dataset.wd === "close") closeWord();
+  if (b.dataset.wd === "edit") { closeWord(); openEditor(w); $("page-words").scrollIntoView({ behavior: "smooth" }); }
+  if (b.dataset.wd === "del" && confirm(`Xóa từ "${w.word}"?`)) { await app.call("delete", { id: w.id }); closeWord(); }
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeWord(); });
 
 // Exercises
 let practice = null;
 const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 function blankOf(w) {
   if (!w.example) return null;
+  // Chinese has no word boundaries to match with \b, so the word is simply found as a substring.
+  if ((w.lang || "en") === "zh") {
+    const i = w.example.indexOf(w.word);
+    return i < 0 ? null : { text: w.example.slice(0, i) + "_____" + w.example.slice(i + w.word.length), answer: w.word };
+  }
   const re = new RegExp("\\b(" + escRe(w.word) + "\\w*)", "i");
   const m = w.example.match(re);
   return m ? { text: w.example.replace(re, "_____"), answer: m[1] } : null;
 }
-document.querySelectorAll("#practice-menu [data-kind]").forEach((b) => (b.onclick = () => startPractice(b.dataset.kind)));
-async function startPractice(kind) {
-  const all = (await app.call("list", { q: "" })).filter((w) => w.meaning);
-  $("practice-error").textContent = "";
-  if (kind === "choice" && all.length < 4) return ($("practice-error").textContent = "Cần ít nhất 4 từ có nghĩa để làm bài chọn đáp án.");
-  if (!all.length) return ($("practice-error").textContent = "Chưa có từ nào có nghĩa để luyện tập.");
+/// The words a sentence is made of, for comparing what was heard with what was typed.
+const normalize = (s) => s.toLowerCase().replace(/[’`]/g, "'").replace(/[^\p{L}\p{N}' -]/gu, " ").replace(/\s+/g, " ").trim();
+function diffWords(target, typed) {
+  const have = new Set(normalize(typed).split(" "));
+  return target.split(/\s+/).map((t) => (have.has(normalize(t)) ? esc(t) : `<mark class="miss">${esc(t)}</mark>`)).join(" ");
+}
+// A Chinese answer is right as hanzi (spaces and punctuation ignored) or as pinyin without tone marks
+// (NFD strips them), with v counting as u and spaces, apostrophes, digits and case ignored.
+const hanziOnly = (s) => String(s ?? "").replace(/[^\u4e00-\u9fff]/g, "");
+const tonelessPinyin = (s) => String(s ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/v/g, "u").replace(/[^a-z]/g, "");
+const zhMatches = (typed, hanzi, pinyin) => (!!hanzi && hanziOnly(typed) === hanziOnly(hanzi)) || (!!pinyin && tonelessPinyin(typed) === tonelessPinyin(pinyin));
+function diffHanzi(target, typed) {
+  const have = new Set(hanziOnly(typed));
+  return [...target].map((c) => (!/[\u4e00-\u9fff]/.test(c) || have.has(c) ? esc(c) : `<mark class="miss">${esc(c)}</mark>`)).join("");
+}
+async function loadPracticeSources() {
+  const topics = topicsOf(await listCourse());
+  const select = $("practice-source"), keep = select.value;
+  select.innerHTML = `<option value="all">Tất cả từ</option><option value="hard">Từ hay quên</option><option value="weak">Phát âm yếu</option>`
+    + topics.map((t) => `<option value="topic:${esc(t)}">Chủ đề: ${esc(t)}</option>`).join("");
+  select.value = [...select.options].some((o) => o.value === keep) ? keep : "all";
+}
+const SOURCE_EMPTY = {
+  hard: "Chưa có từ nào hay quên. Tuyệt quá!",
+  weak: "Chưa có từ nào phát âm dưới 60 điểm. Hãy luyện nói vài từ trước.",
+  topic: "Chủ đề này chưa có từ nào có nghĩa.",
+};
+/// The words of the chosen source, the ones most worth practising first.
+function practicePool(all) {
+  const source = $("practice-source").value;
+  if (source === "hard") return all.filter((w) => w.lapses > 0 || w.difficulty >= 7).sort((a, b) => b.lapses - a.lapses || b.difficulty - a.difficulty);
+  if (source === "weak") return all.filter((w) => w.score >= 0 && w.score < 60).sort((a, b) => a.score - b.score);
+  if (source.startsWith("topic:")) return shuffle(all.filter((w) => w.topic === source.slice(6)));
   // Words due or weak first, then the rest at random.
   const weight = (w) => (w.learned_at && w.due <= nowSec() ? 0 : 1) + (w.score >= 0 && w.score < 60 ? -0.5 : 0) + Math.random();
-  const picked = all.slice().sort((a, b) => weight(a) - weight(b)).slice(0, +$("practice-size").value);
+  return all.slice().sort((a, b) => weight(a) - weight(b));
+}
+document.querySelectorAll("#practice-menu [data-kind]").forEach((b) => (b.onclick = () => startPractice(b.dataset.kind)));
+async function startPractice(kind) {
+  $("practice-error").textContent = "";
+  if (kind === "story") return startStory([]);
+  const all = (await listCourse()).filter((w) => w.meaning);
+  if (kind === "choice" && all.length < 4) return ($("practice-error").textContent = "Cần ít nhất 4 từ có nghĩa để làm bài chọn đáp án.");
+  if (!all.length) return ($("practice-error").textContent = "Chưa có từ nào có nghĩa để luyện tập.");
+  const source = $("practice-source").value;
+  const pool = practicePool(all);
+  if (!pool.length) return ($("practice-error").textContent = SOURCE_EMPTY[source.split(":")[0]] || "Không có từ nào để luyện.");
+  const size = +document.querySelector('[name="practice-size"]:checked').value;
+  const picked = pool.slice(0, size);
+  // The hardest words of a source, in no particular order.
+  if (source !== "all") shuffle(picked);
   practice = { kind, all, items: picked, at: 0, right: 0, wrong: [], combo: 0, best: 0, xp: 0 };
+  openPractice(false);
+  showPractice();
+}
+function openPractice(story) {
   $("practice-menu").classList.add("hidden");
   $("practice").classList.remove("hidden");
+  $("practice").classList.toggle("story", story);
+  $("page-practice").classList.add("practicing");
   $("combo").textContent = "";
-  showPractice();
 }
 function quitPractice() {
   practice = null;
   $("practice").classList.add("hidden");
   $("practice-menu").classList.remove("hidden");
+  $("page-practice").classList.remove("practicing");
 }
 $("btn-practice-quit").onclick = quitPractice;
-async function answered(w, ok, near) {
+/// An answer: experience and the run of right answers. `grade` also brings a forgotten word back into review
+/// soon; `xp` is off where the answer already earned its experience.
+async function answered(w, ok, near, { grade = true, xp = true } = {}) {
   const card = $("practice-card");
   if (ok) {
     practice.right++;
     practice.combo++;
     practice.best = Math.max(practice.best, practice.combo);
     // Every third answer in a row is worth more.
-    const xp = 5 + (practice.combo >= 3 ? Math.min(10, practice.combo) : 0);
-    practice.xp += xp;
-    gainXp(xp, near || card, true);
+    const gain = xp ? 5 + (practice.combo >= 3 ? Math.min(10, practice.combo) : 0) : 0;
+    practice.xp += gain;
+    gainXp(gain, near || card, true);
     card.classList.remove("pop"); void card.offsetWidth; card.classList.add("pop");
     const combo = $("combo");
     combo.textContent = practice.combo >= 2 ? `Đúng liên tiếp x${practice.combo}` : "";
@@ -972,10 +1863,12 @@ async function answered(w, ok, near) {
     practice.wrong.push(w);
     gainXp(0, null, false);
     card.classList.remove("shake"); void card.offsetWidth; card.classList.add("shake");
-    if (w.learned_at) await app.call("grade", { id: w.id, q: 1 });
+    if (grade && w.learned_at) await app.call("grade", { id: w.id, q: 1 });
   }
 }
 function next() { practice.at++; showPractice(); }
+const verdict = (ok, answer) => (ok ? `<div class="ok pop">${st("fb-right", "fb")}Chính xác!</div>`
+  : `<div class="error">${st("fb-wrong", "fb")}<span>Chưa đúng. Đáp án: <b>${answer}</b></span></div>`);
 function showPractice() {
   const p = practice, w = p.items[p.at], card = $("practice-card");
   $("practice-bar").style.width = (100 * p.at) / p.items.length + "%";
@@ -983,11 +1876,14 @@ function showPractice() {
   slideIn(card);
   if (!w) {
     const rate = p.right / p.items.length;
-    card.innerHTML = `<div class="question">Kết quả: ${p.right}/${p.items.length}</div>
+    card.innerHTML = `<div class="done">
+      ${st(rate >= 0.8 ? "mascot-cheer" : "mascot")}
+      <div class="prompt-label">Kết quả</div>
+      <div class="done-score">${p.right}<span>/${p.items.length}</span></div>
       <p>Nhận <b>${p.xp} XP</b>, chuỗi đúng dài nhất: <b>${p.best}</b></p>
       <p class="${rate >= 0.8 ? "ok" : "muted"}">${rate === 1 ? "Đúng hết, xuất sắc!" : rate >= 0.8 ? "Rất tốt, sắp thuộc hết rồi!" : rate >= 0.5 ? "Khá lắm, luyện thêm chút nữa nhé." : "Đừng nản, mỗi lần sai là một lần nhớ sâu hơn."}</p>
-      ${p.wrong.length ? `<p class="muted">Cần xem lại: ${p.wrong.map((x) => esc(x.word)).join(", ")}</p>` : ""}
-      <button class="btn primary" id="btn-again">Làm lại</button> <button class="btn" id="btn-back">Chọn bài khác</button>`;
+      ${p.wrong.length ? `<div class="prompt-label">Cần xem lại</div><div class="review">${p.wrong.map((x) => `<span class="tag plain">${esc(x.word)}</span>`).join("")}</div>` : ""}
+      <div class="row"><button class="btn primary" id="btn-again">Làm lại</button><button class="btn" id="btn-back">Chọn bài khác</button></div></div>`;
     $("btn-again").onclick = () => startPractice(p.kind);
     $("btn-back").onclick = quitPractice;
     if (rate >= 0.8) confetti(rate === 1 ? 260 : 150);
@@ -995,10 +1891,10 @@ function showPractice() {
   }
   if (p.kind === "flash") {
     card.innerHTML = `<div class="word">${esc(w.word)}</div>
-      <div class="row" style="justify-content:center"><button class="btn small" data-say="${esc(w.word)}">Nghe</button></div>
+      <button class="btn small" data-say="${esc(w.word)}">Nghe</button>
       <div id="pback" class="hidden">${wordDetail(w)}<div class="pron" id="practice-pron"></div></div>
-      <div class="grades" id="pflip"><button class="btn primary" id="btn-pflip">Lật thẻ</button></div>
-      <div class="grades hidden" id="pjudge"><button class="btn" id="btn-no">Chưa thuộc</button><button class="btn primary" id="btn-yes">Đã thuộc</button></div>`;
+      <div class="grades" id="pflip"><button class="btn primary big" id="btn-pflip">Lật thẻ</button></div>
+      <div class="grades hidden" id="pjudge"><button class="btn g-again" id="btn-no">Chưa thuộc</button><button class="btn primary" id="btn-yes">Đã thuộc</button></div>`;
     $("btn-pflip").onclick = () => flipCard(card, () => {
       $("pback").classList.remove("hidden"); $("pflip").classList.add("hidden"); $("pjudge").classList.remove("hidden");
       pronWidget($("practice-pron"), w);
@@ -1006,33 +1902,76 @@ function showPractice() {
     $("btn-yes").onclick = async () => { await answered(w, true, $("btn-yes")); setTimeout(next, 250); };
     $("btn-no").onclick = async () => { await answered(w, false); setTimeout(next, 400); };
     speak(w.word);
-  } else if (p.kind === "fill") {
-    const blank = blankOf(w);
-    const answer = blank ? blank.answer : w.word;
-    card.innerHTML = `
-      <div class="muted">Điền từ còn thiếu</div>
-      <div class="question">${blank ? esc(blank.text) : esc(w.meaning)}</div>
-      ${blank ? `<div class="muted">${esc(w.example_vi || w.meaning)}</div>` : '<div class="muted">Viết từ tiếng Anh có nghĩa trên</div>'}
-      <div class="row" style="justify-content:center;margin-top:18px">
-        <input id="fill-input" placeholder="Gợi ý: bắt đầu bằng ${esc(answer[0])}" autocomplete="off" style="width:280px">
+  } else if (p.kind === "fill" || p.kind === "dict") {
+    const dictation = p.kind === "dict";
+    const zh = (w.lang || "en") === "zh";
+    // Dictation of a whole sentence now and then, when the word has a short example.
+    const sentence = dictation && !!w.example && (zh ? w.example.length <= 16 : w.example.split(/\s+/).length <= 12) && Math.random() < 0.35;
+    const blank = dictation ? null : blankOf(w);
+    const answer = dictation ? (sentence ? w.example : w.word) : blank ? blank.answer : w.word;
+    const pinyinRef = sentence ? w.example_reading : w.ipa;
+    const zhPlaceholder = "Gõ chữ Hán hoặc pinyin";
+    card.innerHTML = dictation ? `
+      ${st("mode-dict", "mode-st")}
+      <div class="prompt-label">${sentence ? "Nghe và gõ lại cả câu" : "Nghe và gõ lại từ"}</div>
+      <div class="row center" style="margin-top:12px"><button class="btn primary" id="btn-play">Nghe</button><button class="btn" id="btn-play-slow">Nghe chậm</button></div>
+      <div class="fill-row ${sentence ? "wide" : ""}">
+        <input id="fill-input" placeholder="${zh ? zhPlaceholder : sentence ? "Gõ cả câu bạn nghe được" : "Gõ từ bạn nghe được"}" autocomplete="off" spellcheck="false" aria-label="Câu trả lời">
         <button class="btn primary" id="btn-check">Kiểm tra</button>
       </div>
-      <div id="fill-result" style="margin-top:14px"></div>`;
+      <div id="fill-result"></div>` : `
+      <div class="prompt-label">Điền từ còn thiếu</div>
+      <div class="question">${blank ? esc(blank.text) : esc(w.meaning)}</div>
+      ${blank ? `<div class="muted">${esc(w.example_vi || w.meaning)}</div>` : `<div class="muted">Viết từ ${zh ? "tiếng Trung" : "tiếng Anh"} có nghĩa trên</div>`}
+      <div class="fill-row">
+        <input id="fill-input" placeholder="${zh ? zhPlaceholder : `Gợi ý: bắt đầu bằng ${esc(answer[0])}`}" autocomplete="off" spellcheck="false" aria-label="Câu trả lời">
+        <button class="btn primary" id="btn-check">Kiểm tra</button>
+      </div>
+      <div id="fill-result"></div>`;
+    if (dictation) {
+      $("btn-play").onclick = () => speak(answer);
+      $("btn-play-slow").onclick = () => speak(answer, true);
+      speak(answer);
+    }
     const input = $("fill-input");
     input.focus();
     const check = async () => {
       if (input.disabled) return next();
-      const ok = input.value.trim().toLowerCase() === answer.toLowerCase();
+      const ok = zh ? zhMatches(input.value, answer, pinyinRef) : normalize(input.value) === normalize(answer);
       input.disabled = true;
-      await answered(w, ok, input);
-      $("fill-result").innerHTML = (ok ? '<div class="ok pop">Chính xác!</div>' : `<div class="error">Chưa đúng. Đáp án: <b>${esc(answer)}</b></div>`)
-        + `<div class="muted">${esc(w.word)} ${esc(w.ipa)}: ${esc(w.meaning)}</div>`;
+      // A slip in a whole sentence is spelling, not forgetting the word.
+      await answered(w, ok, input, { grade: !sentence });
+      $("fill-result").innerHTML = verdict(ok, sentence ? (zh ? diffHanzi(answer, input.value) : diffWords(answer, input.value)) : esc(answer))
+        + `<div class="muted">${esc(w.word)} ${esc(w.ipa)}: ${esc(w.meaning)}</div>`
+        + (zh && sentence && w.example_reading ? `<div class="muted">Pinyin câu: ${esc(w.example_reading)}</div>` : "");
       $("btn-check").textContent = "Câu tiếp";
       $("btn-check").focus();
-      speak(answer);
+      if (!dictation) speak(answer);
     };
     $("btn-check").onclick = check;
     input.addEventListener("keydown", (e) => { if (e.key === "Enter") check(); });
+  } else if (p.kind === "speak" || p.kind === "write") {
+    const speaking = p.kind === "speak";
+    card.innerHTML = `
+      ${st(speaking ? "mode-speak" : "mode-write", "mode-st")}
+      <div class="prompt-label">${speaking ? "Đọc to từ này rồi xem điểm" : "Đặt một câu tiếng Anh có từ"}</div>
+      <div class="word">${esc(w.word)}</div>
+      ${speaking ? `<div class="ipa">${esc(w.ipa)}</div>` : ""}
+      <div class="meaning small">${esc(w.meaning)}</div>
+      <div class="pron" id="practice-task"></div>
+      <div class="grades"><button class="btn" id="btn-skip">Bỏ qua</button><button class="btn primary hidden" id="btn-next">Câu tiếp</button></div>`;
+    let first = true;
+    const done = async (ok, near) => {
+      // Only the first try counts; trying again is still good practice.
+      if (first) { first = false; await answered(w, ok, near, { grade: false, xp: !speaking }); }
+      $("btn-skip").classList.add("hidden");
+      $("btn-next").classList.remove("hidden");
+      $("btn-next").focus();
+    };
+    if (speaking) pronWidget($("practice-task"), w, { onScore: (score, near) => done(score >= 75, near) });
+    else sentenceWidget($("practice-task"), w, (r, near) => done(r.ok, near), { xp: false });
+    $("btn-skip").onclick = async () => { if (first) { first = false; await answered(w, false, null, { grade: false }); } next(); };
+    $("btn-next").onclick = next;
   } else {
     // Half the questions ask for the meaning, half for the word.
     const toMeaning = Math.random() < 0.5;
@@ -1040,10 +1979,10 @@ function showPractice() {
     const options = shuffle([w, ...others]);
     const label = (x) => (toMeaning ? x.meaning : x.word);
     card.innerHTML = `
-      <div class="muted">${toMeaning ? "Chọn nghĩa đúng của từ" : "Chọn từ tiếng Anh có nghĩa"}</div>
+      <div class="prompt-label">${toMeaning ? "Chọn nghĩa đúng của từ" : "Chọn từ tiếng Anh có nghĩa"}</div>
       <div class="question">${esc(toMeaning ? w.word : w.meaning)}</div>
-      ${toMeaning ? `<div class="muted">${esc(w.ipa)}</div>` : ""}
-      <div class="options">${options.map((x, i) => `<button class="btn" data-id="${x.id}">${i + 1}. ${esc(label(x))}</button>`).join("")}</div>
+      ${toMeaning ? `<div class="ipa">${esc(w.ipa)}</div>` : ""}
+      <div class="options">${options.map((x, i) => `<button class="btn" data-id="${x.id}"><span class="opt-n">${i + 1}</span>${esc(label(x))}</button>`).join("")}</div>
       <div class="grades hidden" id="choice-next"><button class="btn primary" id="btn-next">Câu tiếp <kbd>Enter</kbd></button></div>`;
     if (toMeaning) speak(w.word);
     card.querySelectorAll(".options button").forEach((b) => (b.onclick = async () => {
@@ -1069,6 +2008,172 @@ document.addEventListener("keydown", (e) => {
   if (n !== undefined && buttons[n] && !buttons[n].disabled) buttons[n].click();
 });
 
+/// A short story from the AI with `words`, or, without any, with the words answered today.
+async function startStory(words) {
+  if (!$("page-practice").classList.contains("active")) go("practice");
+  practice = { kind: "story", items: [], at: 0, right: 0, wrong: [], combo: 0, best: 0, xp: 0 };
+  const mine = practice;
+  openPractice(true);
+  const card = $("practice-card");
+  card.innerHTML = `<div class="thinking center">${st("mascot-think")}<span>AI đang viết truyện ngắn cho bạn...</span></div><div class="skeleton tall"></div>`;
+  try {
+    const s = await app.call("story", { words, day: localDay(), day_start: dayStart() });
+    // The learner may have left while the AI wrote.
+    if (practice === mine) renderStory(s);
+  } catch (e) {
+    if (practice !== mine) return;
+    card.innerHTML = `<div class="done">${st("mascot-empty")}<p class="error">${esc(e)}</p><div class="row"><button class="btn" id="btn-back">Quay lại</button></div></div>`;
+    $("btn-back").onclick = quitPractice;
+  }
+}
+function renderStory(s) {
+  const card = $("practice-card");
+  const zh = s.words.some(hasHan) || hasHan(s.story);
+  const words = s.words.slice().sort((a, b) => b.length - a.length).map((w) => escRe(esc(w)));
+  // The words it was asked to use stand out, and read themselves when clicked. Chinese has no word
+  // boundaries, so \b and \w cannot be used there: a plain substring is matched instead.
+  const text = !words.length ? esc(s.story)
+    : zh ? esc(s.story).replace(new RegExp(`(${words.join("|")})`, "g"), (m) => `<b class="hl" data-say="${m}">${m}</b>`)
+    : esc(s.story).replace(new RegExp(`\\b(${words.join("|")})\\w*`, "gi"), (m) => `<b class="hl" data-say="${m}">${m}</b>`);
+  card.innerHTML = `<div class="story">
+    <div class="row">${st("mode-story", "story-st")}<div class="grow"><div class="prompt-label">Truyện ngắn với ${s.words.length} từ của bạn</div><h3>${esc(s.title || "Truyện ngắn")}</h3></div></div>
+    <p class="story-text">${text}</p>
+    ${s.translation ? `<details><summary>Xem bản dịch</summary><p class="muted">${esc(s.translation)}</p></details>` : ""}
+    ${s.pinyin ? `<details><summary>Xem pinyin</summary><p class="muted">${esc(s.pinyin)}</p></details>` : ""}
+    <div class="review">${s.words.map((w) => `<span class="tag plain">${esc(w)}</span>`).join("")}</div>
+    <div class="muted small" style="margin-top:10px">${byHtml(s)}</div>
+    <div class="row"><button class="btn primary" id="btn-story-read">Nghe cả truyện</button><button class="btn" id="btn-story-again">Viết truyện khác</button><button class="btn" id="btn-back">Xong</button></div>
+  </div>`;
+  $("btn-story-read").onclick = () => speak(s.story);
+  $("btn-story-again").onclick = () => startStory(s.words);
+  $("btn-back").onclick = quitPractice;
+  gainXp(5, $("btn-story-read"));
+}
+
+// Statistics and achievements
+async function refreshStats() {
+  const [r, words] = await Promise.all([app.call("stats", { day_start: dayStart() }), listCourse()]);
+  state.days = r.days;
+  state.totalXp = r.total_xp;
+  state.stats = r.words;
+  state.statsAll = r.all;
+  state.forecast = r.forecast;
+  const s = r.words, run = streaks(state.days, state.settings.streak_freeze);
+  $("ss-xp").textContent = state.totalXp;
+  $("ss-level").textContent = `Cấp ${levelOf(state.totalXp)}`;
+  $("ss-streak").textContent = `${run.current} ngày`;
+  $("ss-freeze").textContent = run.frozen ? `Đã nghỉ ${run.frozen} ngày mà vẫn giữ chuỗi` : "Chưa dùng ngày nghỉ nào";
+  $("ss-longest").textContent = `${run.longest} ngày`;
+  const since = localDay(new Date(Date.now() - 29 * 864e5));
+  const month = state.days.filter((d) => d.day >= since);
+  const answers = month.reduce((a, d) => a + d.answers, 0), correct = month.reduce((a, d) => a + d.correct, 0);
+  $("ss-acc").textContent = answers ? Math.round((100 * correct) / answers) + "%" : "-";
+  $("ss-answers").textContent = `${answers} câu trả lời`;
+  $("ss-reviews").textContent = s.reviews;
+  $("ss-today").textContent = `${s.reviews_today} lượt hôm nay`;
+  renderHeat();
+  renderForecast();
+  renderHard(words);
+  renderAchievements();
+  checkAchievements();
+}
+function renderHeat() {
+  const goal = state.settings.daily_goal || 50;
+  const byDay = Object.fromEntries(state.days.map((d) => [d.day, d.xp]));
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  // Twelve weeks of columns, Monday on top, this week last.
+  const start = new Date(today);
+  start.setDate(today.getDate() - ((today.getDay() + 6) % 7) - 7 * 11);
+  const cells = [], months = [];
+  let month = -1, active = 0;
+  for (let i = 0; i < 84; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    const key = localDay(d), xp = byDay[key] || 0, future = d > today;
+    if (i % 7 === 0) {
+      months.push(d.getMonth() !== month ? `Th${d.getMonth() + 1}` : "");
+      month = d.getMonth();
+    }
+    if (xp > 0) active++;
+    const level = !xp ? 0 : xp < goal / 2 ? 1 : xp < goal ? 2 : xp < goal * 2 ? 3 : 4;
+    cells.push(`<i class="${future ? "future" : "h" + level}${key === localDay() ? " today" : ""}" title="${future ? "" : `${d.getDate()}/${d.getMonth() + 1}: ${xp} XP`}"></i>`);
+  }
+  $("heat").innerHTML = cells.join("");
+  $("heat-months").innerHTML = months.map((m) => `<span>${m}</span>`).join("");
+  $("heat-days-count").textContent = `${active} ngày`;
+  $("heat-summary").textContent = "có học trong 12 tuần qua. Ô càng đậm, ngày đó càng gần hoặc vượt mục tiêu XP.";
+}
+function renderForecast() {
+  const f = state.forecast || [], top = Math.max(1, ...f);
+  const names = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"];
+  $("forecast").innerHTML = f.map((n, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    return `<div class="bar ${i === 0 ? "today" : ""}" title="${n} từ"><small>${n || ""}</small><div style="height:${n ? Math.max(6, (100 * n) / top) : 3}%"></div><span>${i === 0 ? "Nay" : i === 1 ? "Mai" : names[d.getDay()]}</span></div>`;
+  }).join("");
+  $("forecast-total").textContent = `${f.reduce((a, b) => a + b, 0)} lượt ôn`;
+}
+function renderHard(words) {
+  const hard = words.filter((w) => w.lapses > 0).sort((a, b) => b.lapses - a.lapses || b.difficulty - a.difficulty).slice(0, 6);
+  $("hard-list").innerHTML = hard.map((w) => `<div class="hard-row"><span><b>${esc(w.word)}</b> <span class="muted">${esc(w.meaning)}</span></span><span class="tag due">Quên ${w.lapses} lần</span></div>`).join("")
+    || `<div class="empty-mini">${st("mascot-cheer")}<span class="muted">Chưa có từ nào bị quên. Giỏi quá!</span></div>`;
+  $("btn-practice-hard").disabled = !hard.length;
+}
+$("btn-practice-hard").onclick = async () => {
+  go("practice");
+  await state.sources;
+  $("practice-source").value = "hard";
+  startPractice("flash");
+};
+const ACHIEVEMENTS = [
+  { id: "first", st: "ach-first", name: "Khởi đầu", desc: "Trả lời thẻ đầu tiên", value: (a) => a.reviews, goal: 1 },
+  { id: "streak7", st: "ach-streak7", name: "Một tuần chăm chỉ", desc: "Học 7 ngày liên tiếp", value: (a) => a.longest, goal: 7 },
+  { id: "streak30", st: "ach-streak30", name: "Một tháng bền bỉ", desc: "Học 30 ngày liên tiếp", value: (a) => a.longest, goal: 30 },
+  { id: "streak100", st: "ach-streak100", name: "Trăm ngày rực rỡ", desc: "Học 100 ngày liên tiếp", value: (a) => a.longest, goal: 100 },
+  { id: "words50", st: "ach-words", name: "Rương từ nhỏ", desc: "Có 50 từ trong danh sách", value: (a) => a.total, goal: 50 },
+  { id: "words500", st: "ach-words", name: "Thư viện từ", desc: "Có 500 từ trong danh sách", value: (a) => a.total, goal: 500 },
+  { id: "learned100", st: "ach-learned", name: "Trăm từ đã học", desc: "Học xong 100 từ", value: (a) => a.learned, goal: 100 },
+  { id: "learned1000", st: "ach-learned", name: "Nghìn từ đã học", desc: "Học xong 1000 từ", value: (a) => a.learned, goal: 1000 },
+  { id: "reviews1000", st: "ach-reviews", name: "Nghìn lượt ôn", desc: "Ôn tập 1000 lượt", value: (a) => a.reviews, goal: 1000 },
+  { id: "perfect10", st: "ach-perfect", name: "Giọng chuẩn", desc: "10 từ phát âm đạt từ 90 điểm", value: (a) => a.perfect, goal: 10 },
+  { id: "goal30", st: "ach-goal", name: "Đúng hẹn", desc: "Hoàn thành mục tiêu XP trong 30 ngày", value: (a) => a.goalDays, goal: 30 },
+  { id: "xp10000", st: "ach-xp", name: "Vương miện XP", desc: "Đạt 10.000 XP", value: (a) => a.xp, goal: 10000 },
+];
+function achieveData() {
+  // Achievements are global, across both courses: this is the server's "all" totals, not the current course's.
+  const s = state.statsAll || state.stats || {}, goal = state.settings.daily_goal || 50;
+  return { reviews: s.reviews || 0, longest: streaks(state.days, state.settings.streak_freeze).longest, total: s.total || 0, learned: s.learned || 0,
+           perfect: s.perfect || 0, goalDays: state.days.filter((d) => d.xp >= goal).length, xp: state.totalXp };
+}
+function renderAchievements() {
+  const d = achieveData();
+  $("achievements").innerHTML = ACHIEVEMENTS.map((a) => {
+    const v = Math.min(a.goal, a.value(d)), done = v >= a.goal;
+    return `<div class="ach ${done ? "done" : ""}">${st(a.st)}<div class="grow"><b>${a.name}</b><div class="muted small">${a.desc}</div>
+      <div class="progress"><div style="width:${(100 * v) / a.goal}%"></div></div><small>${done ? "Đã đạt" : `${v} / ${a.goal}`}</small></div></div>`;
+  }).join("");
+  $("ach-count").textContent = `Đã đạt ${ACHIEVEMENTS.filter((a) => a.value(d) >= a.goal).length} / ${ACHIEVEMENTS.length}`;
+}
+/// Celebrates the achievements reached since the last look; the very first look only takes note of them.
+function checkAchievements() {
+  if (!state.stats) return;
+  const d = achieveData();
+  const reached = ACHIEVEMENTS.filter((a) => a.value(d) >= a.goal).map((a) => a.id);
+  const seen = state.settings.achievements;
+  if (seen == null) return saveAchievements(reached);
+  const before = new Set(seen.split(",").filter(Boolean));
+  const fresh = ACHIEVEMENTS.filter((a) => reached.includes(a.id) && !before.has(a.id));
+  if (!fresh.length) return;
+  toast(`Đạt thành tích mới: ${fresh.map((a) => a.name).join(", ")}`);
+  confetti(180);
+  saveAchievements([...before, ...fresh.map((a) => a.id)]);
+}
+function saveAchievements(ids) {
+  state.settings.achievements = ids.join(",");
+  app.call("set_setting", { key: "achievements", value: ids.join(",") }).then((s) => (state.settings = s)).catch(() => {});
+}
+
 // Settings
 const LINKS = {
   chatgptUsage: "https://chatgpt.com/settings/usage",
@@ -1078,6 +2183,7 @@ const LINKS = {
   deepseekKey: "https://platform.deepseek.com/api_keys",
   deepseekUsage: "https://platform.deepseek.com/usage",
 };
+const PROVIDERS = ["local", "codex", "chatgpt", "gemini", "deepseek"];
 const PROVIDER_NAME = { local: "Model trên máy", chatgpt: "ChatGPT", codex: "ChatGPT qua Codex", gemini: "Gemini", deepseek: "DeepSeek" };
 const PLAN_NAME = { free: "Free", go: "Go", plus: "Plus", pro: "Pro", team: "Business", business: "Business", enterprise: "Enterprise", edu: "Edu" };
 const planName = (plan) => PLAN_NAME[plan] || plan;
@@ -1092,6 +2198,9 @@ function applyTheme(theme) {
   document.documentElement.dataset.theme = theme === "light" || theme === "dark" ? theme : (darkScheme.matches ? "dark" : "light");
 }
 darkScheme.addEventListener("change", () => applyTheme(state.settings.theme));
+function applyPalette(palette) {
+  document.documentElement.dataset.palette = palette === "pink" || palette === "purple" ? palette : "blue";
+}
 
 const tokens = (n) => (n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e3 ? (n / 1e3).toFixed(1) + "k" : String(n || 0));
 const at = (sec) => new Date(sec * 1000).toLocaleString("vi-VN", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" });
@@ -1139,7 +2248,7 @@ function modelPicker(p) {
   if (!list) return `<label>Model</label><div class="muted">Đang tải danh sách model...</div>`;
   if (list.error) return `<label>Model</label><div class="error">${esc(list.error)} <a href="#" data-act="reload-models" data-p="${p}">Thử lại</a></div>`;
   if (!list.models.length) return `<label>Model</label><div class="muted">Tài khoản này chưa có model nào để dùng.</div>`;
-  return `<label>Model</label><select data-model="${p}" style="min-width:320px">${list.models
+  return `<label for="model-${p}">Model</label><select class="model-select" id="model-${p}" data-model="${p}">${list.models
     .map((m) => `<option value="${esc(m.id)}" ${m.id === list.selected ? "selected" : ""}>${esc(m.name)}</option>`).join("")}</select>`;
 }
 
@@ -1147,9 +2256,10 @@ function modelPicker(p) {
 function usageHtml(p) {
   const u = state.usage[p] || {};
   const t = u.today || {}, w = u.week || {}, m = u.month || {};
-  let html = `<div class="usage"><b>Đo mức dùng</b>
-    <div>Hôm nay: ${t.requests || 0} lượt${t.failures ? ` (${t.failures} lỗi)` : ""}, ${tokens(t.tokens)} token.</div>
-    <div class="muted">7 ngày: ${w.requests || 0} lượt, ${tokens(w.tokens)} token. 30 ngày: ${m.requests || 0} lượt, ${tokens(m.tokens)} token, nhiều nhất ${m.peak || 0} lượt một ngày, ${m.active_days || 0} ngày có dùng.</div>`;
+  const cell = (name, d, extra = "") => `<div><span>${name}</span><b>${d.requests || 0} lượt</b><small>${tokens(d.tokens)} token${extra}</small></div>`;
+  let html = `<div class="usage"><div class="usage-title">Đo mức dùng</div>
+    <div class="usage-grid">${cell("Hôm nay", t, t.failures ? `, ${t.failures} lỗi` : "")}${cell("7 ngày", w)}${cell("30 ngày", m)}</div>
+    <div class="muted">Trong 30 ngày: nhiều nhất ${m.peak || 0} lượt một ngày, ${m.active_days || 0} ngày có dùng.</div>`;
   const q = u.quota;
   if (q && q.balance) {
     const money = q.balance.map((b) => `${esc(b.total_balance)} ${esc(b.currency)}`).join(", ") || "0";
@@ -1174,10 +2284,6 @@ function usageHtml(p) {
   return html + "</div>";
 }
 
-function usingTag(p) {
-  return state.settings.ai_provider === p ? '<span class="tag">Đang dùng</span>' : "";
-}
-
 function renderChatGPT() {
   const c = state.settings.chatgpt || {};
   let body;
@@ -1188,7 +2294,7 @@ function renderChatGPT() {
       <p class="muted">OpenAI hiện chưa cho app tự gia hạn phiên sau một thời gian không dùng (lỗi phía OpenAI đang được theo dõi). Đăng nhập lại chỉ cần chọn tài khoản, không phải cấp quyền lại.</p>
       <div class="row"><button class="btn chatgpt" data-act="cg-sign-in">Đăng nhập lại</button><button class="btn" data-act="cg-other">Dùng tài khoản ChatGPT khác</button></div>`;
   } else if (!c.signed_in) {
-    body = `<p class="muted">Dùng hạn mức có sẵn trong gói ChatGPT Plus hoặc Pro của bạn cho các yêu cầu AI trong app, không cần API key và không mất thêm phí. Gói Plus có giới hạn 5 giờ dùng chung với các app khác. Tài khoản ChatGPT Free không dùng được cách này; hãy dùng ChatGPT qua Codex ở trên.</p>
+    body = `<p class="muted">Dùng hạn mức có sẵn trong gói ChatGPT Plus hoặc Pro của bạn cho các yêu cầu AI trong app, không cần API key và không mất thêm phí. Gói Plus có giới hạn 5 giờ dùng chung với các app khác. Tài khoản ChatGPT Free không dùng được cách này; hãy dùng ChatGPT qua Codex.</p>
       <button class="btn chatgpt" data-act="cg-sign-in">Continue with ChatGPT</button>`;
   } else {
     body = `<p>Đã đăng nhập: <b>${esc(c.email || "tài khoản ChatGPT")}</b></p>
@@ -1196,14 +2302,13 @@ function renderChatGPT() {
       ${c.plan ? modelPicker("chatgpt") : ""}
       ${state.settings.ai_provider === "chatgpt" ? `<p class="ok">Đang dùng gói ChatGPT. <a href="#" data-link="${LINKS.chatgptUsage}">Quản lý hạn mức</a></p>` : ""}
       ${usageHtml("chatgpt")}
-      <div class="row" style="margin-top:10px">
+      <div class="row actions">
         <button class="btn" data-link="${LINKS.chatgptUsage}">Quản lý hạn mức</button>
         <button class="btn" data-act="cg-sign-out">Đăng xuất</button>
         <button class="btn" data-act="cg-other">Dùng tài khoản ChatGPT khác</button>
       </div>`;
   }
-  $("pv-chatgpt").innerHTML = `<div class="provider-head"><h3>ChatGPT</h3>${usingTag("chatgpt")}</div>${body}
-    ${state.chatgptError ? `<p class="error">${esc(state.chatgptError)}</p>` : ""}`;
+  $("pv-chatgpt").innerHTML = body + (state.chatgptError ? `<p class="error">${esc(state.chatgptError)}</p>` : "");
 }
 
 function renderCodex() {
@@ -1215,7 +2320,7 @@ function renderCodex() {
     body = `<p>Đã đăng nhập: <b>${esc(c.email || "tài khoản ChatGPT")}</b>${c.plan ? `, gói <b>${esc(planName(c.plan))}</b>` : ""}</p>
       ${modelPicker("codex")}
       ${usageHtml("codex")}
-      <div class="row" style="margin-top:10px">
+      <div class="row actions">
         <button class="btn" data-act="cx-usage">Đo hạn mức</button>
         <button class="btn" data-link="${LINKS.codexUsage}">Quản lý hạn mức</button>
         <button class="btn" data-act="cx-sign-out">Đăng xuất</button>
@@ -1226,8 +2331,7 @@ function renderCodex() {
       <p class="muted">Lưu ý: đây là cách không chính thức (OpenCode, ChatMock cũng dùng), OpenAI có thể thay đổi bất cứ lúc nào. Cần cổng 1455 trống: hãy tắt Codex CLI nếu nó đang chờ đăng nhập.</p>
       <button class="btn chatgpt" data-act="cx-sign-in">${c.expired ? "Đăng nhập lại" : "Đăng nhập ChatGPT qua Codex"}</button>`;
   }
-  $("pv-codex").innerHTML = `<div class="provider-head"><h3>ChatGPT qua Codex</h3>${usingTag("codex")}</div>${body}
-    ${state.codexError ? `<p class="error">${esc(state.codexError)}</p>` : ""}`;
+  $("pv-codex").innerHTML = body + (state.codexError ? `<p class="error">${esc(state.codexError)}</p>` : "");
 }
 
 function renderKeyProvider(p) {
@@ -1235,8 +2339,10 @@ function renderKeyProvider(p) {
   const info = p === "gemini"
     ? `<p class="muted">Google không cho app bên ngoài đăng nhập bằng tài khoản Gemini (vi phạm điều khoản, đã có tài khoản bị khóa vì việc này). Cách chính thức là API key miễn phí: bấm Lấy API key, đăng nhập Google AI Studio, tạo key rồi dán vào đây.</p>`
     : `<p class="muted">Trả phí theo lượt dùng, cần API key tạo trên DeepSeek Platform.</p>`;
-  $("pv-" + p).innerHTML = `<div class="provider-head"><h3>${PROVIDER_NAME[p]}</h3>${usingTag(p)}</div>${info}
-    <label>API key (chỉ lưu trên máy này)</label>
+  // The card is drawn again whenever a model list or the usage arrives; a key being typed must survive that.
+  const typing = $("key-" + p), typed = typing ? typing.value : "", focused = typing && document.activeElement === typing;
+  $("pv-" + p).innerHTML = `${info}
+    <label for="key-${p}">API key (chỉ lưu trên máy này)</label>
     <div class="row">
       <input type="password" class="grow" id="key-${p}" placeholder="${has ? "Đã có key, nhập key mới để thay" : p === "gemini" ? "AIza..." : "sk-..."}" autocomplete="off">
       <button class="btn" data-act="save-key" data-p="${p}">Lưu key</button>
@@ -1244,42 +2350,82 @@ function renderKeyProvider(p) {
       <button class="btn" data-link="${p === "gemini" ? LINKS.geminiKey : LINKS.deepseekKey}">Lấy API key</button>
     </div>
     ${has ? modelPicker(p) + usageHtml(p) : ""}
-    <div class="row" style="margin-top:10px">
+    <div class="row actions">
       ${p === "deepseek" && has ? `<button class="btn" data-act="balance">Đo số dư</button>` : ""}
       <button class="btn" data-link="${p === "gemini" ? LINKS.geminiUsage : LINKS.deepseekUsage}">Xem hạn mức trên ${p === "gemini" ? "AI Studio" : "DeepSeek"}</button>
     </div>`;
+  $("key-" + p).value = typed;
+  if (focused) $("key-" + p).focus();
 }
 
 function renderProviders() {
   for (const p of ["chatgpt", "codex", "gemini", "deepseek"]) {
     if (ready(p) && !(p in state.modelLists)) loadModels(p);
   }
+  const chosen = $("ai-" + state.settings.ai_provider);
+  if (chosen) chosen.checked = true;
+  for (const p of PROVIDERS) {
+    const tag = ready(p) ? '<span class="tag ok">Sẵn sàng</span>' : `<span class="tag plain">${p === "local" ? "Chưa tải model" : "Chưa thiết lập"}</span>`;
+    $("pt-" + p).innerHTML = tag;
+    $("ps-" + p).innerHTML = (state.settings.ai_provider === p ? '<span class="tag">Đang dùng</span>' : "") + tag;
+  }
   renderCodex();
   renderChatGPT();
   renderKeyProvider("gemini");
   renderKeyProvider("deepseek");
-  $("tag-local").innerHTML = usingTag("local");
   $("usage-local").innerHTML = usageHtml("local");
 }
 
+const rateLabel = (r) => `${Math.round(r * 100)}% tốc độ thường${Math.abs(r - 0.95) < 0.01 ? " (mặc định)" : ""}`;
+function renderVoices() {
+  const select = $("s-voice"), accent = state.settings.accent || "en-US";
+  const all = englishVoices(), list = all.filter((v) => voiceLang(v) === accent);
+  select.innerHTML = `<option value="">Tự chọn giọng phù hợp</option>` + list.map((v) => `<option value="${esc(v.name)}">${esc(v.name)}</option>`).join("");
+  select.value = list.some((v) => v.name === state.settings.voice) ? state.settings.voice : "";
+  select.classList.toggle("hidden", !list.length);
+  const notes = [!all.length ? "App đọc bằng giọng của hệ điều hành."
+    : list.length ? "" : `Máy này chưa có giọng ${accent === "en-GB" ? "Anh-Anh" : "Anh-Mỹ"}, app đọc bằng giọng tiếng Anh khác.`,
+    "Từ tiếng Trung được đọc bằng giọng Quan Thoại nếu máy có giọng đó."];
+  $("voice-note").textContent = notes.filter(Boolean).join(" ");
+}
+function hotkeyLabel(key) {
+  const mac = state.platform === "macos";
+  return key.replace("CmdOrCtrl", mac ? "Cmd" : "Ctrl").replace("Alt", mac ? "Option" : "Alt").replaceAll("+", " + ");
+}
 function renderSettings() {
   const s = state.settings;
-  $("s-ai_provider").value = s.ai_provider;
   $("s-new_per_day").value = s.new_per_day;
   $("s-remind_hours").value = s.remind_hours;
   $("s-daily_goal").value = s.daily_goal;
-  $("s-theme").value = s.theme;
-  renderModel("llm", "Qwen2.5 0.5B: giải thích nghĩa, gợi ý từ mới bằng tiếng Việt");
-  renderModel("stt", "Whisper tiny.en: nghe và chấm điểm phát âm");
+  $("s-desired_retention").value = String(s.desired_retention);
+  $("s-streak_freeze").checked = !!s.streak_freeze;
+  $("s-tray_count").checked = !!s.tray_count;
+  $("s-autostart").checked = !!s.autostart;
+  for (const key of ["remind_at", "quiet_from", "quiet_to"]) $("s-" + key).value = s[key] || "";
+  for (const [prefix, value] of [["th-", s.theme], ["pl-", s.palette], ["ac-", s.accent]]) {
+    const radio = $(prefix + value);
+    if (radio) radio.checked = true;
+  }
+  $("s-speech_rate").value = s.speech_rate;
+  $("rate-label").textContent = rateLabel(+s.speech_rate);
+  renderVoices();
+  $("s-hotkey").innerHTML = `<option value="">Tắt</option>` + state.hotkeys.map((k) => `<option value="${esc(k)}">${esc(hotkeyLabel(k))}</option>`).join("");
+  $("s-hotkey").value = s.hotkey || "";
+  $("hotkey-error").textContent = s.hotkey_error || "";
+  renderModel("llm", "Qwen2.5 0.5B", "Giải thích nghĩa, gợi ý từ mới bằng tiếng Việt");
+  renderModel("stt", "Whisper tiny.en", "Nghe và chấm điểm phát âm");
+  renderModel("sttzh", "Whisper tiny đa ngôn ngữ", "Chấm phát âm tiếng Trung");
   renderProviders();
 }
-function renderModel(group, title) {
+function renderModel(group, name, use) {
   const m = state.models[group];
   const mb = Math.round(m.size / 1e6);
   $("model-" + group).innerHTML = `
-    <div class="row"><span class="grow">${title} (${mb} MB)</span>
-      ${m.ready ? '<span class="ok">Đã sẵn sàng</span>' : `<button class="btn primary" id="dl-${group}">Tải về</button>`}</div>
-    <div class="row hidden" id="dlrow-${group}" style="margin-top:6px"><div class="grow progress"><div id="bar-${group}"></div></div><span class="muted" id="mb-${group}"></span></div>
+    <div class="model-row">
+      <div class="grow"><b>${name}</b> <span class="muted">${mb} MB</span><div class="muted">${use}</div></div>
+      ${m.ready ? '<span class="tag ok">Đã sẵn sàng</span>' : `<button class="btn primary small" id="dl-${group}">Tải về</button>`}
+    </div>
+    <div class="row dl hidden" id="dlrow-${group}"><div class="grow progress"><div id="bar-${group}"></div></div><span class="muted num" id="mb-${group}"></span></div>
     <div class="error" id="dlerr-${group}"></div>`;
   const btn = $("dl-" + group);
   if (btn) btn.onclick = async () => {
@@ -1296,12 +2442,68 @@ function renderModel(group, title) {
   };
 }
 const saveSetting = async (key, value) => { state.settings = await app.call("set_setting", { key, value: String(value) }); renderSettings(); };
-$("s-ai_provider").onchange = (e) => saveSetting("ai_provider", e.target.value);
+$("ai-tiles").addEventListener("change", (e) => {
+  // Choosing a provider shows how to set it up.
+  $("pd-" + e.target.value).open = true;
+  saveSetting("ai_provider", e.target.value);
+});
 $("s-new_per_day").onchange = (e) => saveSetting("new_per_day", Math.max(1, Math.min(200, +e.target.value || 10)));
 $("s-remind_hours").onchange = (e) => saveSetting("remind_hours", Math.max(0, Math.min(24, +e.target.value || 0)));
 $("s-daily_goal").onchange = (e) => saveSetting("daily_goal", Math.max(10, Math.min(1000, +e.target.value || 50)));
-$("s-theme").onchange = (e) => { applyTheme(e.target.value); saveSetting("theme", e.target.value); };
+$("s-desired_retention").onchange = (e) => saveSetting("desired_retention", e.target.value);
+for (const key of ["streak_freeze", "tray_count"]) $("s-" + key).onchange = (e) => saveSetting(key, e.target.checked ? "1" : "0");
+for (const key of ["remind_at", "quiet_from", "quiet_to"]) $("s-" + key).onchange = (e) => saveSetting(key, e.target.value);
+$("s-autostart").onchange = async (e) => {
+  try {
+    state.settings = await app.call("autostart", { on: e.target.checked });
+    toast(state.settings.autostart ? "Card English sẽ mở cùng máy tính" : "Đã tắt mở cùng máy tính");
+  } catch (err) {
+    toast(String(err));
+  }
+  renderSettings();
+};
+$("s-accent").addEventListener("change", async (e) => { await saveSetting("accent", e.target.value); await saveSetting("voice", ""); });
+$("s-voice").onchange = (e) => saveSetting("voice", e.target.value);
+$("s-speech_rate").oninput = (e) => ($("rate-label").textContent = rateLabel(+e.target.value));
+$("s-speech_rate").onchange = (e) => saveSetting("speech_rate", e.target.value);
+$("btn-voice-test").onclick = () => speak("Hello! I will read your new words like this.");
+$("s-hotkey").onchange = (e) => saveSetting("hotkey", e.target.value);
+$("s-theme").addEventListener("change", (e) => { applyTheme(e.target.value); saveSetting("theme", e.target.value); });
+$("s-palette").addEventListener("change", (e) => { applyPalette(e.target.value); saveSetting("palette", e.target.value); });
 $("btn-modal-ok").onclick = () => { $("modal").classList.add("hidden"); saveSetting("chatgpt_welcomed", "1"); };
+
+// Data: exports land in Downloads, imports come from a file the learner picks.
+async function exportData(cmd, button, done) {
+  button.disabled = true;
+  try {
+    const r = await app.call(cmd);
+    $("data-result").textContent = `${done} ${r.path}`;
+  } catch (e) {
+    $("data-result").innerHTML = `<span class="error">${esc(e)}</span>`;
+  }
+  button.disabled = false;
+}
+$("btn-export").onclick = (e) => exportData("export_csv", e.currentTarget, "Đã xuất danh sách từ ra");
+$("btn-backup").onclick = (e) => exportData("backup", e.currentTarget, "Đã sao lưu ra");
+$("btn-import").onclick = () => $("import-file").click();
+$("import-file").onchange = async (e) => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  if (file.size > 20 * 1024 * 1024) return ($("data-result").innerHTML = '<span class="error">File quá lớn, tối đa 20 MB.</span>');
+  $("data-result").textContent = `Đang nhập ${file.name}...`;
+  try {
+    const r = await app.call("import", { name: file.name, text: await file.text() });
+    $("data-result").textContent = `Đã thêm ${r.added} từ.${r.skipped ? ` ${r.skipped} từ đã có nên được giữ nguyên.` : ""}${r.invalid ? ` ${r.invalid} dòng không đọc được.` : ""}`;
+    if (r.added) {
+      toast(`Đã nhập ${r.added} từ mới`);
+      refreshBadges();
+    }
+  } catch (err) {
+    $("data-result").innerHTML = `<span class="error">${esc(err)}</span>`;
+  }
+};
+$("btn-open-backups").onclick = () => app.call("open_backups").catch((e) => toast(String(e)));
 
 async function chatgptSignIn(fresh) {
   state.signingIn = "chatgpt";
@@ -1394,6 +2596,7 @@ $("page-settings").addEventListener("click", async (e) => {
     case "save-key": {
       const key = $("key-" + p).value.trim();
       if (!key) return $("key-" + p).focus();
+      $("key-" + p).value = "";
       delete state.modelLists[p];
       await saveSetting(p + "_key", key);
       return toast(`Đã lưu ${PROVIDER_NAME[p]} API key`);
@@ -1417,20 +2620,26 @@ $("page-settings").addEventListener("click", async (e) => {
   }
 });
 
+// Updates: from GitHub Releases, or through Homebrew when that is where the app came from.
+const BREW_UPGRADE = "brew upgrade --cask card-english";
+function updateHtml(c, link) {
+  return state.brew ? `Có bản mới <b>${esc(c.latest)}</b>. Cập nhật bằng lệnh <code>${BREW_UPGRADE}</code>`
+    : `Có bản mới <b>${esc(c.latest)}</b>. <a href="#" id="${link}">Mở trang tải về</a>`;
+}
 function showUpdate(c) {
   if (!c || !c.newer) return;
   const banner = $("update-banner");
   banner.style.display = "block";
-  banner.innerHTML = `Có bản mới ${esc(c.latest)}. <a href="#" id="update-link">Tải về</a>`;
-  $("update-link").onclick = (e) => { e.preventDefault(); app.call("open_url", { url: c.url }); };
+  banner.innerHTML = updateHtml(c, "update-link");
+  if (!state.brew) $("update-link").onclick = (e) => { e.preventDefault(); app.call("open_url", { url: c.url }); };
 }
 $("btn-update").onclick = async () => {
   $("update-result").textContent = "Đang kiểm tra...";
   try {
     const c = await app.call("check_update");
     if (c.newer) {
-      $("update-result").innerHTML = `Có bản mới <b>${esc(c.latest)}</b>. <a href="#" id="update-open">Mở trang tải về</a>`;
-      $("update-open").onclick = (e) => { e.preventDefault(); app.call("open_url", { url: c.url }); };
+      $("update-result").innerHTML = updateHtml(c, "update-open");
+      if (!state.brew) $("update-open").onclick = (e) => { e.preventDefault(); app.call("open_url", { url: c.url }); };
       showUpdate(c);
     } else {
       $("update-result").textContent = `Bạn đang dùng bản mới nhất (${c.latest}).`;
@@ -1440,19 +2649,49 @@ $("btn-update").onclick = async () => {
   }
 };
 
+/// The shortcut brought copied text: a word or a short phrase is looked up, a longer passage gets its words picked.
+async function quickAdd(text) {
+  text = String(text || "").trim();
+  if (text) {
+    const course = hasHan(text) ? "zh" : "en";
+    if (course !== courseOf()) await switchCourse(course);
+  }
+  go("words");
+  if (!text) {
+    $("new-word").focus();
+    return toast("Bộ nhớ tạm đang trống. Hãy sao chép một từ rồi bấm phím tắt.");
+  }
+  if (text.length <= 60 && !text.includes("\n") && (hasHan(text) ? text.length <= 12 : text.split(/\s+/).length <= 4)) {
+    $("new-word").value = text.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
+    addWord(true);
+  } else {
+    openSuggest("text");
+    $("passage").value = text.slice(0, 4000);
+    extract();
+  }
+}
+
 (async () => {
   const init = await app.call("init");
   state.settings = init.settings;
   state.models = init.models;
+  state.platform = init.platform || "";
+  state.hotkeys = init.hotkeys || [];
+  state.brew = !!init.brew;
   applyTheme(state.settings.theme);
+  applyPalette(state.settings.palette);
+  applyCourse();
   $("version").textContent = init.version;
   $("s-version").textContent = init.version;
   $("data-dir").textContent = init.data_dir;
   showUpdate(init.update);
   renderSettings();
+  const chosen = $("pd-" + state.settings.ai_provider);
+  if (chosen) chosen.open = true;
   rotateQuote();
   quoteTimer = setInterval(rotateQuote, 12000);
   await refreshHome();
+  if (init.quick_add != null) quickAdd(init.quick_add);
 })();
 </script>
 </body>

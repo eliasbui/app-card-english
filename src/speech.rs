@@ -14,11 +14,11 @@ use std::{
 };
 use tokenizers::Tokenizer;
 
-/// A recording stops by itself after this, in case the stop never comes.
-const MAX_SECONDS: u64 = 8;
+/// A recording stops by itself after this, in case the stop never comes; long enough for an example sentence.
+const MAX_SECONDS: u64 = 16;
 /// Quieter than this (root mean square of the samples) is taken as no voice at all.
 const SILENCE_RMS: f32 = 0.008;
-const MAX_TOKENS: usize = 24;
+const MAX_TOKENS: usize = 64;
 
 type Take = Result<(Vec<f32>, u32), String>;
 
@@ -142,6 +142,8 @@ pub struct Score {
     pub heard_ipa: String,
     pub target_ipa: String,
     pub message: String,
+    /// For a sentence, its words that were not heard.
+    pub missed: Vec<String>,
 }
 
 /// Hears the sound and scores it against `target`.
@@ -154,10 +156,25 @@ pub fn assess(target: &str, pcm: &[f32], dir: &Path) -> Result<Score, String> {
             heard_ipa: String::new(),
             target_ipa: pron::ipa(target),
             message: "Không nghe thấy giọng, hãy nói to và gần micro hơn".into(),
+            missed: Vec::new(),
         });
     }
-    let (heard, confidence) = transcribe(pcm, dir)?;
+    if pron::is_chinese(target) {
+        let (heard, confidence) = transcribe(pcm, dir, &CHINESE)?;
+        return Ok(score_chinese(target, &heard, confidence));
+    }
+    let (heard, confidence) = transcribe(pcm, dir, &ENGLISH)?;
     Ok(score(target, &heard, confidence))
+}
+
+fn message_of(score: u8) -> &'static str {
+    match score {
+        90.. => "Xuất sắc! Phát âm rất chuẩn",
+        75..90 => "Tốt, gần chuẩn rồi",
+        50..75 => "Khá, nghe lại mẫu và đọc rõ từng âm",
+        1..50 => "Chưa đúng, hãy nghe mẫu đọc chậm rồi thử lại",
+        0 => "Không nhận ra từ, hãy thử lại",
+    }
 }
 
 /// The score of what was heard: the word itself scores by how sure Whisper was, anything else by how close
@@ -176,12 +193,36 @@ pub fn score(target: &str, heard: &str, confidence: f32) -> Score {
         60.0 * pron::similarity(&a, &b)
     };
     let score = value.round().clamp(0.0, 100.0) as u8;
-    let message = match score {
-        90.. => "Xuất sắc! Phát âm rất chuẩn",
-        75..90 => "Tốt, gần chuẩn rồi",
-        50..75 => "Khá, nghe lại mẫu và đọc rõ từng âm",
-        1..50 => "Chưa đúng, hãy nghe mẫu đọc chậm rồi thử lại",
-        0 => "Không nhận ra từ, hãy thử lại",
+    Score {
+        score,
+        heard: heard.trim().to_owned(),
+        heard_ipa: pron::ipa(heard),
+        target_ipa: pron::ipa(target),
+        message: message_of(score).into(),
+        missed: if want.len() > 1 { missed(&want, &got) } else { Vec::new() },
+    }
+}
+
+/// Chinese scores by its syllables, which simplified and traditional characters share: the target itself by how
+/// sure Whisper was, anything else by how close the syllables are, half with their tones and half without, so that
+/// a wrong tone costs less than a wrong sound.
+pub fn score_chinese(target: &str, heard: &str, confidence: f32) -> Score {
+    let (want, got) = (pron::syllables(target), pron::syllables(heard));
+    let hit = !want.is_empty() && got.windows(want.len()).any(|w| w == want.as_slice());
+    let toneless = |s: &[String]| s.iter().map(|x| x.trim_end_matches(|c: char| c.is_ascii_digit()).to_owned()).collect::<Vec<_>>();
+    let (tones, sounds) = (pron::similarity(&want, &got), pron::similarity(&toneless(&want), &toneless(&got)));
+    let value = if got.is_empty() {
+        0.0
+    } else if hit {
+        70.0 + 30.0 * confidence
+    } else {
+        40.0 * (tones + sounds)
+    };
+    let score = value.round().clamp(0.0, 100.0) as u8;
+    let message = if !hit && score > 0 && sounds - tones > 0.2 {
+        "Đúng âm nhưng sai thanh điệu, nghe mẫu và chú ý dấu thanh"
+    } else {
+        message_of(score)
     };
     Score {
         score,
@@ -189,8 +230,66 @@ pub fn score(target: &str, heard: &str, confidence: f32) -> Score {
         heard_ipa: pron::ipa(heard),
         target_ipa: pron::ipa(target),
         message: message.into(),
+        // For a sentence, the syllables that were not heard, with their tone marks.
+        missed: if want.len() > 3 { missed(&want, &got).iter().map(|s| pron::mark(s)).collect() } else { Vec::new() },
     }
 }
+
+/// The words of `want` that `got` lacks, in order, by the longest run they share.
+fn missed(want: &[String], got: &[String]) -> Vec<String> {
+    let (n, m) = (want.len(), got.len());
+    let mut common = vec![vec![0usize; m + 1]; n + 1];
+    for i in (0..n).rev() {
+        for j in (0..m).rev() {
+            common[i][j] = if want[i] == got[j] { common[i + 1][j + 1] + 1 } else { common[i + 1][j].max(common[i][j + 1]) };
+        }
+    }
+    let (mut i, mut j, mut out) = (0, 0, Vec::new());
+    while i < n {
+        if j < m && want[i] == got[j] {
+            (i, j) = (i + 1, j + 1);
+        } else if j < m && common[i][j + 1] >= common[i + 1][j] {
+            j += 1;
+        } else {
+            out.push(want[i].clone());
+            i += 1;
+        }
+    }
+    out
+}
+
+/// A Whisper model: its files, and the language it is told to hear, for one that hears more than English.
+struct Model {
+    group: &'static str,
+    weights: &'static str,
+    config: &'static str,
+    tokenizer: &'static str,
+    language: Option<&'static str>,
+    missing: &'static str,
+    loaded: &'static Mutex<Option<Stt>>,
+}
+
+static STT: Mutex<Option<Stt>> = Mutex::new(None);
+static STT_ZH: Mutex<Option<Stt>> = Mutex::new(None);
+
+static ENGLISH: Model = Model {
+    group: "stt",
+    weights: models::WHISPER,
+    config: models::WHISPER_CONFIG,
+    tokenizer: models::WHISPER_TOKENIZER,
+    language: None,
+    missing: "Chưa tải model chấm phát âm, vào Cài đặt để tải (42 MB)",
+    loaded: &STT,
+};
+static CHINESE: Model = Model {
+    group: "sttzh",
+    weights: models::WHISPER_ZH,
+    config: models::WHISPER_ZH_CONFIG,
+    tokenizer: models::WHISPER_ZH_TOKENIZER,
+    language: Some("<|zh|>"),
+    missing: "Chưa tải model chấm phát âm tiếng Trung, vào Cài đặt để tải (45 MB)",
+    loaded: &STT_ZH,
+};
 
 struct Stt {
     model: Whisper,
@@ -203,22 +302,26 @@ struct Stt {
     suppress: Tensor,
 }
 
-static STT: Mutex<Option<Stt>> = Mutex::new(None);
-
-fn load(dir: &Path) -> Result<Stt, String> {
+fn load(dir: &Path, kind: &Model) -> Result<Stt, String> {
     let err = |e: candle_core::Error| e.to_string();
-    let config: w::Config = std::fs::read_to_string(models::path(dir, models::WHISPER_CONFIG))
+    let config: w::Config = std::fs::read_to_string(models::path(dir, kind.config))
         .map_err(|e| e.to_string())
         .and_then(|s| serde_json::from_str(&s).map_err(|e| e.to_string()))?;
     let vb = candle_transformers::quantized_var_builder::VarBuilder::from_gguf(
-        models::path(dir, models::WHISPER),
+        models::path(dir, kind.weights),
         &crate::ai::device(),
     )
     .map_err(err)?;
     let model = Whisper::load(&vb, config.clone()).map_err(err)?;
-    let tokenizer = Tokenizer::from_file(models::path(dir, models::WHISPER_TOKENIZER)).map_err(|e| e.to_string())?;
+    let tokenizer = Tokenizer::from_file(models::path(dir, kind.tokenizer)).map_err(|e| e.to_string())?;
     let id = |t: &str| tokenizer.token_to_id(t).ok_or(format!("thiếu token {t}"));
     let (sot, no_timestamps, eot) = (id(w::SOT_TOKEN)?, id(w::NO_TIMESTAMPS_TOKEN)?, id(w::EOT_TOKEN)?);
+    // A multilingual model is told the language and to write down what it hears, not to translate it.
+    let mut prefix = vec![sot];
+    if let Some(language) = kind.language {
+        prefix.extend([id(language)?, id(w::TRANSCRIBE_TOKEN)?]);
+    }
+    prefix.push(no_timestamps);
     // Every special token and timestamp comes after <|endoftext|> in the vocabulary.
     let suppress: Vec<f32> = (0..config.vocab_size as u32)
         .map(|t| {
@@ -228,28 +331,29 @@ fn load(dir: &Path) -> Result<Stt, String> {
         .collect();
     let suppress = Tensor::new(suppress.as_slice(), &crate::ai::device()).map_err(err)?;
     let filters = mel_filters(config.num_mel_bins);
-    Ok(Stt { model, tokenizer, config, filters, prefix: vec![sot, no_timestamps], eot, suppress })
+    Ok(Stt { model, tokenizer, config, filters, prefix, eot, suppress })
 }
 
-/// Loads Whisper ahead of the first recording and runs it once, so that the GPU kernels are compiled by then.
+/// Loads the English Whisper ahead of the first recording and runs it once, so that the GPU kernels are compiled by
+/// then; the Chinese one loads on first use.
 pub fn warm_up(dir: &Path) {
-    if models::ready(dir, "stt") {
+    if models::ready(dir, ENGLISH.group) {
         let hum: Vec<f32> = (0..w::SAMPLE_RATE).map(|i| (i as f32 * 0.05).sin() * 0.01).collect();
-        if let Err(e) = transcribe(&hum, dir) {
+        if let Err(e) = transcribe(&hum, dir, &ENGLISH) {
             eprintln!("warm up: {e}");
         }
     }
 }
 
 /// The text Whisper hears and how sure it was, from 0 to 1 (the mean probability of its tokens).
-fn transcribe(pcm: &[f32], dir: &Path) -> Result<(String, f32), String> {
+fn transcribe(pcm: &[f32], dir: &Path, kind: &Model) -> Result<(String, f32), String> {
     let err = |e: candle_core::Error| e.to_string();
-    let mut guard = STT.lock().map_err(|_| "model giọng nói đang lỗi")?;
+    let mut guard = kind.loaded.lock().map_err(|_| "model giọng nói đang lỗi")?;
     if guard.is_none() {
-        if !models::ready(dir, "stt") {
-            return Err("Chưa tải model chấm phát âm, vào Cài đặt để tải (42 MB)".into());
+        if !models::ready(dir, kind.group) {
+            return Err(kind.missing.into());
         }
-        *guard = Some(load(dir)?);
+        *guard = Some(load(dir, kind)?);
     }
     let stt = guard.as_mut().ok_or("model chưa nạp")?;
     let pcm = &pcm[..pcm.len().min(w::N_SAMPLES)];
@@ -336,6 +440,30 @@ mod tests {
     }
 
     #[test]
+    fn chinese_scores_by_syllables_and_tones() {
+        // Traditional characters read as the simplified ones, and punctuation does not count.
+        assert_eq!(score_chinese("学习", "學習。", 1.0).score, 100);
+        let tone = score_chinese("买", "卖", 0.9);
+        assert_eq!(tone.score, 40);
+        assert!(tone.message.contains("thanh điệu"), "{tone:?}");
+        assert_eq!((tone.heard_ipa.as_str(), tone.target_ipa.as_str()), ("mài", "mǎi"));
+        assert!(score_chinese("电脑", "学习", 0.9).score < 30);
+        assert_eq!(score_chinese("学习", "", 0.9).score, 0);
+        let sentence = score_chinese("我们明天去北京。", "我们去北京。", 0.8);
+        assert_eq!(sentence.missed, ["míng", "tiān"]);
+        assert!((50..80).contains(&sentence.score), "{sentence:?}");
+    }
+
+    #[test]
+    fn a_sentence_names_the_words_that_were_not_heard() {
+        let s = score("We need to negotiate a better price.", "We need to go she ate a bit of price", 0.8);
+        assert_eq!(s.missed, ["negotiate", "better"]);
+        assert!(s.score > 0 && s.score < 80, "{s:?}");
+        assert!(score("Thank you very much.", "Thank you very much", 0.9).missed.is_empty());
+        assert!(score("hello", "yellow", 0.9).missed.is_empty());
+    }
+
+    #[test]
     fn mel_filters_match_librosa() {
         let f = mel_filters(80);
         assert_eq!(f.len(), 80 * 201);
@@ -376,6 +504,33 @@ mod tests {
         println!("{wrong:?}");
         assert!(wrong.score < 50, "{wrong:?}");
         assert_eq!(assess("beautiful", &vec![0.0; 16_000], &crate::data_dir()).unwrap().score, 0);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    #[ignore = "needs the downloaded models: cargo test -- --ignored"]
+    fn whisper_hears_a_chinese_word() {
+        let say = |text: &str| {
+            let wav = std::env::temp_dir().join(format!("card-english-test-{}.wav", text.len()));
+            let said = std::process::Command::new("/usr/bin/say")
+                .args(["-v", "Tingting", "--file-format=WAVE", "--data-format=LEI16@16000", "-o"])
+                .arg(&wav)
+                .arg(text)
+                .status()
+                .unwrap();
+            assert!(said.success());
+            read_wav(&std::fs::read(&wav).unwrap())
+        };
+        let word = say("学习");
+        let right = assess("学习", &word, &crate::data_dir()).unwrap();
+        println!("{right:?}");
+        assert!(right.score >= 80, "{right:?}");
+        let wrong = assess("电脑", &word, &crate::data_dir()).unwrap();
+        println!("{wrong:?}");
+        assert!(wrong.score < 50, "{wrong:?}");
+        let sentence = assess("我们明天去北京。", &say("我们明天去北京。"), &crate::data_dir()).unwrap();
+        println!("{sentence:?}");
+        assert!(sentence.score >= 75, "{sentence:?}");
     }
 
     #[test]

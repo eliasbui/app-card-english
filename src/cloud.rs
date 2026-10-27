@@ -256,7 +256,7 @@ mod tests {
     #[ignore = "talks to the real servers: cargo test -- --ignored"]
     fn real_servers_reject_a_wrong_key_in_words() {
         assert_eq!(gemini_models("AIza-not-a-real-key").unwrap_err().message, "Gemini API key không đúng");
-        let prompt = Prompt { system: "s", example: ("a", "b"), question: "q", max_tokens: 10 };
+        let prompt = Prompt { system: "s", example: ("a", "b"), question: "q", max_tokens: 10, cjk: false };
         assert_eq!(gemini_chat("AIza-not-a-real-key", "models/gemini-2.5-flash", &prompt).unwrap_err().message, "Gemini API key không đúng");
         assert_eq!(deepseek_models("sk-not-a-real-key").unwrap_err().message, "DeepSeek API key không đúng");
         assert_eq!(deepseek_balance("sk-not-a-real-key").unwrap_err().message, "DeepSeek API key không đúng");

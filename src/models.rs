@@ -9,15 +9,22 @@ pub const QWEN_TOKENIZER: &str = "qwen2.5-tokenizer.json";
 pub const WHISPER: &str = "whisper-tiny-en-q80.gguf";
 pub const WHISPER_CONFIG: &str = "whisper-tiny-en-config.json";
 pub const WHISPER_TOKENIZER: &str = "whisper-tiny-en-tokenizer.json";
+/// The multilingual Whisper, which hears Chinese.
+pub const WHISPER_ZH: &str = "whisper-tiny-q80.gguf";
+pub const WHISPER_ZH_CONFIG: &str = "whisper-tiny-config.json";
+pub const WHISPER_ZH_TOKENIZER: &str = "whisper-tiny-tokenizer.json";
 
 /// Group, file name, source and size in bytes (for the progress bar only).
 // shortcut: files are not checked against a hash, HTTPS is trusted; add SHA-256 pins if a mirror is ever used.
-const FILES: [(&str, &str, &str, u64); 5] = [
+const FILES: [(&str, &str, &str, u64); 8] = [
     ("llm", QWEN, "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf", 491_400_032),
     ("llm", QWEN_TOKENIZER, "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/tokenizer.json", 7_031_645),
     ("stt", WHISPER, "https://huggingface.co/lmz/candle-whisper/resolve/main/model-tiny-en-q80.gguf", 41_841_216),
     ("stt", WHISPER_CONFIG, "https://huggingface.co/lmz/candle-whisper/resolve/main/config-tiny-en.json", 1_937),
     ("stt", WHISPER_TOKENIZER, "https://huggingface.co/lmz/candle-whisper/resolve/main/tokenizer-tiny-en.json", 2_405_679),
+    ("sttzh", WHISPER_ZH, "https://huggingface.co/lmz/candle-whisper/resolve/main/model-tiny-q80.gguf", 41_841_632),
+    ("sttzh", WHISPER_ZH_CONFIG, "https://huggingface.co/lmz/candle-whisper/resolve/main/config-tiny.json", 1_983),
+    ("sttzh", WHISPER_ZH_TOKENIZER, "https://huggingface.co/lmz/candle-whisper/resolve/main/tokenizer-tiny.json", 2_480_452),
 ];
 
 pub fn path(dir: &Path, file: &str) -> PathBuf {
@@ -36,6 +43,7 @@ pub fn status(dir: &Path) -> Value {
     json!({
         "llm": { "ready": ready(dir, "llm"), "size": size("llm") },
         "stt": { "ready": ready(dir, "stt"), "size": size("stt") },
+        "sttzh": { "ready": ready(dir, "sttzh"), "size": size("sttzh") },
     })
 }
 
