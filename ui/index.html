@@ -366,6 +366,7 @@
   .word-link:hover { color: var(--accent-text); }
   td .sub { margin-top: 2px; overflow: hidden; color: var(--muted); font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
   td.acts { text-align: right; white-space: nowrap; }
+  .say-row { gap: 6px; margin-top: 6px; }
   td.empty { padding: 28px 20px; color: var(--muted); text-align: center; }
   .empty .st, .empty-mini .st { display: block; width: 104px; height: 104px; margin: 0 auto 8px; }
   .empty-mini { padding: 8px 0; text-align: center; }
@@ -607,7 +608,8 @@
       <div id="editor" class="hidden">
         <p id="editor-status" class="muted"></p>
         <div class="grid2">
-          <div><label for="f-word">Từ</label><input id="f-word" maxlength="80"></div>
+          <div><label for="f-word">Từ</label><input id="f-word" maxlength="80">
+            <div class="row say-row"><button type="button" class="btn small" id="btn-f-say">Nghe</button><button type="button" class="btn small" id="btn-f-say-slow">Nghe chậm</button></div></div>
           <div><label for="f-ipa">Phiên âm (IPA)</label><input id="f-ipa"></div>
           <div><label for="f-pos">Loại từ</label><input id="f-pos"></div>
           <div><label for="f-meaning">Nghĩa tiếng Việt</label><input id="f-meaning"></div>
@@ -1999,7 +2001,7 @@ function showPractice() {
     const speaking = p.kind === "speak";
     card.innerHTML = `
       ${st(speaking ? "mode-speak" : "mode-write", "mode-st")}
-      <div class="prompt-label">${speaking ? "Đọc to từ này rồi xem điểm" : "Đặt một câu tiếng Anh có từ"}</div>
+      <div class="prompt-label">${speaking ? "Đọc to từ này rồi xem điểm" : `Đặt một câu tiếng ${courseOf() === "zh" ? "Trung" : "Anh"} có từ`}</div>
       <div class="word">${esc(w.word)}</div>
       ${speaking ? `<div class="ipa">${esc(w.ipa)}</div>` : ""}
       <div class="meaning small">${esc(w.meaning)}</div>
@@ -2024,7 +2026,7 @@ function showPractice() {
     const options = shuffle([w, ...others]);
     const label = (x) => (toMeaning ? x.meaning : x.word);
     card.innerHTML = `
-      <div class="prompt-label">${toMeaning ? "Chọn nghĩa đúng của từ" : "Chọn từ tiếng Anh có nghĩa"}</div>
+      <div class="prompt-label">${toMeaning ? "Chọn nghĩa đúng của từ" : `Chọn từ tiếng ${courseOf() === "zh" ? "Trung" : "Anh"} có nghĩa`}</div>
       <div class="question">${esc(toMeaning ? w.word : w.meaning)}</div>
       ${toMeaning ? `<div class="ipa">${esc(w.ipa)}</div>` : ""}
       <div class="options">${options.map((x, i) => `<button class="btn" data-id="${x.id}"><span class="opt-n">${i + 1}</span>${esc(label(x))}</button>`).join("")}</div>
@@ -2549,6 +2551,8 @@ $("s-accent").addEventListener("change", async (e) => {
 $("s-voice").onchange = (e) => saveSetting("voice", e.target.value);
 $("s-speech_rate").oninput = (e) => ($("rate-label").textContent = rateLabel(+e.target.value));
 $("s-speech_rate").onchange = (e) => saveSetting("speech_rate", e.target.value);
+$("btn-f-say").onclick = () => speak($("f-word").value.trim());
+$("btn-f-say-slow").onclick = () => speak($("f-word").value.trim(), true);
 $("btn-voice-test").onclick = () => speak(courseOf() === "zh" ? "你好！我会这样读你的新词。" : "Hello! I will read your new words like this.");
 $("s-hotkey").onchange = (e) => saveSetting("hotkey", e.target.value);
 $("s-theme").addEventListener("change", (e) => { applyTheme(e.target.value); saveSetting("theme", e.target.value); });

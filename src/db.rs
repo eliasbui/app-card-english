@@ -407,7 +407,8 @@ pub fn forecast(db: &Connection, day_start: i64, days: usize, lang: &str) -> rus
     Ok(out)
 }
 
-/// The words of a course answered since `since`, most recent first, or, when there are none, the words learned last.
+/// The words of a course answered since `since`, most recent first; when there are none, the words learned last,
+/// and before anything is learned, the words added last.
 pub fn recent_words(db: &Connection, since: i64, limit: i64, lang: &str) -> rusqlite::Result<Vec<String>> {
     let words = |sql: &str| -> rusqlite::Result<Vec<String>> {
         let mut stmt = db.prepare(sql)?;
@@ -420,7 +421,11 @@ pub fn recent_words(db: &Connection, since: i64, limit: i64, lang: &str) -> rusq
     if !today.is_empty() {
         return Ok(today);
     }
-    words("SELECT word FROM words WHERE learned_at > 0 AND lang = ?3 AND ?1 = ?1 ORDER BY last_review DESC LIMIT ?2")
+    let learned = words("SELECT word FROM words WHERE learned_at > 0 AND lang = ?3 AND ?1 = ?1 ORDER BY last_review DESC LIMIT ?2")?;
+    if !learned.is_empty() {
+        return Ok(learned);
+    }
+    words("SELECT word FROM words WHERE lang = ?3 AND ?1 = ?1 ORDER BY created DESC, id DESC LIMIT ?2")
 }
 
 /// Every answer as a copy keeps it: the word, when, and how it went.
@@ -748,7 +753,8 @@ mod tests {
         let (course, all) = (stats(&db, 10, 0, "zh").unwrap(), stats(&db, 10, 0, "").unwrap());
         assert_eq!((course.total, course.learned, course.reviews, all.total, all.reviews), (2, 1, 1, 3, 1));
         assert_eq!(recent_words(&db, 0, 8, "zh").unwrap(), ["学习"]);
-        assert!(recent_words(&db, 0, 8, "en").unwrap().is_empty());
+        assert_eq!(recent_words(&db, 0, 8, "en").unwrap(), ["deadline"], "nothing learned yet: the words added");
+        assert!(recent_words(&db, 0, 8, "fr").unwrap().is_empty());
     }
 
     #[test]

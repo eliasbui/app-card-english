@@ -180,9 +180,9 @@ Cấu trúc:
 scripts/release.sh 0.2.0
 ```
 
-Script tăng version, tạo tag và push. GitHub Actions build bản macOS (universal) và Windows x64 rồi đăng lên GitHub Releases; app sẽ tự thấy bản mới.
+Chạy trên máy Mac. Script tăng version, chạy test, build bản macOS universal (Apple silicon và Intel) ngay trên máy, tạo tag và push, đăng GitHub Release kèm file zip macOS, rồi trỏ cask trong tap `eliasbui/homebrew-card-english` sang file zip đó. GitHub Actions chỉ build bản Windows x64 và thêm vào cùng release; app sẽ tự thấy bản mới.
 
-Sau đó job `homebrew` của workflow trỏ cask trong tap `eliasbui/homebrew-card-english` sang file zip mới, với điều kiện repository secret `HOMEBREW_TAP_TOKEN` (token có quyền push vào tap) đã được đặt. Nếu chưa có token, chạy bằng tay:
+Nếu cask chưa cập nhật được (chưa có quyền push vào tap), chạy lại bằng tay:
 
 ```sh
 scripts/update-cask.sh 0.2.0
