@@ -34,7 +34,7 @@
   button, input, select, textarea { font: inherit; color: inherit; }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   a { color: var(--accent-text); }
-  code { padding: 1px 6px; border-radius: 6px; background: var(--hover); font: 12.5px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; user-select: all; }
+  code { padding: 1px 6px; border-radius: 6px; background: var(--hover); font: 12.5px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; user-select: all; overflow-wrap: anywhere; }
   .muted { color: var(--muted); }
   .small { font-size: 12.5px; }
   .error { color: var(--red); }
@@ -91,7 +91,7 @@
   .st-ach-xp { background-position: 0.0000% 100.0000%; }
   /* stickers: end */
 
-  nav { width: 224px; flex-shrink: 0; display: flex; flex-direction: column; gap: 2px; padding: 18px 12px 14px;
+  nav { width: 224px; flex-shrink: 0; display: flex; flex-direction: column; gap: 2px; padding: 18px 12px 14px; overflow-y: auto;
         background: var(--surface); border-right: 1px solid var(--line); }
   .brand { display: flex; align-items: center; gap: 10px; padding: 0 6px 16px; }
   .brand .st { width: 46px; height: 46px; animation: bob 4s ease-in-out infinite; }
@@ -2620,18 +2620,21 @@ $("page-settings").addEventListener("click", async (e) => {
   }
 });
 
-// Updates: from GitHub Releases, or through Homebrew when that is where the app came from.
-const BREW_UPGRADE = "brew upgrade --cask card-english";
+// Updates: from GitHub Releases, or through Homebrew or the Windows install script when that is where the app came from.
+const UPDATE_BY = {
+  brew: "Cập nhật bằng lệnh <code>brew upgrade --cask card-english</code>",
+  script: "Cập nhật: mở PowerShell rồi chạy <code>irm https://raw.githubusercontent.com/eliasbui/app-card-english/main/scripts/install.ps1 | iex</code>",
+};
+const updateBy = () => (state.brew ? UPDATE_BY.brew : state.script ? UPDATE_BY.script : "");
 function updateHtml(c, link) {
-  return state.brew ? `Có bản mới <b>${esc(c.latest)}</b>. Cập nhật bằng lệnh <code>${BREW_UPGRADE}</code>`
-    : `Có bản mới <b>${esc(c.latest)}</b>. <a href="#" id="${link}">Mở trang tải về</a>`;
+  return `Có bản mới <b>${esc(c.latest)}</b>. ` + (updateBy() || `<a href="#" id="${link}">Mở trang tải về</a>`);
 }
 function showUpdate(c) {
   if (!c || !c.newer) return;
   const banner = $("update-banner");
   banner.style.display = "block";
   banner.innerHTML = updateHtml(c, "update-link");
-  if (!state.brew) $("update-link").onclick = (e) => { e.preventDefault(); app.call("open_url", { url: c.url }); };
+  if (!updateBy()) $("update-link").onclick = (e) => { e.preventDefault(); app.call("open_url", { url: c.url }); };
 }
 $("btn-update").onclick = async () => {
   $("update-result").textContent = "Đang kiểm tra...";
@@ -2639,7 +2642,7 @@ $("btn-update").onclick = async () => {
     const c = await app.call("check_update");
     if (c.newer) {
       $("update-result").innerHTML = updateHtml(c, "update-open");
-      if (!state.brew) $("update-open").onclick = (e) => { e.preventDefault(); app.call("open_url", { url: c.url }); };
+      if (!updateBy()) $("update-open").onclick = (e) => { e.preventDefault(); app.call("open_url", { url: c.url }); };
       showUpdate(c);
     } else {
       $("update-result").textContent = `Bạn đang dùng bản mới nhất (${c.latest}).`;
@@ -2678,6 +2681,7 @@ async function quickAdd(text) {
   state.platform = init.platform || "";
   state.hotkeys = init.hotkeys || [];
   state.brew = !!init.brew;
+  state.script = !!init.script;
   applyTheme(state.settings.theme);
   applyPalette(state.settings.palette);
   applyCourse();

@@ -601,6 +601,7 @@ impl App {
                     "platform": std::env::consts::OS,
                     "hotkeys": HOTKEYS,
                     "brew": installed_by_brew(),
+                    "script": installed_by_script(),
                     "quick_add": self.pending_add.take(),
                 }))
             }
@@ -1023,6 +1024,13 @@ fn copied(text: &str) -> String {
 /// Whether Homebrew put the app here, so that an update is `brew upgrade` instead of a download.
 fn installed_by_brew() -> bool {
     cfg!(target_os = "macos") && ["/opt/homebrew/Caskroom/card-english", "/usr/local/Caskroom/card-english"].iter().any(|p| Path::new(p).is_dir())
+}
+
+/// Whether scripts/install.ps1 put the app here, so that an update is running the script again.
+fn installed_by_script() -> bool {
+    cfg!(windows)
+        && std::env::current_exe()
+            .is_ok_and(|p| p.to_string_lossy().to_lowercase().ends_with(r"\programs\cardenglish\cardenglish.exe"))
 }
 
 fn open_url(url: &str) -> Result<Value, String> {

@@ -63,7 +63,7 @@ Dữ liệu:
 
 Giao diện: hình dán hoạt hình dễ thương (tạo bằng công cụ sinh ảnh AI), màu nhấn xanh, hồng hoặc tím, giao diện sáng, tối hoặc theo hệ thống.
 
-Cập nhật: app kiểm tra phiên bản mới qua GitHub Releases của `eliasbui/app-card-english`; nếu cài bằng Homebrew thì app hiện lệnh `brew upgrade --cask card-english` thay vì tải về.
+Cập nhật: app kiểm tra phiên bản mới qua GitHub Releases của `eliasbui/app-card-english`; nếu cài bằng Homebrew hoặc bằng script PowerShell trên Windows thì app hiện lệnh cập nhật thay vì trang tải về.
 
 ## AI
 
@@ -110,6 +110,15 @@ Ghi đủ tên cask như trên thì Homebrew chỉ tin đúng cask này, không 
 
 - Cập nhật: `brew upgrade --cask card-english`.
 - Gỡ: `brew uninstall --cask card-english`, gỡ luôn mục khởi động cùng máy tính nếu đã bật. Thêm `--zap` để xóa cả dữ liệu.
+
+Trên Windows 10 và 11, mở PowerShell và chạy:
+
+    irm https://raw.githubusercontent.com/eliasbui/app-card-english/main/scripts/install.ps1 | iex
+
+Script cài app cho tài khoản đang dùng vào `%LOCALAPPDATA%\Programs\CardEnglish`, không cần quyền quản trị, kiểm tra file tải về bằng mã SHA-256 mà GitHub công bố, rồi thêm lối tắt vào menu Start.
+
+- Cập nhật: chạy lại lệnh trên. Nếu app đang chạy, script đóng app rồi mở lại sau khi thay.
+- Gỡ: Settings > Apps > Card English > Uninstall, gỡ luôn mục khởi động cùng máy tính nếu đã bật. Dữ liệu trong `%APPDATA%\CardEnglish` được giữ lại; xóa thư mục đó nếu muốn xóa cả dữ liệu.
 
 Hoặc tải bản zip trong GitHub Releases và cài bằng tay. Lưu ý:
 
@@ -162,6 +171,7 @@ Cấu trúc:
 - `assets/cedict.txt`, `assets/hanviet.txt`: pinyin và âm Hán Việt cho khóa tiếng Trung.
 - `scripts/make-zh-data.py`: dựng lại hai file trên từ nguồn.
 - `packaging/homebrew/`, `scripts/update-cask.sh`: cask Homebrew và script cập nhật tap.
+- `scripts/install.ps1`: cài, cập nhật và đăng ký gỡ app trên Windows.
 
 ## Phát hành
 
