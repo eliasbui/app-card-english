@@ -365,7 +365,7 @@
   .word-link { padding: 0; border: 0; background: none; color: var(--text); font-size: 14.5px; font-weight: 600; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
   .word-link:hover { color: var(--accent-text); }
   td .sub { margin-top: 2px; overflow: hidden; color: var(--muted); font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
-  td.acts { text-align: right; }
+  td.acts { text-align: right; white-space: nowrap; }
   td.empty { padding: 28px 20px; color: var(--muted); text-align: center; }
   .empty .st, .empty-mini .st { display: block; width: 104px; height: 104px; margin: 0 auto 8px; }
   .empty-mini { padding: 8px 0; text-align: center; }
@@ -1724,7 +1724,7 @@ function renderWords() {
       <td><button class="word-link" data-id="${w.id}">${esc(w.word)}</button><div class="sub">${esc(w.ipa)}${w.lang === "zh" && w.hanviet ? ` (${esc(w.hanviet)})` : ""}</div></td>
       <td><div>${w.meaning ? esc(w.meaning) : '<span class="muted">Chưa có nghĩa</span>'}</div>${w.example ? `<div class="sub">${esc(w.example)}</div>` : ""}</td>
       <td>${status(w)}${w.score >= 0 ? `<div class="sub">Phát âm ${w.score}/100</div>` : w.topic ? `<div class="sub">${esc(w.topic)}</div>` : ""}</td>
-      <td class="acts"><button class="btn small" data-say="${esc(w.word)}">Nghe</button></td>
+      <td class="acts"><button class="btn small" data-say="${esc(w.word)}">Nghe</button> <button class="btn small danger" data-del="${w.id}">Xóa</button></td>
     </tr>`).join("") || `<tr><td colspan="4" class="empty">${state.words.length
       ? `${st("mascot-sleep")}Không có từ nào ở mục này.`
       : `${st("mascot-empty")}Chưa có từ nào. Nhập một từ ở ô phía trên, hoặc bấm AI gợi ý từ mới.`}</td></tr>`;
@@ -1734,9 +1734,30 @@ $("search").addEventListener("input", () => { clearTimeout(searchTimer); searchT
 $("word-filter").addEventListener("change", renderWords);
 $("topic-filter").addEventListener("change", renderWords);
 $("word-rows").addEventListener("click", (e) => {
+  const del = e.target.closest("[data-del]");
+  if (del) return deleteWord(state.words.find((w) => w.id === +del.dataset.del), del);
   const row = e.target.closest("tr[data-id]");
   if (row && !e.target.closest("[data-say]")) openWord(+row.dataset.id);
 });
+/// The web view has no confirm(), so a delete asks with its own button: the first press arms it, the second deletes.
+function armed(button) {
+  if (button.dataset.armed) return true;
+  button.dataset.armed = "1";
+  const label = button.textContent;
+  button.textContent = "Bấm lần nữa để xóa";
+  setTimeout(() => { delete button.dataset.armed; button.textContent = label; }, 3000);
+  return false;
+}
+async function deleteWord(w, button) {
+  if (!w || !armed(button)) return;
+  try {
+    await app.call("delete", { id: w.id });
+    toast(`Đã xóa từ "${w.word}"`);
+  } catch (e) {
+    return toast(String(e));
+  }
+  if (viewing) closeWord(); else loadWords();
+}
 
 // One word in full, with pronunciation practice, a sentence to write and what can be done to it.
 let viewing = null;
@@ -1777,7 +1798,7 @@ $("word-modal").addEventListener("click", async (e) => {
   if (!b || !w) return;
   if (b.dataset.wd === "close") closeWord();
   if (b.dataset.wd === "edit") { closeWord(); openEditor(w); $("page-words").scrollIntoView({ behavior: "smooth" }); }
-  if (b.dataset.wd === "del" && confirm(`Xóa từ "${w.word}"?`)) { await app.call("delete", { id: w.id }); closeWord(); }
+  if (b.dataset.wd === "del") deleteWord(w, b);
 });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeWord(); });
 
