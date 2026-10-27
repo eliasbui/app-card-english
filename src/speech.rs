@@ -8,7 +8,7 @@ use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use serde::Serialize;
 use std::{
     path::Path,
-    sync::{Arc, Mutex, mpsc},
+    sync::{Arc, Mutex, atomic::{AtomicU32, Ordering}, mpsc},
     thread::{self, JoinHandle},
     time::Duration,
 };
@@ -28,6 +28,13 @@ struct Recording {
 }
 
 static RECORDING: Mutex<Option<Recording>> = Mutex::new(None);
+/// How loud the last piece of sound was (root mean square, as f32 bits), for the wave the page draws.
+static LEVEL: AtomicU32 = AtomicU32::new(0);
+
+/// The loudness of what the microphone heard last, 0 when not recording.
+pub fn level() -> f32 {
+    f32::from_bits(LEVEL.load(Ordering::Relaxed))
+}
 
 /// Starts listening on the default microphone. The stream lives on a thread of its own because cpal's
 /// streams cannot be moved between threads on every platform.
@@ -36,6 +43,7 @@ pub fn start() -> Result<(), String> {
     if slot.is_some() {
         return Err("Đang ghi âm".into());
     }
+    LEVEL.store(0, Ordering::Relaxed);
     let (stop, stopped) = mpsc::channel();
     let (ready, started) = mpsc::channel();
     let done = thread::spawn(move || {
@@ -73,7 +81,10 @@ fn open_microphone() -> Result<(cpal::Stream, Arc<Mutex<Vec<f32>>>, u32), String
     let push = move |data: &mut dyn Iterator<Item = f32>| {
         if let Ok(mut s) = sink.lock() {
             let frame: Vec<f32> = data.collect();
-            s.extend(frame.chunks(channels).map(|c| c.iter().sum::<f32>() / c.len() as f32));
+            let mono: Vec<f32> = frame.chunks(channels).map(|c| c.iter().sum::<f32>() / c.len() as f32).collect();
+            let rms = (mono.iter().map(|x| x * x).sum::<f32>() / mono.len().max(1) as f32).sqrt();
+            LEVEL.store(rms.to_bits(), Ordering::Relaxed);
+            s.extend(mono);
         }
     };
     let error = |e| eprintln!("micro: {e}");
@@ -112,6 +123,7 @@ pub fn stop() -> Result<Vec<f32>, String> {
         .take()
         .ok_or("Chưa bắt đầu ghi âm")?;
     let _ = recording.stop.send(());
+    LEVEL.store(0, Ordering::Relaxed);
     let (samples, rate) = recording.done.join().map_err(|_| "ghi âm bị dừng đột ngột")??;
     Ok(resample(&samples, rate, w::SAMPLE_RATE as u32))
 }

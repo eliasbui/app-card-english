@@ -292,6 +292,15 @@
   .meter { height: 8px; margin: 6px 0; border-radius: 99px; overflow: hidden; background: var(--hover); }
   .meter div { width: 0; height: 100%; border-radius: 99px; transition: width 1s cubic-bezier(.2, .8, .2, 1), background .3s; }
   .rec-dot { display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 50%; background: var(--red); animation: blink 1s infinite; }
+  /* The live wave of a recording: bars that follow the voice, a ring around the dot that grows with it. */
+  .rec-live { display: flex; align-items: center; gap: 12px; margin-top: 4px; }
+  .rec-live .rec-dot { flex: none; margin: 0; animation: none; box-shadow: 0 0 0 calc(var(--lv, 0) * 14px) color-mix(in srgb, var(--red) 25%, transparent); transition: box-shadow .08s ease-out; }
+  .rec-live .time { flex: none; min-width: 34px; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 12.5px; }
+  .wave { flex: 1; display: flex; align-items: center; justify-content: flex-end; gap: 3px; height: 46px; overflow: hidden; }
+  .wave i { flex: 0 0 4px; height: 8%; min-height: 3px; border-radius: 3px; background: linear-gradient(180deg, var(--hero-a), var(--accent)); opacity: .45; transition: height .09s ease-out, opacity .09s; }
+  .wave i.on { opacity: 1; }
+  .btn.recording { color: #fff; background: var(--red); border-color: var(--red); animation: rec-glow 1.4s ease-in-out infinite; }
+  @keyframes rec-glow { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--red) 45%, transparent); } 50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--red) 0%, transparent); } }
   .verdict { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
   .fb { width: 40px; height: 40px; animation: popIn .5s cubic-bezier(.2, 1.4, .4, 1); }
   .thinking { display: flex; align-items: center; gap: 10px; color: var(--muted); }
@@ -1242,7 +1251,9 @@ function pronWidget(container, word, { onScore } = {}) {
     const take = active;
     if (!take) return;
     clearTimeout(take.timer);
+    clearInterval(take.poll);
     active = null;
+    take.button.classList.remove("recording");
     take.button.disabled = true;
     take.button.textContent = "Đang chấm điểm...";
     try {
@@ -1275,7 +1286,8 @@ function pronWidget(container, word, { onScore } = {}) {
       active = { button, target, id, label, timer: setTimeout(stop, ms) };
       Object.values(buttons).forEach((b) => b && b !== button && (b.disabled = true));
       button.textContent = "Dừng và chấm điểm";
-      result.innerHTML = `<span class="rec-dot"></span><span class="muted">Đang nghe...</span>`;
+      button.classList.add("recording");
+      active.poll = liveWave(result);
     } catch (e) {
       result.innerHTML = `<span class="error">${esc(e)}</span>`;
     }
@@ -1284,6 +1296,31 @@ function pronWidget(container, word, { onScore } = {}) {
   // A sentence is not the word's own score, and takes as long as it is; Chinese has no spaces, so it grows per character.
   if (buttons.sentence) buttons.sentence.onclick = () => begin(buttons.sentence, sentence, 0, "Đọc cả câu ví dụ",
     Math.min(15000, 2500 + (zh ? 400 * sentence.length : 500 * sentence.split(/\s+/).length)));
+}
+
+/// Draws the microphone's loudness as a wave moving right to left while a recording runs; answers the timer to clear.
+function liveWave(box) {
+  const BARS = 48;
+  box.innerHTML = `<div class="rec-live"><span class="rec-dot"></span><div class="wave">${"<i></i>".repeat(BARS)}</div><span class="time">0,0 s</span></div>`;
+  const dot = box.querySelector(".rec-dot"), bars = [...box.querySelectorAll(".wave i")], time = box.querySelector(".time");
+  const heights = Array(BARS).fill(0), started = Date.now();
+  let asking = false;
+  return setInterval(async () => {
+    time.textContent = ((Date.now() - started) / 1000).toFixed(1).replace(".", ",") + " s";
+    if (asking) return;
+    asking = true;
+    const level = await app.call("rec_level").catch(() => 0);
+    asking = false;
+    // Speech is around 0.02 to 0.2 RMS; the curve lifts quiet voices so that they still show.
+    const v = Math.min(1, Math.pow(level / 0.15, 0.6));
+    heights.shift();
+    heights.push(v);
+    bars.forEach((b, i) => {
+      b.style.height = 8 + heights[i] * 92 + "%";
+      b.classList.toggle("on", heights[i] > 0.12);
+    });
+    dot.style.setProperty("--lv", v.toFixed(2));
+  }, 60);
 }
 
 // A sentence the learner writes with a word, which the AI corrects. `onDone` hears of each verdict; `xp` gives a

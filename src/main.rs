@@ -747,6 +747,7 @@ impl App {
             "codex_sign_out" => codex::sign_out(db).map(|_| codex::status(db)),
             "models" => Ok(models::status(&self.dir)),
             "rec_start" => speech::start().map(|_| Value::Null),
+            "rec_level" => Ok(json!(speech::level())),
             "open_url" => {
                 let url = args["url"].as_str().unwrap_or_default();
                 if !(update::is_release_url(url) || OPEN_URLS.contains(&url)) {
