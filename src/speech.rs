@@ -2,7 +2,7 @@
 //! what was heard against those of the word.
 
 use crate::{models, pron};
-use candle_core::{D, IndexOp, Tensor};
+use candle_core::{D, Device, IndexOp, Tensor};
 use candle_transformers::models::whisper::{self as w, audio, quantized_model::Whisper};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use serde::Serialize;
@@ -291,6 +291,7 @@ static CHINESE: Model = Model {
     loaded: &STT_ZH,
 };
 
+// Always the CPU: tiny Whisper takes about a second there, and the Metal kernels return garbage on some Macs (macOS 27).
 struct Stt {
     model: Whisper,
     tokenizer: Tokenizer,
@@ -309,7 +310,7 @@ fn load(dir: &Path, kind: &Model) -> Result<Stt, String> {
         .and_then(|s| serde_json::from_str(&s).map_err(|e| e.to_string()))?;
     let vb = candle_transformers::quantized_var_builder::VarBuilder::from_gguf(
         models::path(dir, kind.weights),
-        &crate::ai::device(),
+        &Device::Cpu,
     )
     .map_err(err)?;
     let model = Whisper::load(&vb, config.clone()).map_err(err)?;
@@ -329,7 +330,7 @@ fn load(dir: &Path, kind: &Model) -> Result<Stt, String> {
             if never { f32::NEG_INFINITY } else { 0.0 }
         })
         .collect();
-    let suppress = Tensor::new(suppress.as_slice(), &crate::ai::device()).map_err(err)?;
+    let suppress = Tensor::new(suppress.as_slice(), &Device::Cpu).map_err(err)?;
     let filters = mel_filters(config.num_mel_bins);
     Ok(Stt { model, tokenizer, config, filters, prefix, eot, suppress })
 }
@@ -360,7 +361,7 @@ fn transcribe(pcm: &[f32], dir: &Path, kind: &Model) -> Result<(String, f32), St
     let mel = audio::pcm_to_mel(&stt.config, pcm, &stt.filters);
     let bins = stt.config.num_mel_bins;
     let frames = mel.len() / bins;
-    let mel = Tensor::from_vec(mel, (1, bins, frames), &crate::ai::device())
+    let mel = Tensor::from_vec(mel, (1, bins, frames), &Device::Cpu)
         .and_then(|m| m.narrow(2, 0, frames.min(w::N_FRAMES)))
         .and_then(|m| m.contiguous())
         .map_err(err)?;
@@ -369,7 +370,7 @@ fn transcribe(pcm: &[f32], dir: &Path, kind: &Model) -> Result<(String, f32), St
     let mut probability = 0.0;
     let mut count = 0;
     for i in 0..MAX_TOKENS {
-        let input = Tensor::new(tokens.as_slice(), &crate::ai::device()).and_then(|t| t.unsqueeze(0)).map_err(err)?;
+        let input = Tensor::new(tokens.as_slice(), &Device::Cpu).and_then(|t| t.unsqueeze(0)).map_err(err)?;
         let ys = stt.model.decoder.forward(&input, &features, i == 0).map_err(err)?;
         let last = ys.dim(1).map_err(err)? - 1;
         let logits = ys
