@@ -913,6 +913,10 @@ let state = { settings: {}, models: {}, words: [], editing: null, xpToday: 0, to
 
 function onEvent(name, data) {
   if (name === "update") showUpdate(data);
+  if (name === "update_progress" && updateState.phase === "installing") {
+    updateState.percent = data;
+    renderUpdate();
+  }
   if (name === "progress") {
     const el = $("bar-" + data.group);
     if (el) el.style.width = Math.round((100 * data.done) / data.total) + "%";
@@ -1672,8 +1676,9 @@ function status(w) {
 const topicsOf = (words) => [...new Set(words.map((w) => w.topic).filter(Boolean))].sort((a, b) => a.localeCompare(b, "vi"));
 // `list` always answers with every word of both languages; the page keeps only the one being studied.
 async function listCourse(q = "") {
-  const course = courseOf();
-  return (await app.call("list", { q })).filter((w) => (w.lang || "en") === course);
+  const words = await app.call("list", { q });
+  // The course as it is when the answer comes, so that a list asked for before a switch is not the other course's.
+  return words.filter((w) => (w.lang || "en") === courseOf());
 }
 // Words saved since they were last drawn, which get the highlight once.
 const freshIds = new Set();
@@ -2626,24 +2631,54 @@ const UPDATE_BY = {
   script: "Cập nhật: mở PowerShell rồi chạy <code>irm https://raw.githubusercontent.com/eliasbui/app-card-english/main/scripts/install.ps1 | iex</code>",
 };
 const updateBy = () => (state.brew ? UPDATE_BY.brew : state.script ? UPDATE_BY.script : "");
-function updateHtml(c, link) {
-  return `Có bản mới <b>${esc(c.latest)}</b>. ` + (updateBy() || `<a href="#" id="${link}">Mở trang tải về</a>`);
-}
-function showUpdate(c) {
+// Both places that talk about an update show the same thing, so one render fills them both.
+let updateState = { check: null, phase: "found", percent: 0, error: "" };
+function renderUpdate() {
+  const { check: c, phase, percent, error } = updateState;
   if (!c || !c.newer) return;
+  let html;
+  if (phase === "installing") html = `Đang tải bản <b>${esc(c.latest)}</b>... ${percent < 99 ? percent + "%" : "đang cài"}`;
+  else if (phase === "ready") html = `Đã cài bản <b>${esc(c.latest)}</b>. <button class="btn" data-update="restart">Khởi động lại</button>`;
+  else if (c.installable) html = `Có bản mới <b>${esc(c.latest)}</b>. <button class="btn" data-update="install">Cập nhật ngay</button>`;
+  else html = `Có bản mới <b>${esc(c.latest)}</b>. ` + (updateBy() || `<a href="#" data-update="open">Mở trang tải về</a>`);
+  if (error) html += `<div class="error">${esc(error)} <a href="#" data-update="open">Tải bằng tay</a></div>`;
   const banner = $("update-banner");
   banner.style.display = "block";
-  banner.innerHTML = updateHtml(c, "update-link");
-  if (!updateBy()) $("update-link").onclick = (e) => { e.preventDefault(); app.call("open_url", { url: c.url }); };
+  banner.innerHTML = $("update-result").innerHTML = html;
 }
+function showUpdate(c) {
+  if (!c || !c.newer || updateState.phase !== "found") return;
+  updateState.check = c;
+  renderUpdate();
+}
+async function installUpdate() {
+  Object.assign(updateState, { phase: "installing", percent: 0, error: "" });
+  renderUpdate();
+  try {
+    await app.call("install_update");
+    updateState.phase = "ready";
+  } catch (e) {
+    Object.assign(updateState, { phase: "found", error: String(e) });
+  }
+  renderUpdate();
+}
+document.addEventListener("click", (e) => {
+  const action = e.target.closest("[data-update]")?.dataset.update;
+  if (!action) return;
+  e.preventDefault();
+  if (action === "install") installUpdate();
+  if (action === "restart") app.call("restart").catch((err) => toast(String(err)));
+  if (action === "open") app.call("open_url", { url: updateState.check.url });
+});
 $("btn-update").onclick = async () => {
+  if (updateState.phase !== "found") return renderUpdate();
   $("update-result").textContent = "Đang kiểm tra...";
   try {
     const c = await app.call("check_update");
     if (c.newer) {
-      $("update-result").innerHTML = updateHtml(c, "update-open");
-      if (!updateBy()) $("update-open").onclick = (e) => { e.preventDefault(); app.call("open_url", { url: c.url }); };
       showUpdate(c);
+      // Pressing the button was the asking, as in figghost.
+      if (c.installable) installUpdate();
     } else {
       $("update-result").textContent = `Bạn đang dùng bản mới nhất (${c.latest}).`;
     }

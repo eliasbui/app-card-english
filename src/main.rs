@@ -298,14 +298,10 @@ impl App {
         self.quit_id = Some(quit.id().clone());
     }
 
-    /// What is left to study today, in both courses, beside the icon in the menu bar of macOS and in the tooltip.
+    /// What is left to study today in the current course, beside the icon in the menu bar of macOS and in the tooltip.
     fn update_count(&self) {
         let Some(tray) = &self.tray else { return };
-        let n: i64 = ["en", "zh"]
-            .iter()
-            .filter_map(|lang| db::stats(&self.db, now(), day_start(), lang).ok())
-            .map(|s| s.due + s.new_today)
-            .sum();
+        let n = db::stats(&self.db, now(), day_start(), &self.course()).map_or(0, |s| s.due + s.new_today);
         let shown = self.setting("tray_count").as_deref() != Some("0");
         tray.set_title(if shown && n > 0 { Some(n.to_string()) } else { None });
         let tip = if n > 0 { format!("{APP_NAME}: {n} từ cần học hôm nay") } else { APP_NAME.to_owned() };
@@ -570,6 +566,20 @@ impl App {
                 }));
             }
             "check_update" => background(Box::new(|| update::check().map(|c| json!(c)))),
+            "install_update" => {
+                let proxy = self.proxy.clone();
+                background(Box::new(move || {
+                    let bundle = update::running_bundle().ok_or("Bản này không tự cập nhật được, hãy tải từ trang phát hành")?;
+                    let check = update::check()?;
+                    if !check.newer {
+                        return Err("Bạn đang dùng bản mới nhất".into());
+                    }
+                    update::install(&check, &bundle, |percent| {
+                        let _ = proxy.send_event(UserEvent::Post(json!({ "event": "update_progress", "data": percent })));
+                    })?;
+                    Ok(json!(check.latest))
+                }));
+            }
             "speak" => {
                 let words = text("text");
                 let slow = args["slow"].as_bool().unwrap_or(false);
@@ -590,6 +600,7 @@ impl App {
         let e = |e: rusqlite::Error| e.to_string();
         let day_start = args["day_start"].as_i64().unwrap_or_else(day_start);
         match cmd {
+            "restart" => update::relaunch(),
             "init" => {
                 self.page_ready = true;
                 Ok(json!({
@@ -672,7 +683,7 @@ impl App {
                         }
                     }
                     "hotkey" => self.apply_hotkey(),
-                    "tray_count" | "new_per_day" => self.update_count(),
+                    "tray_count" | "new_per_day" | "course" => self.update_count(),
                     _ => {}
                 }
                 Ok(self.settings())
@@ -874,6 +885,9 @@ fn record_usage(dir: &Path, day: &str, attempts: &[ai::Attempt]) {
 
 fn start_update_checks(proxy: EventLoopProxy<UserEvent>) {
     thread::spawn(move || {
+        if let Some(bundle) = update::running_bundle() {
+            update::tidy(&bundle);
+        }
         thread::sleep(UPDATE_FIRST_CHECK);
         loop {
             match update::check() {
@@ -918,12 +932,15 @@ fn start_reminders(dir: PathBuf, proxy: EventLoopProxy<UserEvent>) {
             if !(due.every || due.daily) {
                 continue;
             }
-            let Ok(stats) = db::stats(&db, now(), day_start(), "") else { continue };
+            // The course the learner is on now, as the window and the menu bar show it.
+            let zh = get("course") == "zh";
+            let Ok(stats) = db::stats(&db, now(), day_start(), if zh { "zh" } else { "en" }) else { continue };
             if stats.due == 0 && stats.new_waiting == 0 {
                 continue;
             }
             let body = format!("{} từ cần ôn, {} từ mới đang chờ. Học vài phút nhé!", stats.due, stats.new_waiting);
-            if let Err(e) = notify_rust::Notification::new().summary("Đến giờ học tiếng Anh").body(&body).show() {
+            let title = if zh { "Đến giờ học tiếng Trung" } else { "Đến giờ học tiếng Anh" };
+            if let Err(e) = notify_rust::Notification::new().summary(title).body(&body).show() {
                 eprintln!("notification: {e}");
             }
         }
