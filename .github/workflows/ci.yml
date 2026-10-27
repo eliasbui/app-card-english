@@ -5,18 +5,15 @@ on:
     branches: [main]
   pull_request:
 
+# Windows only: macOS is built and tested on a Mac by scripts/release.sh.
 jobs:
   test:
-    strategy:
-      matrix:
-        os: [macos-14, windows-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       # The Windows install script against the latest release: it installs, installs again as an update, and the
       # command it leaves in Settings, Apps removes it all.
       - name: Install script
-        if: runner.os == 'Windows'
         shell: powershell
         env:
           GITHUB_TOKEN: ${{ github.token }}
