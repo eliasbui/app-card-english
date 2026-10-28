@@ -67,6 +67,15 @@ Giao diện: hình dán hoạt hình dễ thương (tạo bằng công cụ sinh
 
 Cập nhật: app kiểm tra phiên bản mới qua GitHub Releases của `eliasbui/app-card-english` và hỏi trước khi cập nhật. Trên macOS và Windows app tự tải bản mới, kiểm tra kích thước và mã SHA-256 mà GitHub công bố, thay vào chỗ bản đang cài rồi tự mở lại, không cần chạy `brew` hay `irm`. Chỉ khi thư mục cài không ghi được (ví dụ cài cho mọi người dùng) app mới hiện lệnh cập nhật hoặc trang tải về.
 
+Mới trong 0.5.3:
+
+- Bài thi thử: với lộ trình khó (mục tiêu ghi IELTS, TOEIC, VSTEP, HSK, hoặc trình độ từ B2 trở lên), mỗi chặng kết thúc bằng một bài kiểm tra chặng và chặng cuối là một đề thi thử đủ bốn kỹ năng Nghe, Đọc, Viết, Nói, theo dạng câu hỏi, thứ tự phần thi, thời gian và thang điểm của đề thật (IELTS band 0-9, TOEIC 10-990, VSTEP bậc 3-5, HSK 3.0 kèm HSKK). AI viết đề từ chủ đề của chặng và các từ bạn đã học; đề được lưu lại nên mở lại không phải viết lại. Bài nghe đọc bằng giọng Kokoro (giọng nam và nữ cho hội thoại), bài nói ghi âm và nhận giọng bằng Whisper trên máy, bài viết và bài nói được AI chấm theo tiêu chí của đề kèm lỗi, cách sửa và bản viết tốt hơn. Chặng chỉ xong khi đủ từ và qua bài kiểm tra, trừ khi bạn tự đánh dấu xong; lộ trình thường vẫn có nút Thi thử. Cần Qwen 1.5B hoặc một nguồn AI trên mạng.
+- Trợ lý học: chọn model ngay trong khung chat (áp dụng cho cả Hội thoại nhập vai), tab Lịch sử để mở lại hay xóa các cuộc trò chuyện, nút Cuộc mới, và bấm vào từ tiếng Anh hoặc tiếng Trung in đậm trong câu trả lời để nghe.
+- Bấm vào thông báo nhắc học là mở ngay cửa sổ Đố nhanh để ôn các từ đến hạn; chưa có từ nào cần ôn thì app mở cửa sổ chính. Trên macOS thông báo có thêm nút Học ngay, và lời nhắc mới thay cho lời nhắc cũ.
+- Khi bạn chưa chọn model trên máy, app tự dùng Qwen 1.5B nếu đã tải, chưa có thì Qwen 0.5B; tải xong Qwen 1.5B là dùng ngay, không cần mở lại app.
+- Từ tiếng Trung có nghĩa tiếng Anh ngắn gọn từ CC-CEDICT, có sẵn trong app: hiện trong chế độ Đọc hiểu và được đưa kèm khi AI giải thích từ mới để chọn nghĩa tiếng Việt chính xác hơn.
+- Kiểm tra cập nhật qua file `latest.json` của bản phát hành, không còn bị GitHub giới hạn số lần kiểm tra từ một mạng.
+
 Mới trong 0.5.0:
 
 - Lịch ôn tự chia đều: mỗi lần trả lời, từ được hẹn vào ngày ít từ ôn nhất trong vài ngày quanh hạn FSRS. Trong Cài đặt, chọn những ngày bận trong tuần làm ngày ôn nhẹ (mỗi khóa chọn riêng), app sẽ tránh hẹn từ vào những ngày đó. Ở trang Học hôm nay, nút Hoãn từ cần ôn dời các từ đang đến hạn sang 1 đến 7 ngày tới (từ còn nhớ chắc dời xa nhất), nút Ôn trước đưa các từ sắp đến hạn trong 1 đến 3 ngày tới vào buổi học hôm nay.
@@ -243,7 +252,7 @@ README của tap là `packaging/homebrew/README.md`, được script chép sang 
 - CMU Pronouncing Dictionary: xem `assets/cmudict-LICENSE`.
 - Giọng Kokoro-82M (Apache 2.0) đóng gói bởi sherpa-onnx (Apache 2.0), tải từ github.com/k2-fsa/sherpa-onnx/releases, kiểm tra bằng SHA-256.
 - Model Qwen2.5 (Apache 2.0) và Whisper (MIT, cả tiny.en lẫn bản tiny đa ngôn ngữ, từ huggingface.co/lmz/candle-whisper) được tải trực tiếp từ Hugging Face.
-- `assets/cedict.txt` lấy từ CC-CEDICT (MDBG và những người đóng góp, bản ngày 2026-10-27, CC BY-SA 4.0), đã bỏ phần định nghĩa tiếng Anh, và bản thân file cũng theo CC BY-SA 4.0. Xem `assets/cedict-LICENSE`.
+- `assets/cedict.txt` và `assets/cedict-gloss.txt.gz` lấy từ CC-CEDICT (MDBG và những người đóng góp, bản ngày 2026-10-27, CC BY-SA 4.0): file thứ nhất bỏ phần định nghĩa tiếng Anh, file thứ hai giữ nghĩa tiếng Anh rút gọn của từng mục từ; cả hai cũng theo CC BY-SA 4.0. Xem `assets/cedict-LICENSE`.
 - `assets/hanviet.txt` chứa âm Hán Việt của Thiều Chửu, Hán Việt tự điển (1942, phạm vi công cộng), theo bản số hóa của catusf/tudien (CC0 1.0), cùng quan hệ dị thể và một phần âm đọc kVietnamese của Unicode Han Database (Unihan), Copyright Unicode, Inc., Unicode License v3. Xem `assets/hanviet-LICENSE`.
 - Công thức và tham số mặc định của FSRS-6 theo py-fsrs (open-spaced-repetition, MIT).
 - Hình dán: tác giả tự tạo bằng công cụ sinh ảnh AI.
