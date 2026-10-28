@@ -1,8 +1,8 @@
 //! Natural voices from Kokoro, run on the machine through sherpa-onnx: one model for English, another for
 //! Chinese, each downloaded as an archive into the data folder when the learner asks for it.
 
-use crate::net;
-use sha2::{Digest, Sha256};
+use crate::{models, net};
+
 use sherpa_onnx::{GenerationConfig, OfflineTts, OfflineTtsConfig, OfflineTtsKokoroModelConfig, OfflineTtsModelConfig};
 use std::{
     path::{Path, PathBuf},
@@ -68,13 +68,7 @@ pub fn download(dir: &Path, course: &str, progress: impl Fn(u64, u64)) -> Result
     if ready(dir, course) {
         return Ok(());
     }
-    let models = dir.join("models");
-    std::fs::create_dir_all(&models).map_err(|e| e.to_string())?;
-    let archive = models.join(format!("{name}.tar.bz2"));
-    net::download(&format!("{RELEASE}/{name}.tar.bz2"), &archive, |bytes| progress(bytes.min(size), size))?;
-    let unpacked = check(&archive, sha256).and_then(|()| unpack(&archive, &models));
-    let _ = std::fs::remove_file(&archive);
-    unpacked?;
+    models::fetch_archive(dir, &format!("{RELEASE}/{name}.tar.bz2"), size, sha256, &progress)?;
     if !ready(dir, course) {
         return Err("Gói giọng đọc tải về thiếu file, hãy thử lại".into());
     }
@@ -94,29 +88,6 @@ pub fn delete(dir: &Path, course: &str) -> Result<(), String> {
         Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(format!("Không xóa được giọng đọc: {e}")),
         _ => Ok(()),
     }
-}
-
-fn check(file: &Path, expected: &str) -> Result<(), String> {
-    let mut hasher = Sha256::new();
-    std::io::copy(&mut std::fs::File::open(file).map_err(|e| e.to_string())?, &mut hasher).map_err(|e| e.to_string())?;
-    let hex: String = hasher.finalize().iter().map(|b| format!("{b:02x}")).collect();
-    if hex == expected { Ok(()) } else { Err("Gói giọng đọc tải về bị hỏng, hãy thử lại".into()) }
-}
-
-/// Unpacks a `.tar.bz2` here rather than with the system's tar, which on Windows 10 cannot read bzip2. Only files
-/// and folders: links need rights Windows does not give, and `unpack_in` refuses paths that leave `into`.
-fn unpack(archive: &Path, into: &Path) -> Result<(), String> {
-    let err = |e: std::io::Error| format!("Không giải nén được gói giọng đọc: {e}");
-    let file = std::fs::File::open(archive).map_err(err)?;
-    let mut tar = tar::Archive::new(bzip2::read::BzDecoder::new(std::io::BufReader::new(file)));
-    for entry in tar.entries().map_err(err)? {
-        let mut entry = entry.map_err(err)?;
-        let kind = entry.header().entry_type();
-        if kind.is_file() || kind.is_dir() {
-            entry.unpack_in(into).map_err(err)?;
-        }
-    }
-    Ok(())
 }
 
 /// Reads `text` aloud with voice `sid` of the course's pack, at `speed` (1 is normal), and returns once it is heard.
@@ -272,7 +243,7 @@ mod tests {
             tar.append_link(&mut link, format!("{name}/link"), "/etc/passwd").unwrap();
             tar.into_inner().unwrap().finish().unwrap();
         }
-        unpack(&archive, &models).unwrap();
+        models::unpack(&archive, &models).unwrap();
         assert!(ready(&root, "en"));
         assert!(!folder(&root, PACKS[0].1).join("link").exists(), "links are skipped");
         delete(&root, "en").unwrap();

@@ -14,6 +14,7 @@ mod db;
 mod drive;
 mod exam;
 mod fsrs;
+mod hardware;
 mod hanzi;
 mod images;
 mod models;

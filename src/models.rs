@@ -115,6 +115,42 @@ pub fn download(dir: &Path, group: &str, progress: impl Fn(u64, u64)) -> Result<
     Ok(())
 }
 
+/// Downloads the `.tar.bz2` at `url` into the models folder, checks it against its pinned SHA-256 and unpacks it
+/// there. The archive goes either way; the caller holds the lock of its kind of download.
+pub(crate) fn fetch_archive(dir: &Path, url: &str, size: u64, sha256: &str, progress: impl Fn(u64, u64)) -> Result<(), String> {
+    let models = dir.join("models");
+    std::fs::create_dir_all(&models).map_err(|e| e.to_string())?;
+    let archive = models.join(url.rsplit('/').next().unwrap_or("pack.tar.bz2"));
+    net::download(url, &archive, |bytes| progress(bytes.min(size), size))?;
+    let unpacked = check(&archive, sha256).and_then(|()| unpack(&archive, &models));
+    let _ = std::fs::remove_file(&archive);
+    unpacked
+}
+
+fn check(file: &Path, expected: &str) -> Result<(), String> {
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    std::io::copy(&mut std::fs::File::open(file).map_err(|e| e.to_string())?, &mut hasher).map_err(|e| e.to_string())?;
+    let hex: String = hasher.finalize().iter().map(|b| format!("{b:02x}")).collect();
+    if hex == expected { Ok(()) } else { Err("Gói tải về bị hỏng, hãy thử lại".into()) }
+}
+
+/// Unpacks a `.tar.bz2` here rather than with the system's tar, which on Windows 10 cannot read bzip2. Only files
+/// and folders: links need rights Windows does not give, and `unpack_in` refuses paths that leave `into`.
+pub(crate) fn unpack(archive: &Path, into: &Path) -> Result<(), String> {
+    let err = |e: std::io::Error| format!("Không giải nén được gói tải về: {e}");
+    let file = std::fs::File::open(archive).map_err(err)?;
+    let mut tar = tar::Archive::new(bzip2::read::BzDecoder::new(std::io::BufReader::new(file)));
+    for entry in tar.entries().map_err(err)? {
+        let mut entry = entry.map_err(err)?;
+        let kind = entry.header().entry_type();
+        if kind.is_file() || kind.is_dir() {
+            entry.unpack_in(into).map_err(err)?;
+        }
+    }
+    Ok(())
+}
+
 /// Files of the right size, standing in for the downloads of a group in a test.
 #[cfg(test)]
 pub fn fake_download(dir: &Path, group: &str) {
