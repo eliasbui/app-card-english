@@ -10,7 +10,8 @@
   /// Commands that change what the sync carries.
   const EDITS = new Set(["save", "delete", "grade", "undo", "skip", "xp", "set_image", "set_setting", "import", "rec_stop",
     "delete_many", "skip_many", "set_topic_many", "topic_save", "topic_delete", "roadmap_save", "roadmap_activate",
-    "roadmap_delete", "postpone", "pack_add", "tutor", "chat_clear", "roleplay", "roleplay_end", "shadow_stop"]);
+    "roadmap_delete", "postpone", "pack_add", "tutor", "chat_clear", "roleplay", "roleplay_end", "shadow_stop",
+    "exam_make", "exam_submit", "exam_delete"]);
   let status = null, running = false, signingIn = false, problem = "", added = "", timer = 0;
 
   const studying = () => (typeof session !== "undefined" && !!session) || (typeof practice !== "undefined" && !!practice);

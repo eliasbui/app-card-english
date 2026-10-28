@@ -26,6 +26,8 @@ pub const TABLES: &[(&str, &[&str])] = &[
     ("chat", &["uid", "updated", "deleted", "lang", "thread", "role", "text", "vi", "reading", "source", "created"]),
     ("topics", &["uid", "updated", "deleted", "lang", "name", "color", "description"]),
     ("roadmaps", &["uid", "updated", "deleted", "lang", "purpose", "level", "start", "deadline", "minutes", "steps", "active"]),
+    ("exams", &["uid", "updated", "deleted", "lang", "roadmap", "stage", "kind", "format", "level", "pass", "paper", "answers", "result",
+                "score", "passed", "created", "finished"]),
 ];
 
 /// The words' columns that travel; `id` stays on each machine and `ease` belongs to the old SM-2 schedule.

@@ -11,7 +11,7 @@ pub const DAY: i64 = 86_400;
 /// A forgotten word comes back within the same session.
 const RELEARN_SECONDS: i64 = 600;
 /// The version of the tables in `PRAGMA user_version`; `migrate` brings an older file up to it.
-pub const SCHEMA: i64 = 7;
+pub const SCHEMA: i64 = 8;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -248,6 +248,32 @@ const V7: &str = "
     ALTER TABLE activity_v7 RENAME TO activity;
     ALTER TABLE settings ADD COLUMN updated INTEGER NOT NULL DEFAULT 0;";
 
+/// Version 8: the mock exams the AI writes (src/exam.rs), each kept whole with the learner's answers and result, so
+/// that reopening one never writes it again. `roadmap` and `stage` are the uids of the roadmap and of its stage, empty
+/// for a mock outside a stage; rows follow the sync convention.
+const V8: &str = "
+    CREATE TABLE exams (
+        id INTEGER PRIMARY KEY,
+        uid TEXT NOT NULL UNIQUE DEFAULT (lower(hex(randomblob(8)))),
+        lang TEXT NOT NULL,
+        roadmap TEXT NOT NULL DEFAULT '',
+        stage TEXT NOT NULL DEFAULT '',
+        kind TEXT NOT NULL DEFAULT 'stage',
+        format TEXT NOT NULL DEFAULT '',
+        level TEXT NOT NULL DEFAULT '',
+        pass REAL NOT NULL DEFAULT 0,
+        paper TEXT NOT NULL DEFAULT '{}',
+        answers TEXT NOT NULL DEFAULT '{}',
+        result TEXT NOT NULL DEFAULT '',
+        score REAL NOT NULL DEFAULT 0,
+        passed INTEGER NOT NULL DEFAULT 0,
+        created INTEGER NOT NULL DEFAULT 0,
+        finished INTEGER NOT NULL DEFAULT 0,
+        updated INTEGER NOT NULL,
+        deleted INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX exams_roadmap ON exams (lang, roadmap, stage);";
+
 /// The settings each course keeps for itself; the rest are shared.
 const SCOPED: [&str; 7] = ["palette", "new_per_day", "daily_goal", "voice", "achievements", "easy_days", "match_best"];
 
@@ -312,6 +338,9 @@ fn migrate(db: &mut Connection) -> rusqlite::Result<()> {
     }
     if user_version(&tx)? < 7 {
         tx.execute_batch(V7)?;
+    }
+    if user_version(&tx)? < 8 {
+        tx.execute_batch(V8)?;
     }
     tx.pragma_update(None, "user_version", SCHEMA)?;
     tx.commit()
@@ -1085,7 +1114,7 @@ mod tests {
         db.execute_batch(
             "DROP TRIGGER words_uid; DROP TRIGGER reviews_uid; DROP INDEX words_uid; ALTER TABLE words DROP COLUMN uid; ALTER TABLE words DROP COLUMN updated; ALTER TABLE words DROP COLUMN image;
              DROP INDEX reviews_uid; ALTER TABLE reviews DROP COLUMN uid; DROP TABLE tombstones; ALTER TABLE settings DROP COLUMN updated;
-             DROP TABLE chat; DROP TABLE topics; DROP TABLE roadmaps;
+             DROP TABLE chat; DROP TABLE topics; DROP TABLE roadmaps; DROP TABLE exams;
              DROP TABLE activity; CREATE TABLE activity (day TEXT NOT NULL, lang TEXT NOT NULL, xp INTEGER NOT NULL DEFAULT 0,
                  answers INTEGER NOT NULL DEFAULT 0, correct INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, lang));
              INSERT INTO words (word, created, due, last_review) VALUES ('old', 10, 10, 500), ('new', 20, 20, 0);

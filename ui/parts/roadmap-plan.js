@@ -142,6 +142,7 @@
     if (!p) return "";
     const text = {
       done: "Bạn đã xong mọi chặng của lộ trình. Tuyệt vời!",
+      test: "Bạn đã thuộc đủ từ của lộ trình, còn bài kiểm tra chặng chưa qua.",
       late: `Đã qua hạn chót mà còn ${p.remaining} từ chưa thuộc. Hãy dời hạn chót trong Sửa lộ trình.`,
       ahead: `Bạn đang đi nhanh hơn kế hoạch: gần đây bạn thuộc ${decimal(p.recent)} từ mỗi ngày, chỉ cần ${p.needed} từ mỗi ngày là kịp hạn.`,
       on_track: `Bạn đang đúng tiến độ: cần ${p.needed} từ mới mỗi ngày, gần đây bạn thuộc ${decimal(p.recent)} từ mỗi ngày.`,
@@ -179,7 +180,7 @@
         <div class="rm-overall"><div class="progress"><div style="width:${total ? Math.round((100 * learned) / total) : 0}%"></div></div>
           <span class="muted small num">Đã thuộc ${learned}/${total} từ của lộ trình</span></div>
         ${paceHtml(view.pace)}
-        <div class="row actions"><button class="btn" data-rm="edit">Sửa lộ trình</button><button class="btn" data-rm="replan">AI lập lại</button><button class="btn danger" data-rm="delete">Xóa lộ trình</button></div>`}
+        <div class="row actions"><button class="btn" data-rm="edit">Sửa lộ trình</button><button class="btn" data-rm="replan">AI lập lại</button>${window.examGoal?.(r) || ""}<button class="btn danger" data-rm="delete">Xóa lộ trình</button></div>`}
       </div>
       <div class="rm-stages">${r.steps.map((s, i) => stageHtml(s, i, dates[i], isDraft)).join("")}</div>`;
   }
@@ -204,6 +205,7 @@
         ${isDraft ? "" : `
         <div class="rm-progress"><div class="progress"><div style="width:${pct}%"></div></div>
           <span class="small muted num">Đã thuộc ${s.learned}/${s.target} từ, có ${s.words} từ trong chủ đề</span></div>
+        ${window.examStage?.(s, i, view.active) || ""}
         ${actions ? `<div class="row rm-stage-actions">${actions}</div>` : ""}
         <div class="rm-sugg" id="rm-sugg-${i}"></div>`}
       </div>`;
@@ -414,13 +416,15 @@
       <div class="rm-home-stage"><b>${s ? `Chặng ${r.current + 1}/${r.steps.length}: ${esc(s.title)}` : "Bạn đã đi hết lộ trình"}</b>
         ${s ? `<span class="muted small num">Đã thuộc ${s.learned}/${s.target} từ</span>` : ""}</div>
       <div class="progress"><div style="width:${pct}%"></div></div>
-      <div class="rm-home-foot"><span class="muted">${esc(paceText(view.pace))}</span>${s ? '<button class="btn primary" data-rh="go">Học tiếp</button>' : ""}</div>`;
+      <div class="rm-home-foot"><span class="muted">${esc(s?.test?.pending ? `Bạn đã thuộc đủ từ của chặng, làm bài kiểm tra (cần đạt ${s.test.pass_text}) để sang chặng tiếp.` : paceText(view.pace))}</span>${s ? '<button class="btn primary" data-rh="go">Học tiếp</button>' : ""}</div>`;
   }
   $("roadmap-home").addEventListener("click", (e) => {
     const b = e.target.closest("[data-rh]");
     if (!b) return;
     if (b.dataset.rh === "open") return go("roadmap");
     const r = view.active, s = r.steps[r.current];
+    // A hard roadmap's stage whose words are learned waits for its test.
+    if (s.test?.pending && window.openExam) return window.openExam(r.uid, r.current);
     // Today's session first; with nothing left in it, words for the stage, else its exercises.
     if (state.stats && state.stats.due + state.stats.new_today > 0) return $("btn-start").click();
     if (s.words < s.target) { pendingSuggest = r.current; return go("roadmap"); }

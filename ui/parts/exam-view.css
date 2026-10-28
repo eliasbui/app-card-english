@@ -1,0 +1,108 @@
+  /* The exam covers the whole window, the bottom bar and the tutor's button included. */
+  .exam { position: fixed; inset: 0; z-index: 67; display: flex; flex-direction: column; background: var(--bg); }
+  .exam-bar { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; padding: 10px 20px; border-bottom: 1px solid var(--line); background: var(--surface); }
+  .exam-bar b { display: block; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .exam-timer { padding: 3px 12px; border-radius: 99px; background: var(--accent-soft); color: var(--accent-text); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .exam-timer.low { background: var(--red-soft); color: var(--red); }
+  .exam-body { flex: 1; min-height: 0; overflow-y: auto; padding: 22px 24px 48px; }
+  .exam-inner { max-width: 1120px; margin: 0 auto; }
+  .exam-inner.narrow { max-width: 760px; }
+  .ex-intro h2 { margin: 4px 0 6px; font-size: 22px; line-height: 1.3; letter-spacing: -.01em; }
+  .ex-pass { margin-bottom: 14px; }
+  .ex-sections { display: grid; gap: 8px; margin: 10px 0 12px; }
+  .ex-sec-row, .ex-hist { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); }
+  .ex-hist { flex-wrap: wrap; margin-bottom: 8px; }
+  .ex-hist .grow { min-width: 180px; }
+  .ex-n { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; min-width: 26px; height: 26px; padding: 0 6px; border-radius: 99px;
+          background: var(--accent-soft); color: var(--accent-text); font-size: 12.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .ex-note { padding: 10px 12px; border: 1px solid var(--amber-line); border-radius: var(--r-md); background: var(--amber-soft); color: var(--text); }
+  .ex-note.bad { border-color: var(--red-line); background: var(--red-soft); }
+  .ex-making { margin: 16px 0 8px; }
+  .ex-part-head { margin-bottom: 12px; }
+  .ex-part-head .muted { margin-top: 2px; }
+  .ex-set + .ex-set { margin-top: 18px; padding-top: 16px; border-top: 1px dashed var(--line-strong); }
+  /* Reading: the passage beside its questions on a wide window, above them on a narrow one. */
+  .ex-split { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+  .ex-passage { position: sticky; top: 0; max-height: calc(100vh - 150px); overflow-y: auto; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-md);
+                background: var(--surface-2); line-height: 1.65; }
+  .ex-passage.inline { position: static; max-height: none; margin-top: 8px; }
+  .ex-passage p { margin: 0 0 10px; }
+  .ex-passage p:last-child { margin-bottom: 0; }
+  .ex-row { font: 13px/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre-wrap; }
+  .ex-list { display: grid; gap: 4px; margin: 10px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); font-size: 13.5px; }
+  .ex-audio { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .ex-items { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .ex-item { padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+  .ex-item.missed { border-color: var(--red-line); }
+  .ex-q { display: flex; align-items: flex-start; gap: 10px; }
+  .ex-qtext { padding-top: 2px; }
+  .ex-item select, .ex-item input:not([type]) { width: 100%; margin-top: 10px; }
+  .ex-item textarea { margin-top: 10px; min-height: 220px; }
+  .ex-count { margin-top: 4px; text-align: right; }
+  .ex-count.short { color: var(--amber); }
+  .ex-pieces { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 2px; }
+  .ex-pieces .tag { font-size: 14px; line-height: 24px; }
+  .ex-opts { display: grid; gap: 6px; margin-top: 10px; }
+  .ex-opts label, .ex-opts.done div { display: flex; align-items: flex-start; gap: 8px; margin: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r);
+                                       color: var(--text); font-size: 14px; font-weight: 400; cursor: pointer; transition: border-color .15s, background .15s; }
+  .ex-opts label:hover { border-color: var(--faint); }
+  .ex-opts label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+  .ex-opts input { margin: 3px 0 0; accent-color: var(--accent); }
+  .ex-opts.done div { cursor: default; }
+  .ex-opts.done .right { border-color: var(--green); background: var(--green-soft); }
+  .ex-opts.done .wrong { border-color: var(--red); background: var(--red-soft); }
+  .ex-why { margin: 8px 0 0; padding: 8px 10px; border-radius: var(--r); background: var(--surface-2); color: var(--text-2); font-size: 13.5px; }
+  .ex-said { margin-top: 4px; color: var(--muted); font-size: 13.5px; }
+  .ex-speak .row { margin-top: 10px; }
+  .ex-live:empty, .ex-heard:empty { display: none; }
+  .ex-live { margin-top: 10px; }
+  .ex-live .wave { min-width: 0; }
+  .ex-heard { margin-top: 8px; padding: 8px 10px; border-radius: var(--r); background: var(--surface-2); }
+  .ex-prep { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 8px 10px; border-radius: var(--r); background: var(--accent-soft); color: var(--accent-text); }
+  .ex-prep b { font-size: 20px; }
+  .ex-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 6px; }
+  .ex-foot .error { margin: 0; }
+  .ex-review-head { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+  .ex-big { font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
+  .ex-answer { margin-top: 10px; padding: 10px 12px; border-radius: var(--r); background: var(--surface-2); line-height: 1.6; }
+  .ex-transcript p { margin: 0 0 6px; }
+  .ex-more { margin: 4px 0 12px; }
+  .ex-more summary { cursor: pointer; color: var(--accent-text); font-weight: 600; font-size: 13.5px; }
+  .ex-more[open] summary { margin-bottom: 8px; }
+  .ex-grade { margin-top: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+  .card > .ex-grade:only-child, .exam-inner > .ex-grade { margin-bottom: 14px; }
+  .ex-criteria { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 6px 14px; margin: 8px 0; }
+  .ex-criteria div { display: flex; justify-content: space-between; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+  .ex-fixes ul, .ex-list-card ul { margin: 6px 0 0; padding-left: 20px; }
+  .ex-fixes li, .ex-list-card li { margin: 3px 0; }
+  .ex-better { padding: 10px 12px; border-radius: var(--r); background: var(--green-soft); line-height: 1.6; }
+  .ex-result { text-align: center; }
+  .ex-result .row { justify-content: center; }
+  .ex-score { margin: 6px 0 8px; font-size: 34px; font-weight: 800; letter-spacing: -.02em; line-height: 1.15; }
+  .ex-result.pass .ex-score { color: var(--green); }
+  .ex-score.long { font-size: 22px; }
+  .ex-skills { display: grid; gap: 8px; margin: 16px 0 6px; text-align: left; }
+  .ex-skill { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-md);
+              background: var(--surface-2); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+  .ex-skill:hover:not(:disabled) { border-color: var(--accent); }
+  .ex-skill:disabled { cursor: default; opacity: .7; }
+  .ex-skill .progress { flex: 0 1 160px; height: 7px; }
+  .ex-skill .progress span { display: block; height: 100%; border-radius: 99px; background: var(--accent); }
+  .ex-list-card.ok .card-title { color: var(--green); }
+  .ex-list-card.due .card-title { color: var(--red); }
+  /* A stage's test on its card in the roadmap. */
+  .ex-stage { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); }
+  .ex-stage .grow { min-width: 200px; }
+  .ex-stage.pending { border-color: var(--accent); background: var(--accent-soft); }
+  @media (max-width: 860px) {
+    .ex-split { grid-template-columns: 1fr; }
+    .ex-passage { position: static; max-height: none; }
+  }
+  @media (max-width: 560px) {
+    .exam-bar { padding: 8px 12px; }
+    .exam-body { padding: 14px 12px 40px; }
+    .ex-item { padding: 10px 12px; }
+    .ex-skill { flex-wrap: wrap; }
+    .ex-skill .progress { flex-basis: 100%; order: 3; }
+    .ex-score { font-size: 28px; }
+  }

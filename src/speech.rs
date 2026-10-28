@@ -164,6 +164,16 @@ fn silent(pcm: &[f32]) -> bool {
     pcm.len() < w::SAMPLE_RATE / 4 || rms < SILENCE_RMS
 }
 
+/// What was said and how sure Whisper was of it, from 0 to 1, or nothing for a stretch of silence: a long answer is
+/// heard a piece at a time, and a pause between two pieces is no error. A microphone sending nothing at all is.
+pub fn hear_scored(pcm: &[f32], lang: &str, dir: &Path) -> Result<(String, f32), String> {
+    if silent(pcm) {
+        return if !pcm.is_empty() && pcm.iter().all(|&s| s == 0.0) { Err(silence_message(pcm).into()) } else { Ok((String::new(), 0.0)) };
+    }
+    let (text, confidence) = transcribe(pcm, dir, if lang == "zh" { &CHINESE } else { &ENGLISH })?;
+    Ok((text.trim().to_owned(), confidence))
+}
+
 /// What was said, in English or, for "zh", in Chinese, by the Whisper of that course.
 pub fn hear(pcm: &[f32], lang: &str, dir: &Path) -> Result<String, String> {
     if silent(pcm) {
