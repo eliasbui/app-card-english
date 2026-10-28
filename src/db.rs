@@ -161,7 +161,7 @@ const V3: &str = "
 const V4: &str = "ALTER TABLE words ADD COLUMN skipped INTEGER NOT NULL DEFAULT 0;";
 
 /// The settings each course keeps for itself; the rest are shared.
-const SCOPED: [&str; 6] = ["palette", "new_per_day", "daily_goal", "voice", "achievements", "easy_days"];
+const SCOPED: [&str; 7] = ["palette", "new_per_day", "daily_goal", "voice", "achievements", "easy_days", "match_best"];
 
 /// The key a setting is stored under for a course: English keeps the plain key it always had.
 pub fn scoped(key: &str, lang: &str) -> String {

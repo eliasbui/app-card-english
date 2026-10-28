@@ -159,6 +159,26 @@ const EXTRACT_ZH_SHOT: (&str, &str) = (
     "经理 | giám đốc, quản lý\n重要 | quan trọng\n客户 | khách hàng\n合同 | hợp đồng\n推迟 | hoãn lại",
 );
 
+const MISTAKE_SYSTEM: &str = "You are a friendly English teacher for Vietnamese learners. The learner gave a wrong \
+answer in a vocabulary exercise. In 2 to 4 short Vietnamese sentences, say why the answer is wrong and how to tell \
+the two apart: their meanings, a spelling pattern, or how they sound. Reply with the explanation only.";
+const MISTAKE_SHOT: (&str, &str) = (
+    "Word: affect (ảnh hưởng đến)\nExercise: Fill in the blank: Lack of sleep can _____ your health.\nRight answer: affect\n\
+     Learner's answer: effect",
+    "\"Effect\" là danh từ (kết quả, tác động), còn \"affect\" là động từ (ảnh hưởng đến). Sau \"can\" cần một động từ \
+     nên phải dùng \"affect\". Mẹo nhớ: Affect là Action (hành động), Effect là End result (kết quả).",
+);
+
+const MISTAKE_ZH_SYSTEM: &str = "You are a friendly Chinese teacher for Vietnamese learners. The learner gave a wrong \
+answer in a vocabulary exercise. In 2 to 4 short Vietnamese sentences, say why the answer is wrong and how to tell \
+the two apart: their meanings, the characters, or the tones. Reply with the explanation only.";
+const MISTAKE_ZH_SHOT: (&str, &str) = (
+    "Word: 买 (mua)\nExercise: Listen and write the word\nRight answer: 买 (mǎi)\nLearner's answer: 卖 (mài)",
+    "\"卖\" (mài, thanh 4) nghĩa là bán, còn \"买\" (mǎi, thanh 3) nghĩa là mua. Hai chữ đọc gần giống nhau, chỉ khác \
+     thanh điệu: thanh 3 xuống thấp rồi lên, thanh 4 đi thẳng xuống. Chữ 卖 có thêm 十 ở trên: có thêm hàng thì mới \
+     đem bán.",
+);
+
 const SUGGEST_SYSTEM: &str = "You suggest useful English vocabulary to Vietnamese learners. \
 Reply with exactly 8 lines and nothing else. Each line is: english word | nghĩa tiếng Việt. \
 Use common, practical words. No numbering, no explanations.";
@@ -282,6 +302,14 @@ pub struct Check {
     pub corrected: String,
     pub explain: String,
     pub better: String,
+    #[serde(flatten)]
+    pub by: By,
+}
+
+/// Why an answer to an exercise was wrong.
+#[derive(Debug, Default, Serialize, PartialEq)]
+pub struct Mistake {
+    pub explain: String,
     #[serde(flatten)]
     pub by: By,
 }
@@ -593,6 +621,52 @@ impl<'a> Ai<'a> {
         Ok(out)
     }
 
+    /// Why the learner's answer to an exercise on `word` is wrong and how to tell it from the right one, in
+    /// Vietnamese; `context` says what the exercise asked.
+    pub fn explain_mistake(
+        &self,
+        word: &str,
+        meaning: &str,
+        expected: &str,
+        given: &str,
+        context: &str,
+        zh: bool,
+    ) -> Result<Mistake, String> {
+        let (word, expected, given) = (word.trim(), expected.trim(), given.trim());
+        if word.is_empty() || word.chars().count() > 80 {
+            return Err("Từ không hợp lệ".into());
+        }
+        if expected.is_empty() || given.is_empty() || expected.chars().count() > 300 || given.chars().count() > 300 {
+            return Err("Hãy trả lời trước rồi hỏi vì sao sai".into());
+        }
+        let short = |s: &str, max: usize| s.trim().chars().take(max).collect::<String>();
+        // An answer in characters with its pinyin, which shows the model the tones to compare.
+        let read = |s: &str| {
+            if zh && pron::is_chinese(s) && !s.chars().any(|c| c.is_ascii_alphabetic()) {
+                format!("{s} ({})", pron::pinyin(s))
+            } else {
+                s.to_owned()
+            }
+        };
+        let mut question = format!("Word: {word}");
+        let (meaning, context) = (short(meaning, 120), short(context, 300));
+        if !meaning.is_empty() {
+            question += &format!(" ({meaning})");
+        }
+        if !context.is_empty() {
+            question += &format!("\nExercise: {context}");
+        }
+        question += &format!("\nRight answer: {}\nLearner's answer: {}", read(expected), read(given));
+        let (system, example) = if zh { (MISTAKE_ZH_SYSTEM, MISTAKE_ZH_SHOT) } else { (MISTAKE_SYSTEM, MISTAKE_SHOT) };
+        let prompt = Prompt { system, example, question: &question, max_tokens: 220, cjk: zh };
+        let (text, by) = self.chat(&prompt)?;
+        let explain = parse_mistake(&text);
+        if explain.is_empty() {
+            return Err("AI chưa giải thích được, hãy thử lại".into());
+        }
+        Ok(Mistake { explain, by })
+    }
+
     /// A short story that uses every one of `words`, with its translation.
     pub fn story(&self, words: &[String]) -> Result<Story, String> {
         let words: Vec<String> = words.iter().map(|w| w.trim().to_owned()).filter(|w| !w.is_empty() && w.chars().count() <= 80).take(12).collect();
@@ -785,6 +859,16 @@ fn parse_check(text: &str, sentence: &str) -> Check {
         letters(&corrected) == letters(sentence)
     };
     Check { ok, corrected, explain, better, by: By::default() }
+}
+
+/// An explanation as one paragraph, without the label a model may put before it.
+fn parse_mistake(text: &str) -> String {
+    let text = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    let text = match text.split_once([':', '：']) {
+        Some((label, rest)) if matches!(fold_label(label).as_str(), "GIAITHICH" | "EXPLANATION" | "VISAOSAI" | "TRALOI") => rest,
+        _ => &text,
+    };
+    clean(text)
 }
 
 /// A title, the story and its translation. The labels are matched whole, since the story is free text that may
@@ -1075,6 +1159,22 @@ mod tests {
         assert_eq!(loose.story, "It rained. Still, she said: we go. The end.");
         assert_eq!(loose.translation, "Trời mưa. Hết.");
         assert_eq!(parse_story("Once upon a time.").story, "Once upon a time.");
+    }
+
+    #[test]
+    fn a_mistake_is_explained_in_one_paragraph() {
+        let shot = parse_mistake(MISTAKE_SHOT.1);
+        assert!(shot.starts_with("\"Effect\" là danh từ") && shot.ends_with("(kết quả).") && !shot.contains("  "), "{shot}");
+        assert!(parse_mistake(MISTAKE_ZH_SHOT.1).contains("thanh 4 đi thẳng xuống"));
+        assert_eq!(parse_mistake("**Giải thích:** \"卖\" là bán.\n\nNhớ nhé."), "\"卖\" là bán. Nhớ nhé.");
+        // A colon inside the explanation is kept.
+        assert_eq!(parse_mistake("Mẹo nhớ: thanh 3 đi xuống rồi lên."), "Mẹo nhớ: thanh 3 đi xuống rồi lên.");
+        // Without an answer to compare there is nothing to ask the AI.
+        let dir = std::env::temp_dir().join(format!("card-english-mistake-{}", std::process::id()));
+        let settings = Settings::default();
+        let ai = Ai::new(&settings, &dir);
+        assert!(ai.explain_mistake("cat", "con mèo", "cat", " ", "Listen and write the word", false).is_err());
+        assert!(ai.attempts.borrow().is_empty());
     }
 
     #[test]
