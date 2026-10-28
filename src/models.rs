@@ -130,7 +130,7 @@ mod tests {
 
     #[test]
     fn deleting_a_model_keeps_the_tokenizer_the_other_one_reads() {
-        let dir = std::env::temp_dir().join(format!("card-english-models-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("card-english-model-test-{}", std::process::id()));
         fake_download(&dir, "llm");
         fake_download(&dir, "llm15");
         assert!(ready(&dir, "llm") && ready(&dir, "llm15"));

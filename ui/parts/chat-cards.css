@@ -1,0 +1,39 @@
+  /* The cards under the tutor's answers. */
+  .chat-cards { display: flex; flex-direction: column; gap: 8px; width: 100%; max-width: 100%; margin-top: 6px; }
+  .chat-msg.ai:has(.chat-cards) { max-width: 100%; width: 100%; }
+  .ccard { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); }
+  .ccard-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+  .ccard-head b { font-size: 14px; }
+  .ccard-all { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--muted); font-size: 12.5px; white-space: nowrap; }
+  .ccard-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+  .ccard p { margin: 4px 0 0; }
+
+  .cw-list { display: flex; flex-direction: column; max-height: 340px; overflow-y: auto; }
+  .cw { display: flex; align-items: center; gap: 10px; margin: 0; padding: 7px 2px; border-top: 1px solid var(--line); cursor: pointer; }
+  .cw:first-child { border-top: 0; }
+  .cw input { flex: none; }
+  .cw-main { flex: 1; min-width: 0; line-height: 1.35; }
+  .cw-main b { font-size: 14px; }
+  .cw-meaning { display: block; overflow: hidden; color: var(--text-2); font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
+  .cw.have { cursor: default; opacity: .7; }
+  .cw .btn { flex: none; min-height: 26px; padding: 0 9px; font-size: 12px; }
+
+  .cq-prompt { font-weight: 600; }
+  .cq-options { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+  .cq-options .btn { justify-content: flex-start; min-height: 36px; height: auto; padding: 6px 10px; white-space: normal; text-align: left; }
+  .cq-options .btn.right { border-color: var(--green); background: var(--green-soft); }
+  .cq-options .btn.wrong { border-color: var(--red-line); background: var(--red-soft); color: var(--red); }
+  .cq-fill { display: flex; gap: 6px; margin-top: 8px; }
+  .cq-fill input { flex: 1; min-width: 0; }
+  .cq-after .ok { color: var(--green); font-weight: 600; }
+  .cq-why:empty { display: none; }
+
+  .ccard-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .cs-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .cs-grid div { padding: 8px; border-radius: var(--r-sm); background: var(--surface-2); text-align: center; }
+  .cs-grid b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+  .cs-grid span { color: var(--muted); font-size: 11.5px; }
+  @media (max-width: 520px) {
+    .cq-options { grid-template-columns: 1fr; }
+    .cs-grid { grid-template-columns: repeat(2, 1fr); }
+  }

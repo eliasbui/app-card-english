@@ -5,7 +5,8 @@
   if (window.MINI) return;
   const FIRST = "tutor";
   /// Sent as they are, but the last, whose blanks the learner fills in.
-  const STARTERS = ["Đố tôi 5 từ đã học", "Giải thích từ tôi hay quên", "Đặt câu với từ mới học", "Khác nhau giữa ... và ..."];
+  const STARTERS = ["Gợi ý 10 từ chủ đề công nghệ", "Đố tôi 5 từ", "Tạo bài tập nối từ", "Tiến độ của tôi", "Giải thích từ tôi hay quên",
+                    "Khác nhau giữa ... và ..."];
   /// The most messages kept on screen; older ones stay in the database.
   const SHOWN = 80;
 
@@ -69,8 +70,19 @@
     const who = by || (m.source ? `Trả lời bởi ${esc(m.source)}.` : "");
     const say = spoken(m.text);
     return `<div class="chat-msg ai"${uid}><div class="chat-bubble md">${rich(m.text)}</div>
+      ${m.cards?.length ? `<div class="chat-cards"></div>` : ""}
       ${say || who ? `<div class="chat-by">${say ? `<button class="btn small chat-listen" data-say="${esc(say)}">Nghe</button>` : ""}${who}</div>` : ""}
       ${m.uid ? `<div class="chat-tools">${tool("copy", "Sao chép")}${tool("again", "Hỏi lại")}</div>` : ""}</div>`;
+  }
+  /// The cards of an answer under its bubble, each drawn by the renderer of its type (chat-cards.js).
+  function drawCards(el, m) {
+    const box = el?.querySelector(".chat-cards");
+    if (!box) return;
+    for (const card of m.cards || []) {
+      const holder = document.createElement("div");
+      box.append(holder);
+      window.chatCards?.[card.type]?.(card, holder, { message: m, course: courseOf() });
+    }
   }
   /// Only the last answer can be asked again.
   function markLast() {
@@ -94,7 +106,7 @@
   }
   function empty() {
     log.innerHTML = `<div class="chat-empty">${st(zh() ? "mascot-zh" : "mascot-think")}<b>Chào bạn!</b>
-      <p>Mình giúp bạn học và dùng tiếng ${zh() ? "Trung" : "Anh"}: giải thích từ và ngữ pháp, dịch câu hay đoạn văn, viết và sửa email, tin nhắn, đố các từ trong danh sách của bạn. Chọn một gợi ý bên dưới hoặc tự hỏi nhé.</p></div>`;
+      <p>Mình giúp bạn học và dùng tiếng ${zh() ? "Trung" : "Anh"}: gợi ý và thêm từ theo chủ đề, đố các từ của bạn, mở bài tập và bài thi, nhập danh sách từ, xem tiến độ, giải thích từ và ngữ pháp, dịch, viết và sửa email. Chọn một gợi ý bên dưới hoặc tự hỏi nhé.</p></div>`;
   }
   function add(html) {
     log.querySelector(".chat-empty")?.remove();
@@ -118,7 +130,9 @@
       const messages = await app.call("chat_history", { thread });
       if (course !== courseOf() || asked !== thread) return;
       if (!messages.length) return empty();
-      log.innerHTML = messages.slice(-SHOWN).map((m) => bubble(m)).join("");
+      const kept = messages.slice(-SHOWN);
+      log.innerHTML = kept.map((m) => bubble(m)).join("");
+      kept.filter((m) => m.cards?.length).forEach((m) => drawCards(log.querySelector(`[data-uid="${CSS.escape(m.uid)}"]`), m));
       markLast();
       log.scrollTop = log.scrollHeight;
     } catch (e) {
@@ -168,6 +182,7 @@
     if (shown !== courseOf()) load();
     input.focus({ preventScroll: true });
   }
+  window.chatClose = () => closeChat();
   function closeChat() {
     if (panel.hidden) return;
     panel.hidden = true;
@@ -203,7 +218,7 @@
       wait.remove();
       mine.insertAdjacentHTML("afterend", bubble(r.user));
       mine.remove();
-      add(bubble(r.reply, r.answer.source ? byHtml(r.answer) : ""));
+      drawCards(add(bubble(r.reply, r.answer.source ? byHtml(r.answer) : "")), r.reply);
       markLast();
     } catch (e) {
       if (course !== courseOf()) return;

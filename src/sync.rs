@@ -23,7 +23,7 @@ pub const DOC: &str = "card-english-sync.json.gz";
 /// the columns that travel, never `id`. A row is merged by its `uid`, the later `updated` winning; a deletion is
 /// `deleted = 1` with a later `updated`, so it travels like any change.
 pub const TABLES: &[(&str, &[&str])] = &[
-    ("chat", &["uid", "updated", "deleted", "lang", "thread", "role", "text", "vi", "reading", "source", "created"]),
+    ("chat", &["uid", "updated", "deleted", "lang", "thread", "role", "text", "vi", "reading", "source", "created", "cards"]),
     ("topics", &["uid", "updated", "deleted", "lang", "name", "color", "description"]),
     ("roadmaps", &["uid", "updated", "deleted", "lang", "purpose", "level", "start", "deadline", "minutes", "steps", "active"]),
     ("exams", &["uid", "updated", "deleted", "lang", "roadmap", "stage", "kind", "format", "level", "pass", "paper", "answers", "result",

@@ -131,6 +131,12 @@
     refresh();
     card.scrollIntoView({ behavior: "smooth", block: "nearest" });
   };
+  // For the tutor's buttons in the chat.
+  window.openPacks = () => {
+    go("words");
+    if (!shown()) opener.click();
+  };
+  window.openVocabTest = () => openTest();
   card.addEventListener("change", (e) => {
     if (e.target.name !== "pack") return;
     chosen = e.target.value;

@@ -11,7 +11,7 @@ pub const DAY: i64 = 86_400;
 /// A forgotten word comes back within the same session.
 const RELEARN_SECONDS: i64 = 600;
 /// The version of the tables in `PRAGMA user_version`; `migrate` brings an older file up to it.
-pub const SCHEMA: i64 = 8;
+pub const SCHEMA: i64 = 9;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -274,6 +274,9 @@ const V8: &str = "
     );
     CREATE INDEX exams_roadmap ON exams (lang, roadmap, stage);";
 
+/// Version 9: the cards of the tutor's answers (suggested words, a quiz, buttons), as JSON, shown again with the talk.
+const V9: &str = "ALTER TABLE chat ADD COLUMN cards TEXT NOT NULL DEFAULT '';";
+
 /// The settings each course keeps for itself; the rest are shared.
 const SCOPED: [&str; 7] = ["palette", "new_per_day", "daily_goal", "voice", "achievements", "easy_days", "match_best"];
 
@@ -341,6 +344,9 @@ fn migrate(db: &mut Connection) -> rusqlite::Result<()> {
     }
     if user_version(&tx)? < 8 {
         tx.execute_batch(V8)?;
+    }
+    if user_version(&tx)? < 9 {
+        tx.execute_batch(V9)?;
     }
     tx.pragma_update(None, "user_version", SCHEMA)?;
     tx.commit()
@@ -972,9 +978,11 @@ pub struct Message {
     /// Who answered, as the page names it.
     pub source: String,
     pub created: i64,
+    /// What the tutor's answer carries for the page to draw: a JSON array, empty for none.
+    pub cards: serde_json::Value,
 }
 
-const CHAT_COLUMNS: &str = "uid, thread, role, text, vi, reading, source, created";
+const CHAT_COLUMNS: &str = "uid, thread, role, text, vi, reading, source, created, cards";
 
 fn message(r: &Row) -> rusqlite::Result<Message> {
     Ok(Message {
@@ -986,6 +994,7 @@ fn message(r: &Row) -> rusqlite::Result<Message> {
         reading: r.get(5)?,
         source: r.get(6)?,
         created: r.get(7)?,
+        cards: serde_json::from_str(&r.get::<_, String>(8)?).unwrap_or_else(|_| serde_json::json!([])),
     })
 }
 
@@ -997,9 +1006,10 @@ pub fn new_uid(db: &Connection) -> rusqlite::Result<String> {
 /// Adds a line to a thread of a course ("en" or "zh") and gives it back with its uid.
 pub fn add_message(db: &Connection, lang: &str, m: &Message, now: i64) -> rusqlite::Result<Message> {
     db.execute(
-        "INSERT INTO chat (uid, lang, thread, role, text, vi, reading, source, created, updated)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)",
-        params![new_uid(db)?, lang, m.thread, m.role, m.text, m.vi, m.reading, m.source, now],
+        "INSERT INTO chat (uid, lang, thread, role, text, vi, reading, source, created, updated, cards)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9, ?10)",
+        params![new_uid(db)?, lang, m.thread, m.role, m.text, m.vi, m.reading, m.source, now,
+                if m.cards.as_array().is_some_and(|c| !c.is_empty()) { m.cards.to_string() } else { String::new() }],
     )?;
     db.query_row(&format!("SELECT {CHAT_COLUMNS} FROM chat WHERE id = ?1"), [db.last_insert_rowid()], message)
 }

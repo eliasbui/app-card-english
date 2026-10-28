@@ -114,7 +114,7 @@ const EXPLAIN_ZH_SHOT: (&str, &str) = (
 );
 
 const SUGGEST_ZH_SYSTEM: &str = "You suggest useful Chinese vocabulary to Vietnamese learners. \
-Reply with exactly 8 lines and nothing else. Each line is: Chinese word in simplified characters | nghĩa tiếng Việt. \
+Reply with exactly {n} lines and nothing else. Each line is: Chinese word in simplified characters | nghĩa tiếng Việt. \
 Use common, practical words. No pinyin, no numbering, no explanations.";
 const SUGGEST_ZH_SHOT: (&str, &str) = (
     "Topic: weather",
@@ -181,7 +181,7 @@ const MISTAKE_ZH_SHOT: (&str, &str) = (
 );
 
 const SUGGEST_SYSTEM: &str = "You suggest useful English vocabulary to Vietnamese learners. \
-Reply with exactly 8 lines and nothing else. Each line is: english word | nghĩa tiếng Việt. \
+Reply with exactly {n} lines and nothing else. Each line is: english word | nghĩa tiếng Việt. \
 Use common, practical words. No numbering, no explanations.";
 const SUGGEST_SHOT: (&str, &str) = (
     "Topic: weather",
@@ -794,7 +794,8 @@ impl<'a> Ai<'a> {
     }
 
     /// New words of a course on a topic or, without one, near the words already learned; none that are in `known`.
-    pub fn suggest(&self, topic: &str, learned: &[String], known: &[String], zh: bool) -> Result<Suggestions, String> {
+    /// `count` new words on `topic`, or near the words `learned`, none of the words `known`.
+    pub fn suggest(&self, topic: &str, learned: &[String], known: &[String], zh: bool, count: usize) -> Result<Suggestions, String> {
         let topic: String = topic.trim().chars().take(80).collect();
         let question = if !topic.is_empty() {
             format!("Topic: {topic}")
@@ -804,10 +805,12 @@ impl<'a> Ai<'a> {
         } else {
             "Topic: everyday life".to_owned()
         };
+        let count = count.clamp(1, 20);
         let (system, example) = if zh { (SUGGEST_ZH_SYSTEM, SUGGEST_ZH_SHOT) } else { (SUGGEST_SYSTEM, SUGGEST_SHOT) };
-        let prompt = Prompt { system, example, question: &question, max_tokens: 200, cjk: zh };
+        let system = system.replace("{n}", &count.to_string());
+        let prompt = Prompt { system: &system, example, question: &question, max_tokens: 40 + 25 * count, cjk: zh };
         let (text, by) = self.chat(&prompt)?;
-        let mut items = parse_suggestions(&text, known);
+        let mut items = parse_suggestions(&text, known, count + 2);
         items.retain(|s| pron::is_chinese(&s.word) == zh);
         if items.is_empty() {
             return Err("AI chưa gợi ý được từ mới, hãy thử chủ đề khác".into());
@@ -917,7 +920,7 @@ impl<'a> Ai<'a> {
         let (system, example) = if zh { (EXTRACT_ZH_SYSTEM, EXTRACT_ZH_SHOT) } else { (EXTRACT_SYSTEM, EXTRACT_SHOT) };
         let prompt = Prompt { system, example, question: &question, max_tokens: 260, cjk: zh };
         let (answer, by) = self.chat(&prompt)?;
-        let mut items = parse_suggestions(&answer, known);
+        let mut items = parse_suggestions(&answer, known, SUGGEST_COUNT + 2);
         items.retain(|s| pron::is_chinese(&s.word) == zh);
         if items.is_empty() {
             return Err("AI không tìm thấy từ mới nào đáng học trong đoạn này".into());
@@ -1033,7 +1036,7 @@ impl<'a> Ai<'a> {
 }
 
 /// Text in lower case without Vietnamese marks, for matching phrases however they were typed.
-fn fold(text: &str) -> String {
+pub(crate) fn fold(text: &str) -> String {
     text.to_lowercase().chars().map(base_letter).collect()
 }
 
@@ -1480,7 +1483,7 @@ fn parse_story(text: &str) -> Story {
 
 /// `word | meaning` lines, tolerant of numbering and other separators; words already known are left out. A word
 /// is English letters or Chinese characters, never both.
-fn parse_suggestions(text: &str, known: &[String]) -> Vec<Suggestion> {
+fn parse_suggestions(text: &str, known: &[String], most: usize) -> Vec<Suggestion> {
     let mut out: Vec<Suggestion> = Vec::new();
     for line in text.lines() {
         let line = line.trim().trim_start_matches(|c: char| c.is_ascii_digit() || matches!(c, '.' | ')' | '-' | '*' | ' '));
@@ -1498,7 +1501,7 @@ fn parse_suggestions(text: &str, known: &[String]) -> Vec<Suggestion> {
         if !seen {
             out.push(Suggestion { ipa: pron::ipa(&word), word, meaning });
         }
-        if out.len() == SUGGEST_COUNT + 2 {
+        if out.len() == most {
             break;
         }
     }
@@ -1717,7 +1720,7 @@ mod tests {
             assert!(!e.meaning.is_empty() && !e.example.is_empty(), "{e:?}");
         }
         let known = ["passport".to_owned()];
-        let s = ai.suggest("travel", &[], &known, false).unwrap();
+        let s = ai.suggest("travel", &[], &known, false, SUGGEST_COUNT).unwrap();
         println!("travel: {:?}", s.items);
         assert!(s.items.len() >= 4 && s.items.iter().all(|s| s.word != "passport"));
         assert!(ai.attempts.borrow().iter().all(|a| a.ok && a.output_tokens > 0));
@@ -2046,13 +2049,14 @@ mod tests {
     #[test]
     fn suggestions_skip_known_words_numbering_and_junk() {
         let text = "1. Hotel | khách sạn\n2) passport - hộ chiếu\n**luggage**: hành lý\nhotel | trùng\n航班 | chuyến bay\nSure, here you go\nboarding pass | thẻ lên máy bay";
-        let s = parse_suggestions(text, &["Passport".into()]);
+        let s = parse_suggestions(text, &["Passport".into()], 10);
         let words: Vec<&str> = s.iter().map(|s| s.word.as_str()).collect();
         // A Chinese word is a word too; each course keeps its own (see `suggest`).
         assert_eq!(words, ["hotel", "luggage", "航班", "boarding pass"]);
         assert_eq!(s[0].meaning, "khách sạn");
         assert_eq!(s[0].ipa, "/hoʊˈtɛl/");
-        assert_eq!(parse_suggestions(SUGGEST_SHOT.1, &[]).len(), 8);
+        assert_eq!(parse_suggestions(SUGGEST_SHOT.1, &[], 10).len(), 8);
+        assert_eq!(parse_suggestions(SUGGEST_SHOT.1, &[], 3).len(), 3, "no more than asked for");
     }
 
     #[test]
@@ -2105,11 +2109,11 @@ mod tests {
         assert_eq!(explain_question("IP", false), "IP", "an English word has no hint, even one CC-CEDICT lists");
         assert_eq!([level_of("hsk 4"), level_of("B2"), level_of("HSK"), level_of("")], ["HSK4", "B2", "", ""]);
         // Full-width bars and colons, as Chinese answers have them; a word is one script or the other.
-        let s = parse_suggestions("1. 机场｜sân bay\n护照：hộ chiếu\nhotel | khách sạn\n飞机 plane | máy bay", &["护照".into()]);
+        let s = parse_suggestions("1. 机场｜sân bay\n护照：hộ chiếu\nhotel | khách sạn\n飞机 plane | máy bay", &["护照".into()], 10);
         assert_eq!(s.iter().map(|s| s.word.as_str()).collect::<Vec<_>>(), ["机场", "hotel"]);
         assert_eq!(s[0].ipa, "jīchǎng");
-        assert_eq!(parse_suggestions(SUGGEST_ZH_SHOT.1, &[]).len(), 8);
-        assert_eq!(parse_suggestions(EXTRACT_ZH_SHOT.1, &[]).len(), 5);
+        assert_eq!(parse_suggestions(SUGGEST_ZH_SHOT.1, &[], 10).len(), 8);
+        assert_eq!(parse_suggestions(EXTRACT_ZH_SHOT.1, &[], 10).len(), 5);
         let story = parse_story("TITLE：机场\nSTORY：她说：我们走吧。\n很好。\nDICH：Cô ấy nói: đi thôi.");
         assert_eq!((story.title.as_str(), story.story.as_str()), ("机场", "她说：我们走吧。 很好。"));
         let shot = parse_story(STORY_ZH_SHOT.1);

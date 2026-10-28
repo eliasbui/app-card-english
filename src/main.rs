@@ -2,6 +2,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod ai;
+mod assistant;
 mod autostart;
 mod backup;
 mod browser;
@@ -123,13 +124,16 @@ fn day_start() -> i64 {
 }
 
 /// The downloaded models seen from a folder of their own, for the tests that run them: an `Ai` opens the database of
-/// its folder, which in the real one is the learner's, and would bring it up to the version under test.
+/// its folder, which in the real one is the learner's, and would bring it up to the version under test. Each model is
+/// a link of its own in a real `models` folder, so that a test deleting files there only ever deletes links.
 #[cfg(test)]
 fn models_only() -> PathBuf {
-    let dir = std::env::temp_dir().join(format!("card-english-models-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).unwrap();
-    #[cfg(unix)]
-    let _ = std::os::unix::fs::symlink(data_dir().join("models"), dir.join("models"));
+    let dir = std::env::temp_dir().join(format!("card-english-real-models-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("models")).unwrap();
+    for entry in std::fs::read_dir(data_dir().join("models")).into_iter().flatten().flatten() {
+        #[cfg(unix)]
+        let _ = std::os::unix::fs::symlink(entry.path(), dir.join("models").join(entry.file_name()));
+    }
     dir
 }
 
@@ -571,7 +575,7 @@ impl App {
                     words.iter().filter(|w| w.learned_at > 0 && w.lang == course).map(|w| w.word.clone()).collect();
                 background(Box::new(move || {
                     let ai = ai::Ai::new(&settings, &dir);
-                    let result = ai.suggest(&topic, &learned, &known, course == "zh");
+                    let result = ai.suggest(&topic, &learned, &known, course == "zh", ai::SUGGEST_COUNT);
                     record_usage(&dir, &day, &ai.attempts.borrow());
                     result.map(|s| json!(s))
                 }));
@@ -656,21 +660,44 @@ impl App {
                 }
                 let history = history.split_off(history.len().saturating_sub(8));
                 let asked = now();
+                let start = day_start();
                 background(Box::new(move || {
                     let ai = ai::Ai::new(&settings, &dir);
-                    let result = ai.tutor(&question, &words, &history, course == "zh", asked);
+                    let db = db::open(&dir.join("words.db")).map_err(|e| e.to_string())?;
+                    // A request the app answers with a feature of its own, or else a question to talk about.
+                    let result = match assistant::route(&question) {
+                        Some(intent) => assistant::act(&intent, &ai, &db, &course, asked, start),
+                        None => ai.tutor(&question, &words, &history, course == "zh", asked)
+                            .map(|t| assistant::Act { text: t.text, cards: Vec::new(), by: Some(t.by) }),
+                    };
                     record_usage(&dir, &day, &ai.attempts.borrow());
                     let answer = result?;
                     // Both lines are kept once there is an answer; a failed question stays in the box to ask again,
                     // and a question asked again replaces the old one and what followed it only then.
-                    let db = db::open(&dir.join("words.db")).map_err(|e| e.to_string())?;
                     if !redo.is_empty() {
                         db::truncate_thread(&db, &course, &thread, &redo, asked).map_err(|e| e.to_string())?;
                     }
                     let line = |role: &str, text: &str, source: String| db::Message { thread: thread.clone(), role: role.into(), text: text.into(), source, ..db::Message::default() };
                     let user = db::add_message(&db, &course, &line("user", question.trim(), String::new()), asked).map_err(|e| e.to_string())?;
-                    let reply = db::add_message(&db, &course, &line("ai", &answer.text, answer.by.name()), now()).map_err(|e| e.to_string())?;
-                    Ok(json!({ "user": user, "reply": reply, "answer": answer }))
+                    let source = answer.by.as_ref().map(|b| b.name()).unwrap_or_default();
+                    let said = db::Message { cards: json!(answer.cards), ..line("ai", &answer.text, source) };
+                    let reply = db::add_message(&db, &course, &said, now()).map_err(|e| e.to_string())?;
+                    Ok(json!({ "user": user, "reply": reply, "answer": answer.by.map_or(json!({}), |b| json!(b)), "cards": answer.cards }))
+                }));
+            }
+            "assistant_suggest" => {
+                // More words for a card of suggestions, none of those it already shows.
+                let topic = text("topic");
+                let count = args["count"].as_u64().unwrap_or(10) as usize;
+                let shown: Vec<String> = args["shown"].as_array().into_iter().flatten().filter_map(|w| w.as_str().map(str::to_owned)).collect();
+                let settings = self.chat_ai_settings();
+                let course = self.course();
+                background(Box::new(move || {
+                    let ai = ai::Ai::new(&settings, &dir);
+                    let db = db::open(&dir.join("words.db")).map_err(|e| e.to_string())?;
+                    let result = assistant::suggest(&ai, &db, &course, &topic, count, &shown);
+                    record_usage(&dir, &day, &ai.attempts.borrow());
+                    result.map(|a| json!({ "text": a.text, "cards": a.cards }))
                 }));
             }
             "roleplay" => {
