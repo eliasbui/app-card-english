@@ -14,7 +14,10 @@
           --red: #c42b2b; --red-soft: #fdeded; --red-line: #f3c4c4; --amber: #b25e09; --amber-soft: #fff4df; --amber-line: #f4d59b;
           --shadow: 0 1px 2px rgba(20, 24, 32, .05); --shadow-md: 0 2px 4px rgba(20, 24, 32, .04), 0 10px 28px rgba(20, 24, 32, .08);
           --shadow-lg: 0 24px 64px rgba(20, 24, 32, .24); --backdrop: rgba(15, 18, 25, .45);
-          --skeleton-a: #eff1f4; --skeleton-b: #e3e6eb; --fresh: #dfe7fd; --toast-bg: #141820; --toast-text: #fff; }
+          --skeleton-a: #eff1f4; --skeleton-b: #e3e6eb; --fresh: #dfe7fd; --toast-bg: #141820; --toast-text: #fff;
+          /* One scale for corners and control heights, shared by every theme and palette. */
+          --r-sm: 8px; --r: 10px; --r-md: 12px; --r-lg: 16px; --h-sm: 32px; --h: 36px; --h-lg: 44px; }
+  :root { --ring: 0 0 0 3px var(--accent-soft); --ring-red: 0 0 0 3px var(--red-soft); }
   :root[data-theme="dark"] { color-scheme: dark; --bg: #0d1016; --surface: #151922; --surface-2: #1a1f29; --raised: #2a303c; --hover: #212734;
           --text: #e7eaf0; --text-2: #c2c8d3; --muted: #959eac; --faint: #677080; --line: #252b37; --line-strong: #353d4c;
           --accent: #3d6df2; --accent-hover: #5a83f5; --accent-soft: #1a2442; --accent-text: #8eadff; --on-accent: #fff;
@@ -99,8 +102,16 @@
   .brand .st { width: 46px; height: 46px; animation: bob 4s ease-in-out infinite; }
   .brand b { display: block; font-size: 16px; letter-spacing: -.01em; }
   .brand span { font-size: 12px; color: var(--muted); }
-  #course-switch { display: flex; margin: 0 6px 14px; }
-  #course-switch label { flex: 1; justify-content: center; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  /* The course: one flag each, over real radio inputs so that the keyboard and the screen reader still work. */
+  .flags { display: flex; align-items: center; gap: 10px; margin: -4px 6px 18px; }
+  .flags input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+  .flags label { display: block; margin: 0; padding: 0; border-radius: 6px; line-height: 0; cursor: pointer; opacity: .45; filter: saturate(.35);
+                 box-shadow: 0 0 0 1px var(--line-strong); transition: opacity .15s, filter .15s, box-shadow .15s, transform .15s; }
+  .flags label svg { display: block; width: 33px; height: 22px; border-radius: 6px; }
+  .flags label:hover { opacity: .85; filter: none; }
+  .flags input:checked + label { opacity: 1; filter: none; box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent); }
+  .flags input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: 5px; }
   nav .nav { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 10px; border: 0; border-radius: 10px; background: none;
              color: var(--text-2); font-size: 14px; text-align: left; cursor: pointer; transition: background .15s, color .15s; }
   nav .nav .st { width: 30px; height: 30px; margin: -4px 0; transition: transform .25s; }
@@ -135,18 +146,31 @@
   .card-title .st { width: 36px; height: 36px; margin: -8px 0; }
   .eyebrow, .prompt-label { font-size: 13px; font-weight: 600; color: var(--muted); }
 
-  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 14px; border: 1px solid var(--line-strong);
-         border-radius: 10px; background: var(--surface); color: var(--text); font-size: 14px; font-weight: 500; line-height: 20px;
-         cursor: pointer; white-space: nowrap; transition: background .15s, border-color .15s, box-shadow .15s, transform .1s; }
-  .btn:hover:not(:disabled) { background: var(--hover); }
-  .btn:active:not(:disabled) { transform: translateY(1px); }
-  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); box-shadow: 0 1px 2px rgba(20, 24, 32, .18); }
+  .btn { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: var(--h); padding: 0 14px;
+         border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--surface); color: var(--text); font-size: 14px;
+         font-weight: 500; line-height: 20px; cursor: pointer; white-space: nowrap; box-shadow: var(--shadow);
+         transition: background .15s, border-color .15s, color .15s, box-shadow .15s, transform .1s; }
+  .btn:hover:not(:disabled) { background: var(--hover); border-color: var(--faint); }
+  .btn:active:not(:disabled) { transform: translateY(1px); box-shadow: none; }
+  .btn:focus-visible { outline: none; box-shadow: var(--ring); border-color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); box-shadow: 0 1px 2px rgba(20, 24, 32, .18), inset 0 1px 0 rgba(255, 255, 255, .12); }
   .btn.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
-  .btn.big { padding: 11px 22px; border-radius: 12px; font-size: 15px; font-weight: 600; }
-  .btn.small { padding: 3px 10px; border-radius: 8px; font-size: 13px; }
+  .btn.primary:focus-visible { box-shadow: var(--ring); }
+  .btn.big { min-height: var(--h-lg); padding: 0 22px; border-radius: var(--r-md); font-size: 15px; font-weight: 600; }
+  .btn.small { min-height: var(--h-sm); padding: 0 11px; border-radius: var(--r-sm); font-size: 13px; }
+  .btn.ghost { border-color: transparent; background: transparent; box-shadow: none; color: var(--muted); }
+  .btn.ghost:hover:not(:disabled) { background: var(--hover); border-color: transparent; color: var(--text); }
   .btn.danger { color: var(--red); }
   .btn.danger:hover:not(:disabled) { background: var(--red-soft); border-color: var(--red-line); }
-  .btn:disabled { opacity: .5; cursor: default; }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  /* Busy, as a listen button while its speech plays: the label gives way to a spinner and the button keeps its size. */
+  .btn.loading, .btn.loading:disabled { opacity: 1; cursor: progress; color: transparent; }
+  .btn.loading > * { visibility: hidden; }
+  .btn.loading::after { content: ""; position: absolute; top: 50%; left: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%;
+                        border: 2px solid var(--spin, var(--accent-text)); border-right-color: transparent; animation: spin .7s linear infinite; }
+  .btn.primary.loading { --spin: var(--on-accent); }
+  .btn.danger.loading { --spin: var(--red); }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .btn.pulse { animation: pulse 2.2s infinite; }
   /* The sign-in button OpenAI asks for: black, with its label. */
   .btn.chatgpt { background: #000; border-color: #000; color: #fff; font-weight: 600; padding: 9px 18px; }
@@ -157,26 +181,41 @@
         color: var(--muted); font: 11px/16px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
   .btn.primary kbd { color: rgba(255, 255, 255, .85); border-color: rgba(255, 255, 255, .35); background: rgba(255, 255, 255, .12); }
 
-  input, textarea, select { padding: 8px 11px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface);
-                            color: var(--text); line-height: 20px; transition: border-color .15s, box-shadow .15s; }
+  input, textarea, select { min-height: var(--h); padding: 7px 12px; border: 1px solid var(--line-strong); border-radius: var(--r); background: var(--surface);
+                            color: var(--text); line-height: 20px; box-shadow: inset 0 1px 2px rgba(20, 24, 32, .04);
+                            transition: border-color .15s, box-shadow .15s, background-color .15s; }
   input::placeholder, textarea::placeholder { color: var(--faint); }
-  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-  input[type="range"] { padding: 0; border: 0; accent-color: var(--accent); box-shadow: none; }
-  textarea { width: 100%; min-height: 42px; resize: vertical; }
-  label { display: block; margin: 12px 0 5px; font-size: 12.5px; font-weight: 500; color: var(--text-2); }
-  label.inline { display: inline-flex; align-items: center; gap: 8px; margin: 0; color: var(--muted); font-size: 13px; }
-  #practice-source { max-width: 200px; }
+  input:hover:not(:focus):not(:disabled), textarea:hover:not(:focus):not(:disabled), select:hover:not(:focus):not(:disabled) { border-color: var(--faint); }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
+  input:disabled, textarea:disabled, select:disabled { background-color: var(--surface-2); color: var(--muted); cursor: not-allowed; }
+  input[aria-invalid="true"], textarea[aria-invalid="true"], input[aria-invalid="true"]:hover:not(:focus) { border-color: var(--red); }
+  input[aria-invalid="true"]:focus, textarea[aria-invalid="true"]:focus { border-color: var(--red); box-shadow: var(--ring-red); }
+  input[type="range"] { min-height: 0; padding: 0; border: 0; accent-color: var(--accent); box-shadow: none; background: none; }
+  input[type="number"] { font-variant-numeric: tabular-nums; }
+  input[type="radio"], input[type="checkbox"] { min-height: 0; }
+  /* The native arrow drawn again, so that a select matches the inputs in both themes. */
+  select { -webkit-appearance: none; appearance: none; padding-right: 34px; cursor: pointer;
+           background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+           background-position: calc(100% - 18px) 52%, calc(100% - 13px) 52%; background-size: 5px 5px; background-repeat: no-repeat; }
+  textarea { width: 100%; min-height: 64px; line-height: 1.5; resize: vertical; }
+  label { display: block; margin: 14px 0 6px; font-size: 12.5px; font-weight: 600; color: var(--text-2); }
+  label.inline { display: inline-flex; align-items: center; gap: 8px; margin: 0; color: var(--muted); font-size: 13px; font-weight: 500; }
+  #practice-source { max-width: 220px; }
   .grid2, .grid3 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
   .grid3 { grid-template-columns: repeat(3, 1fr); }
   .grid2 input, .grid3 input, .grid2 select, .grid3 select { width: 100%; }
   /* Choices drawn as buttons over real radio inputs, which keep the keyboard and the screen reader working. */
-  .seg { position: relative; display: inline-flex; gap: 2px; padding: 3px; border-radius: 11px; background: var(--hover); }
+  .seg { position: relative; display: inline-flex; gap: 2px; max-width: 100%; padding: 3px; overflow-x: auto; border: 1px solid var(--line);
+         border-radius: var(--r-md); background: var(--hover); scrollbar-width: none; }
+  .seg::-webkit-scrollbar { display: none; }
   .seg input, .tiles input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-  .seg label { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 5px 12px; border-radius: 8px; color: var(--text-2);
-               font-size: 13px; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s; }
+  .seg label { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; margin: 0; padding: 0 12px; border-radius: var(--r-sm); color: var(--text-2);
+               font-size: 13px; font-weight: 500; cursor: pointer; white-space: nowrap; transition: background .15s, color .15s, box-shadow .15s; }
   .seg label:hover { color: var(--text); }
-  .seg input:checked + label { background: var(--raised); color: var(--text); box-shadow: 0 1px 2px rgba(20, 24, 32, .1), 0 0 0 1px var(--line); }
-  .seg input:focus-visible + label, .tiles input:focus-visible + .tile { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .seg input:checked + label { background: var(--raised); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(20, 24, 32, .12), 0 0 0 1px var(--line); }
+  .tiles input:focus-visible + .tile { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* Inside the bar, which scrolls on a narrow window and would cut an outline drawn outside. */
+  .seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -2px; }
   .seg .n { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
   .switch { position: relative; display: flex; align-items: center; gap: 10px; margin: 14px 0 0; color: var(--text); font-size: 14px; font-weight: 400; cursor: pointer; }
   .switch input { position: absolute; width: 1px; height: 1px; opacity: 0; }
@@ -192,6 +231,7 @@
   .tag.new { background: var(--amber-soft); color: var(--amber); }
   .tag.ok { background: var(--green-soft); color: var(--green); }
   .tag.plain { background: var(--hover); color: var(--muted); }
+  .tag.skipped { background: transparent; color: var(--faint); box-shadow: inset 0 0 0 1px var(--line-strong); }
   .progress { height: 8px; border-radius: 99px; overflow: hidden; background: var(--hover); }
   .progress div { width: 0; height: 100%; border-radius: 99px; background: var(--accent); transition: width .5s cubic-bezier(.2, .8, .2, 1); }
 
@@ -338,11 +378,31 @@
   .story .row { margin-top: 14px; }
   .skeleton.tall { height: 150px; max-width: 560px; margin: 0 auto; }
 
-  #editor { margin-top: 16px; padding-top: 4px; border-top: 1px solid var(--line); }
+  .add-row input { min-height: var(--h-lg); font-size: 15px; }
+  .add-row .btn { min-height: var(--h-lg); }
+  #editor { margin-top: 18px; padding-top: 6px; border-top: 1px solid var(--line); }
   #editor-status { margin: 12px 0 0; }
+  /* The word on the left with what can be done to it right below; on the right the block where its meanings go. */
+  .editor-grid { display: grid; grid-template-columns: minmax(220px, 290px) minmax(0, 1fr); gap: 22px; align-items: start; margin-top: 4px; }
+  .editor-word input, .editor-meaning input, .editor-meaning select, .editor-meaning textarea { width: 100%; }
+  .editor-word #f-word { min-height: 52px; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
+  .editor-word .say-row { margin-top: 10px; }
+  .editor-actions { margin-top: 10px; padding-bottom: 4px; }
+  .editor-actions .error { flex-basis: 100%; }
+  .editor-meaning { padding: 2px 18px 18px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface-2); }
+  .editor-meaning input, .editor-meaning select, .editor-meaning textarea { background-color: var(--surface); }
+  .block-title { margin: 14px 0 -4px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+  .editor-meaning .grid2, .editor-meaning .grid3 { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
+  /* A word that may be misspelt: the message and the corrections to pick from, under its box. */
+  .spell-hint { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 7px; color: var(--red); font-size: 12.5px; }
+  .spell-hint:empty { display: none; }
+  .sp-chip { display: inline-flex; align-items: center; min-height: 26px; padding: 0 11px; border: 1px solid var(--red-line); border-radius: 99px;
+             background: var(--red-soft); color: var(--text); font-size: 12.5px; font-weight: 600; cursor: pointer; transition: border-color .15s, background .15s, color .15s; }
+  .sp-chip:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
+  .sp-chip:focus-visible { outline: none; box-shadow: var(--ring); border-color: var(--accent); }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
-  .chips button { padding: 5px 13px; border: 1px solid var(--line-strong); border-radius: 99px; background: var(--surface); color: var(--text-2);
-                  font-size: 13px; cursor: pointer; transition: border-color .15s, color .15s, background .15s; }
+  .chips button { min-height: 30px; padding: 0 13px; border: 1px solid var(--line-strong); border-radius: 99px; background: var(--surface); color: var(--text-2);
+                  font-size: 13px; font-weight: 500; cursor: pointer; transition: border-color .15s, color .15s, background .15s; }
   .chips button:hover { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
   #suggest-card > .row .st { width: 44px; height: 44px; margin: -8px 0; }
   #suggest-tabs { margin: 12px 0 2px; }
@@ -362,7 +422,7 @@
   .list-card { padding: 0; overflow: hidden; }
   table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   th, td { padding: 11px 14px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
-  th { background: var(--surface-2); color: var(--muted); font-size: 12px; font-weight: 600; }
+  th { background: var(--surface-2); color: var(--muted); font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
   tbody tr:last-child td { border-bottom: 0; }
   tbody tr[data-id] { cursor: pointer; transition: background .12s; }
   tbody tr[data-id]:hover { background: var(--surface-2); }
@@ -370,7 +430,7 @@
   tbody tr.fresh { animation: fresh 1.6s ease; }
   .col-word { width: 28%; }
   .col-status { width: 150px; }
-  .col-act { width: 78px; }
+  .col-act { width: 132px; }
   .word-link { padding: 0; border: 0; background: none; color: var(--text); font-size: 14.5px; font-weight: 600; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
   .word-link:hover { color: var(--accent-text); }
   td .sub { margin-top: 2px; overflow: hidden; color: var(--muted); font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
@@ -428,9 +488,10 @@
   .ach small { color: var(--muted); font-size: 12px; }
 
   .tiles { position: relative; display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
-  .tile { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; margin: 0; padding: 12px 14px; border: 1px solid var(--line-strong);
-          border-radius: 12px; color: var(--text); font-size: 14px; font-weight: 400; cursor: pointer; transition: border-color .15s, background .15s; }
-  .tile:hover { border-color: var(--accent); }
+  .tile { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; margin: 0; padding: 13px 15px; border: 1px solid var(--line-strong);
+          border-radius: var(--r-md); background: var(--surface); color: var(--text); font-size: 14px; font-weight: 400; cursor: pointer;
+          transition: border-color .15s, background .15s, box-shadow .15s; }
+  .tile:hover { border-color: var(--accent); box-shadow: var(--shadow-md); }
   .tile span { color: var(--muted); font-size: 12.5px; }
   .tile em { margin-top: auto; padding-top: 6px; font-style: normal; }
   .tiles input:checked + .tile { border-color: var(--accent); background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
@@ -446,10 +507,16 @@
   .pbody { padding: 16px 20px 20px; }
   .pbody > p:first-child { margin-top: 0; }
   .model-select { min-width: 320px; max-width: 100%; }
-  .model-row { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); }
-  .pbody > div:first-child .model-row { padding-top: 0; }
+  /* A downloadable model or voice: a box of its own, with its tags and buttons on the right. */
+  .model-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-top: 10px; padding: 12px 14px; border: 1px solid var(--line);
+               border-radius: var(--r-md); background: var(--surface); transition: border-color .15s, background .15s; }
+  .pbody > div:first-child .model-row, #voice-kokoro .model-row { margin-top: 0; }
+  .model-row > .grow { min-width: 180px; }
+  .model-row.active { border-color: var(--accent); background: var(--accent-soft); }
+  .model-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; margin-left: auto; }
+  #voice-kokoro:not(:empty) { margin-bottom: 16px; }
   .dl { margin: 10px 0 0; }
-  .usage { margin-top: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); font-size: 13px; }
+  .usage { margin-top: 14px; padding: 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); font-size: 13px; }
   .usage-title { margin-bottom: 8px; font-weight: 600; }
   .usage-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 8px; }
   .usage-grid div { display: flex; flex-direction: column; }
@@ -468,7 +535,12 @@
   .modal { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--backdrop); }
   .dialog { width: 100%; max-width: 460px; max-height: calc(100vh - 48px); overflow-y: auto; padding: 24px; border: 1px solid var(--line);
             border-radius: 18px; background: var(--surface); box-shadow: var(--shadow-lg); animation: rise .25s ease; }
-  .dialog h3 { margin: 0 0 8px; font-size: 17px; }
+  .dialog h3 { margin: 0 0 8px; font-size: 18px; letter-spacing: -.01em; }
+  .dialog .row.actions { justify-content: flex-end; margin-top: 18px; }
+  .update-notes { max-height: 200px; margin: 10px 0 12px; padding: 12px 14px; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--r-md);
+                  background: var(--surface-2); color: var(--muted); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .update-notes:empty { display: none; }
+  #update-body .progress { margin: 14px 0 6px; }
   .word-dialog { max-width: 600px; }
   .wd-head { display: flex; align-items: flex-start; gap: 8px; }
   .wd-word { font-size: 30px; font-weight: 700; line-height: 1.2; letter-spacing: -.02em; overflow-wrap: anywhere; }
@@ -498,6 +570,7 @@
   @keyframes toastIn { from { opacity: 0; transform: translate(-50%, -20px); } to { opacity: 1; transform: translateX(-50%); } }
   @keyframes fresh { from { background: var(--fresh); } to { background: transparent; } }
   @keyframes blink { 50% { opacity: .2; } }
+  /* Narrower windows, down to the 440 px the window allows: the nav turns into a bar at the bottom below 720 px. */
   @media (max-width: 900px) {
     nav { width: 196px; }
     main { padding: 22px 22px 40px; }
@@ -507,6 +580,82 @@
     .grid-2 { grid-template-columns: 1fr; }
     .hero-nums { gap: 28px; }
     .hero-mascot { width: 96px; height: 96px; }
+    .editor-grid { grid-template-columns: minmax(200px, 250px) minmax(0, 1fr); gap: 18px; }
+  }
+  @media (max-width: 820px) {
+    .editor-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 720px) {
+    nav { position: fixed; z-index: 60; left: 0; right: 0; bottom: 0; width: auto; height: 64px; flex-direction: row; align-items: stretch; gap: 2px;
+          padding: 5px 6px; overflow: visible; border-right: 0; border-top: 1px solid var(--line); box-shadow: 0 -6px 18px rgba(20, 24, 32, .06); }
+    :root[data-theme="dark"] nav { box-shadow: none; }
+    .brand { position: fixed; z-index: 60; top: 0; left: 0; right: 0; height: 56px; padding: 0 104px 0 14px; gap: 8px;
+             background: var(--surface); border-bottom: 1px solid var(--line); }
+    .brand .st { width: 36px; height: 36px; }
+    .brand > div { min-width: 0; }
+    .brand b, .brand span:not(.st) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .brand b { font-size: 15px; }
+    .brand span:not(.st) { display: block; }
+    .flags { position: fixed; z-index: 61; top: 16px; right: 16px; margin: 0; gap: 12px; }
+    .flags label svg { width: 30px; height: 20px; }
+    nav .nav { position: relative; flex: 1 1 0; min-width: 0; flex-direction: column; justify-content: center; gap: 2px; padding: 2px; border-radius: var(--r);
+               font-size: 11px; line-height: 1.2; text-align: center; overflow: hidden; }
+    nav .nav .st { width: 28px; height: 28px; margin: 0; }
+    nav .nav .count { position: absolute; top: 2px; left: calc(50% + 8px); margin: 0; min-width: 18px; padding: 0 5px; font-size: 10.5px; line-height: 17px; }
+    nav .foot { display: none; }
+    main { padding: 72px 16px 88px; }
+    #toast { top: 64px; }
+    .page-head { margin-bottom: 16px; }
+    .page-head h2 { font-size: 21px; }
+    .card { padding: 16px; }
+    .hero { padding: 20px; }
+    .hero-nums b { font-size: 34px; }
+    .list-tools input { flex: 1 1 100%; min-width: 0; }
+    .list-tools select { flex: 1 1 auto; }
+    #page-practice .page-head > .grow { flex-basis: 100%; }
+    #practice-source { flex: 1 1 140px; max-width: none; }
+    .study-bar { flex-wrap: wrap; }
+    .combo { min-width: 0; }
+    .model-select { min-width: 0; width: 100%; }
+    .setting-row > div:first-child { min-width: 100%; }
+    .heat-box > div:first-child { max-width: 100%; overflow-x: auto; padding-bottom: 4px; }
+  }
+  @media (max-width: 640px) {
+    .grid2, .grid3, .grid-2, .dash { grid-template-columns: 1fr; }
+    .dash .vocab-card { grid-column: auto; }
+    .add-row input { flex: 1 1 100%; }
+    .add-row .btn { flex: 1 1 0; }
+    /* The word list as stacked rows: the word and its status, the meaning under them, then the buttons. */
+    .list-card table, .list-card tbody, .list-card td { display: block; width: 100%; }
+    .list-card thead { display: none; }
+    .list-card tbody tr[data-id] { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+    .list-card tbody tr[data-id]:last-child { border-bottom: 0; }
+    .list-card tbody tr[data-id] td { padding: 0; border: 0; }
+    .list-card tbody tr[data-id] td:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
+    .list-card tbody tr[data-id] td:nth-child(3) { grid-column: 2; grid-row: 1; text-align: right; }
+    .list-card tbody tr[data-id] td.acts { grid-column: 1 / -1; grid-row: 3; text-align: left; }
+    .usage-grid { grid-template-columns: 1fr 1fr; }
+    .flash { padding: 22px 16px 20px; min-height: 0; }
+    .flash .word { font-size: 34px; }
+    :root[data-course="zh"] .flash .word { font-size: 44px; }
+    .question { font-size: 20px; }
+    .meaning { font-size: 19px; }
+    .options { grid-template-columns: 1fr; }
+    .fill-row { flex-wrap: wrap; }
+    .fill-row input, .fill-row.wide input { flex: 1 1 200px; width: auto; min-width: 0; }
+    .grades .btn:not(.big) { flex: 1 1 40%; min-width: 0; }
+    .grades .btn.big { flex: 1 1 100%; }
+    .extra span { display: block; min-width: 0; }
+  }
+  @media (max-width: 560px) {
+    .modal { padding: 10px; }
+    .dialog { max-height: calc(100vh - 20px); padding: 18px; border-radius: var(--r-lg); }
+    .wd-word { font-size: 26px; }
+    .hero-mascot { display: none; }
+    .hero .row .btn.big { flex: 1 1 100%; }
+    .brand span:not(.st) { display: none; }
+    .mode { min-height: 0; }
+    .ach { padding: 12px; }
   }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 </style>
@@ -524,12 +673,32 @@
 <div id="word-modal" class="modal hidden">
   <div class="dialog word-dialog" id="word-detail" role="dialog" aria-modal="true" aria-label="Chi tiết từ"></div>
 </div>
+<div id="update-modal" class="modal hidden">
+  <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="update-title"><h3 id="update-title"></h3><div id="update-body"></div><div class="row actions" id="update-actions"></div></div>
+</div>
 <input type="file" id="import-file" accept=".csv,.tsv,.txt,.json" hidden>
 <nav>
   <div class="brand"><span class="st st-mascot" id="brand-mascot" aria-hidden="true"></span><div><b id="brand-name">Card English</b><span id="brand-sub">Học từ vựng tiếng Anh mỗi ngày</span></div></div>
-  <div class="seg" id="course-switch" role="radiogroup" aria-label="Khóa học">
-    <input type="radio" name="course" id="course-en" value="en" checked><label for="course-en">Tiếng Anh</label>
-    <input type="radio" name="course" id="course-zh" value="zh"><label for="course-zh">Tiếng Trung</label>
+  <div class="flags" id="course-switch" role="radiogroup" aria-label="Khóa học">
+    <input type="radio" name="course" id="course-en" value="en" checked>
+    <label for="course-en" title="Tiếng Anh"><span class="sr-only">Tiếng Anh</span><svg viewBox="0 0 60 30" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <clipPath id="flag-uk-cross"><path d="M30,15 h30 v15 z v15 h-30 z h-30 v-15 z v-15 h30 z"/></clipPath>
+      <rect width="60" height="30" fill="#012169"/>
+      <path d="M0,0 L60,30 M60,0 L0,30" stroke="#fff" stroke-width="6"/>
+      <path d="M0,0 L60,30 M60,0 L0,30" clip-path="url(#flag-uk-cross)" stroke="#C8102E" stroke-width="4"/>
+      <path d="M30,0 v30 M0,15 h60" stroke="#fff" stroke-width="10"/>
+      <path d="M30,0 v30 M0,15 h60" stroke="#C8102E" stroke-width="6"/>
+    </svg></label>
+    <input type="radio" name="course" id="course-zh" value="zh">
+    <label for="course-zh" title="Tiếng Trung"><span class="sr-only">Tiếng Trung</span><svg viewBox="0 0 30 20" aria-hidden="true">
+      <defs><path id="flag-cn-star" d="M0,-1 0.587785,0.809017 -0.951057,-0.309017H0.951057L-0.587785,0.809017z" fill="#FFDE00"/></defs>
+      <rect width="30" height="20" fill="#DE2910"/>
+      <use href="#flag-cn-star" transform="translate(5,5) scale(3)"/>
+      <use href="#flag-cn-star" transform="translate(10,2) rotate(23.036243)"/>
+      <use href="#flag-cn-star" transform="translate(12,4) rotate(45.869898)"/>
+      <use href="#flag-cn-star" transform="translate(12,7) rotate(69.945396)"/>
+      <use href="#flag-cn-star" transform="translate(10,9) rotate(20.659808)"/>
+    </svg></label>
   </div>
   <button class="nav active" data-page="home" aria-current="page"><span class="st st-nav-home" aria-hidden="true"></span>Học hôm nay<span class="count" id="nc-home"></span></button>
   <button class="nav" data-page="words"><span class="st st-nav-words" aria-hidden="true"></span>Từ vựng<span class="count" id="nc-words"></span></button>
@@ -609,46 +778,51 @@
       <button class="btn" id="btn-open-suggest">AI gợi ý từ mới</button>
     </header>
     <div class="card">
-      <div class="row">
+      <div class="row add-row">
         <input id="new-word" class="grow" placeholder="Nhập từ hoặc cụm từ tiếng Anh muốn học" maxlength="80" aria-label="Từ muốn học">
         <button class="btn primary" id="btn-add">Tra và thêm</button>
         <button class="btn" id="btn-manual">Tự nhập</button>
       </div>
+      <div class="spell-hint" id="spell-new-word"></div>
       <div id="editor" class="hidden">
         <p id="editor-status" class="muted"></p>
-        <div class="grid2">
-          <div><label for="f-word">Từ</label><input id="f-word" maxlength="80">
-            <div class="row say-row"><button type="button" class="btn small" id="btn-f-say">Nghe</button><button type="button" class="btn small" id="btn-f-say-slow">Nghe chậm</button></div></div>
-          <div><label for="f-ipa">Phiên âm (IPA)</label><input id="f-ipa"></div>
-          <div><label for="f-pos">Loại từ</label><input id="f-pos"></div>
-          <div><label for="f-meaning">Nghĩa tiếng Việt</label><input id="f-meaning"></div>
-        </div>
-        <label for="f-explain">Giải thích cách dùng</label><textarea id="f-explain"></textarea>
-        <div class="grid2">
-          <div><label for="f-example">Câu ví dụ</label><textarea id="f-example"></textarea></div>
-          <div><label for="f-example_vi">Dịch câu ví dụ</label><textarea id="f-example_vi"></textarea></div>
-        </div>
-        <div class="grid2 only-zh">
-          <div><label for="f-hanviet">Âm Hán Việt</label><input id="f-hanviet"></div>
-          <div><label for="f-example_reading">Pinyin câu ví dụ</label><input id="f-example_reading"></div>
-        </div>
-        <div class="grid3">
-          <div><label for="f-synonyms">Đồng nghĩa</label><input id="f-synonyms"></div>
-          <div><label for="f-antonyms">Trái nghĩa</label><input id="f-antonyms"></div>
-          <div><label for="f-collocations">Cụm từ hay gặp</label><input id="f-collocations"></div>
-        </div>
-        <div class="grid2">
-          <div><label for="f-level">Cấp độ (CEFR)</label>
-            <select id="f-level"><option value="">Chưa rõ</option><option>A1</option><option>A2</option><option>B1</option><option>B2</option><option>C1</option><option>C2</option></select></div>
-          <div><label for="f-topic">Chủ đề</label><input id="f-topic" list="topic-list" maxlength="40"><datalist id="topic-list"></datalist></div>
-        </div>
-        <label for="f-note">Ghi chú</label><textarea id="f-note"></textarea>
-        <div class="row actions">
-          <button class="btn primary" id="btn-save">Lưu</button>
-          <button class="btn" id="btn-listen">Nghe</button>
-          <button class="btn" id="btn-reexplain">Hỏi lại AI</button>
-          <button class="btn" id="btn-cancel">Hủy</button>
-          <span id="editor-error" class="error"></span>
+        <div class="editor-grid">
+          <div class="editor-word">
+            <label for="f-word">Từ</label><input id="f-word" maxlength="80">
+            <div class="spell-hint" id="spell-f-word"></div>
+            <div class="row say-row"><button type="button" class="btn small" id="btn-f-say">Nghe</button><button type="button" class="btn small" id="btn-f-say-slow">Nghe chậm</button><button type="button" class="btn small" id="btn-reexplain">Hỏi lại AI</button></div>
+            <div class="row editor-actions">
+              <button class="btn primary" id="btn-save">Lưu</button>
+              <button class="btn" id="btn-cancel">Hủy</button>
+              <span id="editor-error" class="error"></span>
+            </div>
+            <label for="f-ipa">Phiên âm (IPA)</label><input id="f-ipa">
+            <label for="f-pos">Loại từ</label><input id="f-pos">
+          </div>
+          <div class="editor-meaning">
+            <div class="block-title">Nghĩa và cách dùng</div>
+            <label for="f-meaning">Nghĩa tiếng Việt</label><input id="f-meaning">
+            <label for="f-explain">Giải thích cách dùng</label><textarea id="f-explain"></textarea>
+            <div class="grid2">
+              <div><label for="f-example">Câu ví dụ</label><textarea id="f-example"></textarea></div>
+              <div><label for="f-example_vi">Dịch câu ví dụ</label><textarea id="f-example_vi"></textarea></div>
+            </div>
+            <div class="only-zh"><div class="grid2">
+              <div><label for="f-hanviet">Âm Hán Việt</label><input id="f-hanviet"></div>
+              <div><label for="f-example_reading">Pinyin câu ví dụ</label><input id="f-example_reading"></div>
+            </div></div>
+            <div class="grid3">
+              <div><label for="f-synonyms">Đồng nghĩa</label><input id="f-synonyms"></div>
+              <div><label for="f-antonyms">Trái nghĩa</label><input id="f-antonyms"></div>
+              <div><label for="f-collocations">Cụm từ hay gặp</label><input id="f-collocations"></div>
+            </div>
+            <div class="grid2">
+              <div><label for="f-level">Cấp độ (CEFR)</label>
+                <select id="f-level"><option value="">Chưa rõ</option><option>A1</option><option>A2</option><option>B1</option><option>B2</option><option>C1</option><option>C2</option></select></div>
+              <div><label for="f-topic">Chủ đề</label><input id="f-topic" list="topic-list" maxlength="40"><datalist id="topic-list"></datalist></div>
+            </div>
+            <label for="f-note">Ghi chú</label><textarea id="f-note"></textarea>
+          </div>
         </div>
       </div>
     </div>
@@ -682,6 +856,7 @@
         <input type="radio" name="word-filter" id="wf-new" value="new"><label for="wf-new">Mới <span class="n" id="wfn-new"></span></label>
         <input type="radio" name="word-filter" id="wf-due" value="due"><label for="wf-due">Cần ôn <span class="n" id="wfn-due"></span></label>
         <input type="radio" name="word-filter" id="wf-known" value="known"><label for="wf-known">Đang nhớ <span class="n" id="wfn-known"></span></label>
+        <input type="radio" name="word-filter" id="wf-skipped" value="skipped"><label for="wf-skipped">Bỏ qua <span class="n" id="wfn-skipped"></span></label>
       </div>
     </div>
     <div class="card list-card">
@@ -775,7 +950,7 @@
     <div class="card">
       <div class="card-title">Dùng AI nào để giải thích nghĩa, gợi ý từ, chấm câu và viết truyện</div>
       <div class="tiles" id="ai-tiles" role="radiogroup" aria-label="Nguồn AI">
-        <input type="radio" name="ai_provider" id="ai-local" value="local"><label class="tile" for="ai-local"><b>Model trên máy</b><span>Qwen 0.5B, miễn phí, chạy offline</span><em id="pt-local"></em></label>
+        <input type="radio" name="ai_provider" id="ai-local" value="local"><label class="tile" for="ai-local"><b>Model trên máy</b><span>Qwen 0.5B hoặc 1.5B, miễn phí, chạy offline</span><em id="pt-local"></em></label>
         <input type="radio" name="ai_provider" id="ai-codex" value="codex"><label class="tile" for="ai-codex"><b>ChatGPT qua Codex</b><span>Dùng được cả tài khoản Free</span><em id="pt-codex"></em></label>
         <input type="radio" name="ai_provider" id="ai-chatgpt" value="chatgpt"><label class="tile" for="ai-chatgpt"><b>ChatGPT</b><span>Dùng gói Plus hoặc Pro của bạn</span><em id="pt-chatgpt"></em></label>
         <input type="radio" name="ai_provider" id="ai-gemini" value="gemini"><label class="tile" for="ai-gemini"><b>Gemini</b><span>API key miễn phí từ Google AI Studio</span><em id="pt-gemini"></em></label>
@@ -784,7 +959,7 @@
       <p class="muted">Khi AI đang chọn bị lỗi hoặc hết hạn mức, app tự chuyển sang nguồn khác đã sẵn sàng và cho bạn biết. Mở từng nguồn bên dưới để thiết lập.</p>
     </div>
     <details class="card provider" id="pd-local"><summary><span class="sum"><b>Model trên máy</b><span class="grow"></span><span class="row" id="ps-local"></span></span></summary>
-      <div class="pbody"><div id="model-llm"></div><div id="model-stt"></div><div id="model-sttzh"></div><div id="usage-local"></div></div></details>
+      <div class="pbody"><div id="model-llm"></div><div id="model-llm15"></div><div id="model-stt"></div><div id="model-sttzh"></div><div id="usage-local"></div></div></details>
     <details class="card provider" id="pd-codex"><summary><span class="sum"><b>ChatGPT qua Codex</b><span class="grow"></span><span class="row" id="ps-codex"></span></span></summary><div class="pbody" id="pv-codex"></div></details>
     <details class="card provider" id="pd-chatgpt"><summary><span class="sum"><b>ChatGPT</b><span class="grow"></span><span class="row" id="ps-chatgpt"></span></span></summary><div class="pbody" id="pv-chatgpt"></div></details>
     <details class="card provider" id="pd-gemini"><summary><span class="sum"><b>Gemini</b><span class="grow"></span><span class="row" id="ps-gemini"></span></span></summary><div class="pbody" id="pv-gemini"></div></details>
@@ -820,10 +995,10 @@
       <div id="voice-kokoro"></div>
       <div class="setting-row">
         <div><b>Giọng</b><div class="muted" id="voice-hint">Anh-Mỹ hay Anh-Anh, và giọng cụ thể nếu máy có nhiều giọng.</div></div>
-        <div class="seg only-en" id="s-accent" role="radiogroup" aria-label="Giọng">
+        <div class="only-en"><div class="seg" id="s-accent" role="radiogroup" aria-label="Giọng">
           <input type="radio" name="accent" id="ac-en-US" value="en-US"><label for="ac-en-US">Anh-Mỹ</label>
           <input type="radio" name="accent" id="ac-en-GB" value="en-GB"><label for="ac-en-GB">Anh-Anh</label>
-        </div>
+        </div></div>
         <select id="s-voice" aria-label="Giọng cụ thể"></select>
       </div>
       <div class="setting-row">
@@ -924,7 +1099,7 @@ const app = {
 window.app = app;
 
 let state = { settings: {}, models: {}, words: [], editing: null, xpToday: 0, totalXp: 0, days: [], celebrated: "", stats: null, forecast: [],
-              platform: "", hotkeys: [], brew: false };
+              platform: "", hotkeys: [] };
 
 function onEvent(name, data) {
   if (name === "update") showUpdate(data);
@@ -1176,8 +1351,11 @@ async function switchCourse(course) {
   if (course === courseOf()) return;
   if (session) endSession();
   if (practice) quitPractice();
+  spellNew.clear();
+  spellWord.clear();
   state.settings = await app.call("set_setting", { key: "course", value: course });
   applyCourse();
+  // The settings show the speech model and the voice pack of the course.
   renderSettings();
   // The level, the streak and the badges of the other course.
   const page = document.querySelector("main section.active").id.slice(5);
@@ -1204,23 +1382,41 @@ function pickZhVoice() {
   return all.find((v) => voiceLang(v).toLowerCase() === "zh-cn") || all.find((v) => voiceLang(v).toLowerCase() === "zh-tw");
 }
 const kokoroChosen = () => String(state.settings.voice || "").startsWith("kokoro:") && !!state.voices?.[courseOf()]?.ready;
+/// Reads text aloud and answers once it has been read: the app's voices answer when playback ends, the web view's
+/// when the utterance ends or is cut off.
 function speak(text, slow = false) {
-  if (!text) return;
+  if (!text) return Promise.resolve();
   const rate = +state.settings.speech_rate || 0.95;
   const zh = hasHan(text);
   if (zh === (courseOf() === "zh") && kokoroChosen()) {
     return app.call("speak", { text, slow, accent: state.settings.accent || "en-US", rate }).catch((e) => toast(String(e)));
   }
   const voice = zh ? pickZhVoice() : pickVoice();
-  if (voice) {
+  if (!voice) return app.call("speak", { text, slow, accent: zh ? "zh-CN" : (state.settings.accent || "en-US"), rate }).catch(() => {});
+  return new Promise((resolve) => {
     const u = new SpeechSynthesisUtterance(text);
     u.voice = voice;
     u.lang = voice.lang;
     u.rate = rate * (slow ? 0.65 : 1);
+    // ponytail: some web views never fire onend, so a guess at the reading time ends the wait; onend wins where it fires.
+    const timer = setTimeout(resolve, 1500 + ((zh ? 400 : 90) * text.length) / u.rate);
+    u.onend = u.onerror = () => { clearTimeout(timer); resolve(); };
     speechSynthesis.cancel();
     speechSynthesis.speak(u);
-  } else {
-    app.call("speak", { text, slow, accent: zh ? "zh-CN" : (state.settings.accent || "en-US"), rate }).catch(() => {});
+  });
+}
+/// A listen button stays busy while its speech plays and comes back once it ends; a press while busy does nothing.
+async function sayWith(button, text, slow = false) {
+  if (button.classList.contains("loading")) return;
+  button.classList.add("loading");
+  button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  try {
+    await speak(text, slow);
+  } finally {
+    button.classList.remove("loading");
+    button.disabled = false;
+    button.removeAttribute("aria-busy");
   }
 }
 if (window.speechSynthesis) {
@@ -1245,8 +1441,8 @@ function pronWidget(container, word, { onScore } = {}) {
   const buttons = { rec: container.querySelector('[data-a="rec"]'), sentence: container.querySelector('[data-a="rec-sentence"]') };
   const result = container.querySelector(".result");
   let active = null;
-  container.querySelector('[data-a="listen"]').onclick = () => speak(word.word);
-  container.querySelector('[data-a="slow"]').onclick = () => speak(word.word, true);
+  container.querySelector('[data-a="listen"]').onclick = (e) => sayWith(e.currentTarget, word.word);
+  container.querySelector('[data-a="slow"]').onclick = (e) => sayWith(e.currentTarget, word.word, true);
   const stop = async () => {
     const take = active;
     if (!take) return;
@@ -1373,7 +1569,7 @@ function wordDetail(w) {
 }
 document.addEventListener("click", (e) => {
   const say = e.target.closest("[data-say]");
-  if (say) speak(say.dataset.say);
+  if (say) sayWith(say, say.dataset.say);
   const link = e.target.closest("[data-link]");
   if (link) {
     e.preventDefault();
@@ -1475,11 +1671,34 @@ function showSessionCard() {
       <button class="btn g-hard" data-q="2">Khó <kbd>2</kbd></button>
       <button class="btn g-good" data-q="3">Được <kbd>3</kbd></button>
       <button class="btn g-easy" data-q="4">Dễ <kbd>4</kbd></button>
+      <button class="btn ghost" id="btn-session-skip">Bỏ qua từ này, không học nữa</button>
     </div>`;
   slideIn(card);
   speak(w.word);
   $("btn-flip").onclick = flip;
-  $("grade-row").querySelectorAll("button").forEach((b) => (b.onclick = () => grade(+b.dataset.q, b)));
+  $("grade-row").querySelectorAll("[data-q]").forEach((b) => (b.onclick = () => grade(+b.dataset.q, b)));
+  $("btn-session-skip").onclick = skipInSession;
+}
+/// Takes a word out of learning for good; answers whether it worked.
+async function skipWord(w) {
+  try {
+    Object.assign(w, await app.call("skip", { id: w.id, on: true }));
+  } catch (e) {
+    toast(String(e));
+    return false;
+  }
+  toast(`Đã bỏ qua "${w.word}". Muốn học lại, vào Từ vựng, mục Bỏ qua.`);
+  refreshBadges();
+  return true;
+}
+async function skipInSession() {
+  const w = session && session.queue[0];
+  if (!w || !(await skipWord(w))) return;
+  // Any copy waiting at the end (a forgotten word comes back) and its answers to undo go with it.
+  session.queue = session.queue.filter((x) => x.id !== w.id);
+  session.history = session.history.filter((h) => h.word.id !== w.id);
+  session.total = session.done + session.queue.length;
+  showSessionCard();
 }
 function flip() {
   if (!session || session.flipped || !session.queue[0]) return;
@@ -1556,16 +1775,53 @@ document.addEventListener("keydown", (e) => {
 // Word list and editor
 const FIELDS = ["word", "ipa", "pos", "meaning", "explain", "example", "example_vi", "hanviet", "example_reading", "synonyms", "antonyms", "collocations", "level", "topic", "note"];
 const EXPLAINED = ["pos", "meaning", "explain", "example", "example_vi", "example_reading", "hanviet", "synonyms", "antonyms", "collocations", "level"];
+/// Spelling checked while a word is typed: a likely slip is marked, with what was probably meant to click in.
+function spellCheck(input, hint) {
+  let timer, asked = 0;
+  const clear = () => { asked++; clearTimeout(timer); input.removeAttribute("aria-invalid"); if (hint) hint.innerHTML = ""; };
+  const check = () => {
+    const word = input.value.trim();
+    clear();
+    if (!word || !hint) return;
+    const mine = asked;
+    timer = setTimeout(async () => {
+      const r = await app.call("spell", { word }).catch(() => ({ ok: true }));
+      // A newer check, or the text changed while this one was asked.
+      if (mine !== asked || r.ok) return;
+      input.setAttribute("aria-invalid", "true");
+      const list = r.suggestions || [];
+      hint.innerHTML = list.length
+        ? `Có thể bạn viết sai chính tả. Ý bạn là: ${list.map((s) => `<button type="button" class="sp-chip" data-fix="${esc(s)}">${esc(s)}</button>`).join(" ")}`
+        : hasHan(word) ? "Không thấy từ này trong từ điển CC-CEDICT, hãy kiểm tra lại chữ Hán." : "Có thể bạn viết sai chính tả.";
+    }, 250);
+  };
+  input.addEventListener("input", check);
+  hint?.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-fix]");
+    if (!b) return;
+    input.value = b.dataset.fix;
+    input.focus();
+    check();
+  });
+  return { check, clear };
+}
+const spellNew = spellCheck($("new-word"), $("spell-new-word"));
+const spellWord = spellCheck($("f-word"), $("spell-f-word"));
 function openEditor(w, status = "") {
   state.editing = w;
   FIELDS.forEach((f) => ($("f-" + f).value = w[f] || ""));
   $("editor-status").textContent = status;
   $("editor-error").textContent = "";
   $("editor").classList.remove("hidden");
+  // The word moves into the editor, and so does its spelling hint.
+  spellNew.clear();
+  spellWord.check();
 }
 function closeEditor() {
   state.editing = null;
   $("editor").classList.add("hidden");
+  spellNew.clear();
+  spellWord.clear();
 }
 async function explainInto(word) {
   $("editor-status").innerHTML = `<span class="thinking">${st("mascot-think")}<span>AI đang giải thích từ, chờ vài giây...</span></span>`;
@@ -1594,7 +1850,6 @@ $("btn-add").onclick = () => addWord(true);
 $("btn-manual").onclick = () => addWord(false);
 $("new-word").addEventListener("keydown", (e) => { if (e.key === "Enter") addWord(true); });
 $("btn-cancel").onclick = closeEditor;
-$("btn-listen").onclick = () => speak($("f-word").value);
 $("btn-reexplain").onclick = () => explainInto($("f-word").value.trim());
 $("btn-save").onclick = async () => {
   const w = { ...state.editing };
@@ -1725,8 +1980,9 @@ $("btn-add-all").onclick = async () => {
   confetti(120);
 };
 
-const statusOf = (w) => (w.learned_at === 0 ? "new" : w.due <= nowSec() ? "due" : "known");
+const statusOf = (w) => (w.skipped ? "skipped" : w.learned_at === 0 ? "new" : w.due <= nowSec() ? "due" : "known");
 function status(w) {
+  if (w.skipped) return '<span class="tag skipped">Đã bỏ qua</span>';
   if (w.learned_at === 0) return '<span class="tag new">Mới</span>';
   const days = Math.ceil((w.due - nowSec()) / 86400);
   return days <= 0 ? '<span class="tag due">Cần ôn</span>' : `<span class="tag">Ôn sau ${days} ngày</span>`;
@@ -1752,9 +2008,9 @@ function renderWords() {
   $("topic-filter").value = topics.includes(picked) ? picked : "";
   $("topic-list").innerHTML = topics.map((t) => `<option value="${esc(t)}">`).join("");
   const inTopic = $("topic-filter").value ? state.words.filter((w) => w.topic === $("topic-filter").value) : state.words;
-  const counts = { all: inTopic.length, new: 0, due: 0, known: 0 };
+  const counts = { all: inTopic.length, new: 0, due: 0, known: 0, skipped: 0 };
   inTopic.forEach((w) => counts[statusOf(w)]++);
-  for (const [k, n] of Object.entries(counts)) $("wfn-" + k).textContent = n;
+  for (const [k, n] of Object.entries(counts)) if ($("wfn-" + k)) $("wfn-" + k).textContent = n;
   const shown = filter === "all" ? inTopic : inTopic.filter((w) => statusOf(w) === filter);
   const narrowed = $("search").value.trim() || filter !== "all" || $("topic-filter").value;
   $("word-count").textContent = narrowed ? `Đang hiện ${shown.length} từ` : `${shown.length} từ trong danh sách của bạn`;
@@ -1806,13 +2062,14 @@ function openWord(id) {
   viewing = w;
   const history = w.reps ? `Đã ôn ${w.reps} lần, quên ${w.lapses} lần.${w.learned_at ? ` Lần ôn tới: ${shortDate(w.due)}.` : ""}` : "Chưa ôn lần nào.";
   $("word-detail").innerHTML = `
-    <div class="wd-head"><div class="wd-word grow">${esc(w.word)}</div>${w.level ? `<span class="tag plain">${esc(w.level)}</span>` : ""}${status(w)}</div>
+    <div class="wd-head"><div class="wd-word grow">${esc(w.word)}</div>${w.level ? `<span class="tag plain">${esc(w.level)}</span>` : ""}<span id="wd-status">${status(w)}</span></div>
     ${wordDetail(w)}
     <div class="wd-meta muted">${w.topic ? `Chủ đề: ${esc(w.topic)}. ` : ""}${history}</div>
     <div class="pron" id="wd-pron"></div>
     <div class="pron" id="wd-write"></div>
     <div class="row wd-actions">
       <button class="btn" data-wd="edit">Sửa</button>
+      <button class="btn" data-wd="skip">${w.skipped ? "Học lại từ này" : "Bỏ qua từ này"}</button>
       <button class="btn danger" data-wd="del">Xóa</button>
       <span class="grow"></span>
       <button class="btn" data-say="${esc(w.word)}">Nghe</button>
@@ -1838,6 +2095,19 @@ $("word-modal").addEventListener("click", async (e) => {
   if (b.dataset.wd === "close") closeWord();
   if (b.dataset.wd === "edit") { closeWord(); openEditor(w); $("page-words").scrollIntoView({ behavior: "smooth" }); }
   if (b.dataset.wd === "del") deleteWord(w, b);
+  if (b.dataset.wd === "skip") {
+    b.disabled = true;
+    try {
+      Object.assign(w, await app.call("skip", { id: w.id, on: !w.skipped }));
+      toast(w.skipped ? `Đã bỏ qua "${w.word}", từ này không còn trong buổi học và bài tập` : `Đã đưa "${w.word}" trở lại danh sách học`);
+      b.textContent = w.skipped ? "Học lại từ này" : "Bỏ qua từ này";
+      $("wd-status").innerHTML = status(w);
+      refreshBadges();
+    } catch (err) {
+      toast(String(err));
+    }
+    b.disabled = false;
+  }
 });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeWord(); });
 
@@ -1896,7 +2166,7 @@ document.querySelectorAll("#practice-menu [data-kind]").forEach((b) => (b.onclic
 async function startPractice(kind) {
   $("practice-error").textContent = "";
   if (kind === "story") return startStory([]);
-  const all = (await listCourse()).filter((w) => w.meaning);
+  const all = (await listCourse()).filter((w) => w.meaning && !w.skipped);
   if (kind === "choice" && all.length < 4) return ($("practice-error").textContent = "Cần ít nhất 4 từ có nghĩa để làm bài chọn đáp án.");
   if (!all.length) return ($("practice-error").textContent = "Chưa có từ nào có nghĩa để luyện tập.");
   const source = $("practice-source").value;
@@ -1928,6 +2198,8 @@ $("btn-practice-quit").onclick = quitPractice;
 /// soon; `xp` is off where the answer already earned its experience.
 async function answered(w, ok, near, { grade = true, xp = true } = {}) {
   const card = $("practice-card");
+  // Kept so that skipping the word after answering takes the answer back out of the score.
+  practice.last = { at: practice.at, ok };
   if (ok) {
     practice.right++;
     practice.combo++;
@@ -1951,6 +2223,20 @@ async function answered(w, ok, near, { grade = true, xp = true } = {}) {
   }
 }
 function next() { practice.at++; showPractice(); }
+/// The word leaves this run and learning for good, counted neither right nor wrong.
+async function skipInPractice(w) {
+  const p = practice;
+  if (!(await skipWord(w)) || practice !== p) return;
+  if (p.last && p.last.at === p.at) {
+    if (p.last.ok) p.right--;
+    else p.wrong = p.wrong.filter((x) => x.id !== w.id);
+  }
+  p.last = null;
+  p.items.splice(p.at, 1);
+  p.all = p.all.filter((x) => x.id !== w.id);
+  if (!p.items.length) return quitPractice();
+  showPractice();
+}
 const verdict = (ok, answer) => (ok ? `<div class="ok pop">${st("fb-right", "fb")}Chính xác!</div>`
   : `<div class="error">${st("fb-wrong", "fb")}<span>Chưa đúng. Đáp án: <b>${answer}</b></span></div>`);
 function showPractice() {
@@ -2013,8 +2299,8 @@ function showPractice() {
       </div>
       <div id="fill-result"></div>`;
     if (dictation) {
-      $("btn-play").onclick = () => speak(answer);
-      $("btn-play-slow").onclick = () => speak(answer, true);
+      $("btn-play").onclick = (e) => sayWith(e.currentTarget, answer);
+      $("btn-play-slow").onclick = (e) => sayWith(e.currentTarget, answer, true);
       speak(answer);
     }
     const input = $("fill-input");
@@ -2084,6 +2370,8 @@ function showPractice() {
       $("btn-next").focus();
     }));
   }
+  card.insertAdjacentHTML("beforeend", `<div class="row center" style="margin-top:14px"><button class="btn ghost small" id="btn-practice-skip">Bỏ qua từ này, không học nữa</button></div>`);
+  $("btn-practice-skip").onclick = () => skipInPractice(w);
 }
 document.addEventListener("keydown", (e) => {
   if (!practice || practice.kind !== "choice" || !$("page-practice").classList.contains("active")) return;
@@ -2128,7 +2416,7 @@ function renderStory(s) {
     <div class="muted small" style="margin-top:10px">${byHtml(s)}</div>
     <div class="row"><button class="btn primary" id="btn-story-read">Nghe cả truyện</button><button class="btn" id="btn-story-again">Viết truyện khác</button><button class="btn" id="btn-back">Xong</button></div>
   </div>`;
-  $("btn-story-read").onclick = () => speak(s.story);
+  $("btn-story-read").onclick = (e) => sayWith(e.currentTarget, s.story);
   $("btn-story-again").onclick = () => startStory(s.words);
   $("btn-back").onclick = quitPractice;
   gainXp(5, $("btn-story-read"));
@@ -2199,7 +2487,7 @@ function renderForecast() {
   $("forecast-total").textContent = `${f.reduce((a, b) => a + b, 0)} lượt ôn`;
 }
 function renderHard(words) {
-  const hard = words.filter((w) => w.lapses > 0).sort((a, b) => b.lapses - a.lapses || b.difficulty - a.difficulty).slice(0, 6);
+  const hard = words.filter((w) => w.lapses > 0 && !w.skipped).sort((a, b) => b.lapses - a.lapses || b.difficulty - a.difficulty).slice(0, 6);
   $("hard-list").innerHTML = hard.map((w) => `<div class="hard-row"><span><b>${esc(w.word)}</b> <span class="muted">${esc(w.meaning)}</span></span><span class="tag due">Quên ${w.lapses} lần</span></div>`).join("")
     || `<div class="empty-mini">${st("mascot-cheer")}<span class="muted">Chưa có từ nào bị quên. Giỏi quá!</span></div>`;
   $("btn-practice-hard").disabled = !hard.length;
@@ -2304,7 +2592,7 @@ function ready(p) {
   if (p === "codex") return !!(s.codex && s.codex.signed_in);
   if (p === "gemini") return !!s.has_gemini_key;
   if (p === "deepseek") return !!s.has_deepseek_key;
-  return !!(state.models.llm && state.models.llm.ready);
+  return !!(state.models.llm?.ready || state.models.llm15?.ready);
 }
 
 async function loadUsage() {
@@ -2482,29 +2770,60 @@ function renderVoices() {
 function renderVoicePack() {
   const course = courseOf(), pack = state.voices?.[course];
   if (!pack) return;
-  const group = "voice-" + course;
-  $("voice-kokoro").innerHTML = `
-    <div class="model-row">
-      <div class="grow"><b>Giọng Kokoro ${course === "zh" ? "tiếng Trung" : "tiếng Anh"}</b> <span class="muted">${Math.round(pack.size / 1e6)} MB</span>
-        <div class="muted">Giọng đọc tự nhiên, chạy trên máy, không cần mạng</div></div>
-      ${pack.ready ? '<span class="tag ok">Đã sẵn sàng</span>' : `<button class="btn primary small" id="dl-${group}">Tải về</button>`}
-    </div>
-    <div class="row dl hidden" id="dlrow-${group}"><div class="grow progress"><div id="bar-${group}"></div></div><span class="muted num" id="mb-${group}"></span></div>
-    <div class="error" id="dlerr-${group}"></div>`;
-  const btn = $("dl-" + group);
-  if (btn) btn.onclick = async () => {
-    btn.disabled = true;
-    $("dlrow-" + group).classList.remove("hidden");
-    try {
+  downloadRow($("voice-kokoro"), "voice-" + course, {
+    name: `Giọng Kokoro ${course === "zh" ? "tiếng Trung" : "tiếng Anh"}`, size: pack.size, ready: pack.ready,
+    use: "Giọng đọc tự nhiên, chạy trên máy, không cần mạng",
+    actions: `<span class="tag ok">Đã sẵn sàng</span><button class="btn small danger" data-act="voice-del" data-p="${course}">Xóa</button>`,
+    fetch: async () => {
       state.voices = await app.call("download_voice", { course });
       const first = (state.kokoroVoices || []).find((v) => v.lang === course);
       // A download is a choice of the new voice; the learner can pick another one after.
       if (first && courseOf() === course) await saveSetting("voice", "kokoro:" + first.sid);
       toast("Đã tải xong giọng Kokoro");
+    },
+    retry: "Bấm Tải về để thử lại.",
+  });
+}
+const MODELS = {
+  llm: ["Qwen2.5 0.5B", "Giải thích nghĩa, gợi ý từ mới bằng tiếng Việt; nhanh, nhẹ"],
+  llm15: ["Qwen2.5 1.5B", "Hiểu và dịch tốt hơn, chậm hơn"],
+  stt: ["Whisper tiny.en", "Nghe và chấm điểm phát âm tiếng Anh"],
+  sttzh: ["Whisper tiny đa ngôn ngữ", "Nghe và chấm điểm phát âm tiếng Trung"],
+};
+const sizeText = (bytes) => (bytes >= 1e9 ? (bytes / 1e9).toFixed(1).replace(".", ",") + " GB" : Math.round(bytes / 1e6) + " MB");
+/// The model on this machine that answers: the chosen one once downloaded, else the other one if it is.
+function localModel() {
+  const want = state.settings.local_model === "llm15" ? "llm15" : "llm", other = want === "llm" ? "llm15" : "llm";
+  return state.models[want]?.ready || !state.models[other]?.ready ? want : other;
+}
+/// Downloads still running, so that the settings drawn again keep their progress bar.
+state.downloading = {};
+/// A model or voice pack: what it is, its size, and the download, or the `actions` once it is there.
+function downloadRow(box, group, { name, size, use, ready, active = false, actions, fetch, retry }) {
+  const busy = state.downloading[group];
+  box.innerHTML = `
+    <div class="model-row ${active ? "active" : ""}">
+      <div class="grow"><b>${name}</b> <span class="muted">${sizeText(size)}</span><div class="muted">${use}</div></div>
+      <div class="model-actions">${ready ? actions : `<button class="btn primary small" id="dl-${group}" ${busy ? "disabled" : ""}>${busy ? "Đang tải..." : "Tải về"}</button>`}</div>
+    </div>
+    <div class="row dl ${busy ? "" : "hidden"}" id="dlrow-${group}"><div class="grow progress"><div id="bar-${group}"></div></div><span class="muted num" id="mb-${group}"></span></div>
+    <div class="error" id="dlerr-${group}"></div>`;
+  const btn = $("dl-" + group);
+  if (btn) btn.onclick = async () => {
+    state.downloading[group] = true;
+    btn.disabled = true;
+    btn.textContent = "Đang tải...";
+    $("dlrow-" + group).classList.remove("hidden");
+    let error = "";
+    try {
+      await fetch();
     } catch (e) {
-      $("dlerr-" + group).textContent = e + ". Bấm Tải về để thử lại.";
+      error = `${e}. ${retry}`;
     }
+    delete state.downloading[group];
     renderSettings();
+    // After drawing, which would wipe it.
+    if (error && $("dlerr-" + group)) $("dlerr-" + group).textContent = error;
   };
 }
 function hotkeyLabel(key) {
@@ -2531,34 +2850,31 @@ function renderSettings() {
   $("s-hotkey").innerHTML = `<option value="">Tắt</option>` + state.hotkeys.map((k) => `<option value="${esc(k)}">${esc(hotkeyLabel(k))}</option>`).join("");
   $("s-hotkey").value = s.hotkey || "";
   $("hotkey-error").textContent = s.hotkey_error || "";
-  renderModel("llm", "Qwen2.5 0.5B", "Giải thích nghĩa, gợi ý từ mới bằng tiếng Việt");
-  renderModel("stt", "Whisper tiny.en", "Nghe và chấm điểm phát âm");
-  renderModel("sttzh", "Whisper tiny đa ngôn ngữ", "Chấm phát âm tiếng Trung");
+  if (!$("model-llm15")) $("model-llm").insertAdjacentHTML("afterend", '<div id="model-llm15"></div>');
+  const zh = courseOf() === "zh";
+  // Each course shows only its own speech model, as it has its own voice pack.
+  ["llm", "llm15", zh ? "sttzh" : "stt"].forEach(renderModel);
+  $("model-" + (zh ? "stt" : "sttzh")).innerHTML = "";
   renderProviders();
 }
-function renderModel(group, name, use) {
-  const m = state.models[group];
-  const mb = Math.round(m.size / 1e6);
-  $("model-" + group).innerHTML = `
-    <div class="model-row">
-      <div class="grow"><b>${name}</b> <span class="muted">${mb} MB</span><div class="muted">${use}</div></div>
-      ${m.ready ? '<span class="tag ok">Đã sẵn sàng</span>' : `<button class="btn primary small" id="dl-${group}">Tải về</button>`}
-    </div>
-    <div class="row dl hidden" id="dlrow-${group}"><div class="grow progress"><div id="bar-${group}"></div></div><span class="muted num" id="mb-${group}"></span></div>
-    <div class="error" id="dlerr-${group}"></div>`;
-  const btn = $("dl-" + group);
-  if (btn) btn.onclick = async () => {
-    btn.disabled = true;
-    $("dlrow-" + group).classList.remove("hidden");
-    $("dlerr-" + group).textContent = "";
-    try {
+function renderModel(group) {
+  const m = state.models[group], box = $("model-" + group);
+  if (!box) return;
+  if (!m) { box.innerHTML = ""; return; }
+  const llm = group.startsWith("llm"), active = llm && m.ready && localModel() === group;
+  const use = active ? '<span class="tag">Đang dùng</span>'
+    : llm ? `<button class="btn small" data-act="model-use" data-p="${group}">Dùng model này</button>` : '<span class="tag ok">Đã sẵn sàng</span>';
+  downloadRow(box, group, {
+    name: MODELS[group][0], size: m.size, use: MODELS[group][1], ready: m.ready, active,
+    actions: use + `<button class="btn small danger" data-act="model-del" data-p="${group}">Xóa</button>`,
+    fetch: async () => {
       state.models = await app.call("download", { group });
+      // A downloaded model is a choice of it, as a downloaded voice is.
+      if (llm) await saveSetting("local_model", group);
       toast("Đã tải xong model");
-    } catch (e) {
-      $("dlerr-" + group).textContent = e + ". Bấm Tải về để tải tiếp phần còn lại.";
-    }
-    renderSettings();
-  };
+    },
+    retry: "Bấm Tải về để tải tiếp phần còn lại.",
+  });
 }
 const saveSetting = async (key, value) => { state.settings = await app.call("set_setting", { key, value: String(value) }); renderSettings(); };
 $("ai-tiles").addEventListener("change", (e) => {
@@ -2588,9 +2904,9 @@ $("s-accent").addEventListener("change", async (e) => {
 $("s-voice").onchange = (e) => saveSetting("voice", e.target.value);
 $("s-speech_rate").oninput = (e) => ($("rate-label").textContent = rateLabel(+e.target.value));
 $("s-speech_rate").onchange = (e) => saveSetting("speech_rate", e.target.value);
-$("btn-f-say").onclick = () => speak($("f-word").value.trim());
-$("btn-f-say-slow").onclick = () => speak($("f-word").value.trim(), true);
-$("btn-voice-test").onclick = () => speak(courseOf() === "zh" ? "你好！我会这样读你的新词。" : "Hello! I will read your new words like this.");
+$("btn-f-say").onclick = (e) => sayWith(e.currentTarget, $("f-word").value.trim());
+$("btn-f-say-slow").onclick = (e) => sayWith(e.currentTarget, $("f-word").value.trim(), true);
+$("btn-voice-test").onclick = (e) => sayWith(e.currentTarget, courseOf() === "zh" ? "你好！我会这样读你的新词。" : "Hello! I will read your new words like this.");
 $("s-hotkey").onchange = (e) => saveSetting("hotkey", e.target.value);
 $("s-theme").addEventListener("change", (e) => { applyTheme(e.target.value); saveSetting("theme", e.target.value); });
 $("s-palette").addEventListener("change", (e) => { applyPalette(e.target.value); saveSetting("palette", e.target.value); });
@@ -2728,6 +3044,23 @@ $("page-settings").addEventListener("click", async (e) => {
     case "clear-key":
       delete state.modelLists[p];
       return saveSetting(p + "_key", "");
+    case "model-use":
+      await saveSetting("local_model", p);
+      return toast(`Đang dùng ${MODELS[p][0]}`);
+    case "model-del":
+    case "voice-del": {
+      if (!armed(b)) return;
+      const model = b.dataset.act === "model-del";
+      try {
+        const r = await app.call(model ? "delete_model" : "delete_voice", model ? { group: p } : { course: p });
+        if (model) state.models = r.models; else state.voices = r.voices;
+        state.settings = r.settings;
+        toast(model ? `Đã xóa ${MODELS[p][0]}` : "Đã xóa giọng Kokoro");
+      } catch (err) {
+        toast(String(err));
+      }
+      return renderSettings();
+    }
     case "balance": {
       b.disabled = true;
       try {
@@ -2744,60 +3077,96 @@ $("page-settings").addEventListener("click", async (e) => {
   }
 });
 
-// Updates: from GitHub Releases, or through Homebrew or the Windows install script when that is where the app came from.
-const UPDATE_BY = {
-  brew: "Cập nhật bằng lệnh <code>brew upgrade --cask card-english</code>",
-  script: "Cập nhật: mở PowerShell rồi chạy <code>irm https://raw.githubusercontent.com/eliasbui/app-card-english/main/scripts/install.ps1 | iex</code>",
-};
-const updateBy = () => (state.brew ? UPDATE_BY.brew : state.script ? UPDATE_BY.script : "");
-// Both places that talk about an update show the same thing, so one render fills them both.
-let updateState = { check: null, phase: "found", percent: 0, error: "" };
+// Updates: found on GitHub Releases, downloaded and put in place by the app itself after the learner says yes,
+// then the app starts again on its own.
+let updateState = { check: null, phase: "found", percent: 0, error: "", asked: new Set() };
+const updating = () => updateState.phase !== "found";
 function renderUpdate() {
   const { check: c, phase, percent, error } = updateState;
   if (!c || !c.newer) return;
-  let html;
-  if (phase === "installing") html = `Đang tải bản <b>${esc(c.latest)}</b>... ${percent < 99 ? percent + "%" : "đang cài"}`;
-  else if (phase === "ready") html = `Đã cài bản <b>${esc(c.latest)}</b>. <button class="btn" data-update="restart">Khởi động lại</button>`;
-  else if (c.installable) html = `Có bản mới <b>${esc(c.latest)}</b>. <button class="btn" data-update="install">Cập nhật ngay</button>`;
-  else html = `Có bản mới <b>${esc(c.latest)}</b>. ` + (updateBy() || `<a href="#" data-update="open">Mở trang tải về</a>`);
-  if (error) html += `<div class="error">${esc(error)} <a href="#" data-update="open">Tải bằng tay</a></div>`;
+  // The sidebar and the settings show a short line; the dialog has the rest.
+  const line = phase === "installing" ? `Đang cập nhật bản <b>${esc(c.latest)}</b>... ${percent < 99 ? percent + "%" : "đang cài"}`
+    : phase === "restarting" ? "Đang khởi động lại..."
+    : `Có bản mới <b>${esc(c.latest)}</b>. <button class="btn small" data-update="dialog">Cập nhật</button>`;
   const banner = $("update-banner");
   banner.style.display = "block";
-  banner.innerHTML = $("update-result").innerHTML = html;
+  banner.innerHTML = $("update-result").innerHTML = line;
+  if (!$("update-modal")) return;
+  $("update-title").textContent = `Có bản mới ${c.latest}`;
+  let body = c.notes ? `<div class="update-notes">${esc(c.notes)}</div>` : "";
+  let actions = "";
+  if (phase === "installing") {
+    body += `<p>Đang tải và cài bản ${esc(c.latest)}, đừng tắt app.</p><div class="progress"><div style="width:${percent}%"></div></div>
+      <p class="muted small num">${percent < 99 ? percent + "%" : "Đang cài đặt..."}</p>`;
+  } else if (phase === "restarting") {
+    body += "<p>Đã cài xong. Đang khởi động lại...</p>";
+  } else if (error) {
+    body += `<p class="error">${esc(error)}</p>`;
+    actions = (c.installable ? '<button class="btn primary" data-update="install">Thử lại</button>' : "")
+      + '<button class="btn" data-update="open">Tải bằng tay</button><button class="btn" data-update="later">Đóng</button>';
+  } else if (c.installable) {
+    body += "<p>Bạn có muốn cập nhật ngay không? App sẽ tự khởi động lại sau khi cập nhật.</p>";
+    actions = '<button class="btn primary" data-update="install">Cập nhật ngay</button><button class="btn" data-update="later">Để sau</button>';
+  } else {
+    body += "<p>Bản đang chạy không tự cập nhật được, hãy tải bản mới từ trang phát hành.</p>";
+    actions = '<button class="btn primary" data-update="open">Mở trang tải về</button><button class="btn" data-update="later">Để sau</button>';
+  }
+  $("update-body").innerHTML = body;
+  $("update-actions").innerHTML = actions;
 }
+function openUpdate() {
+  if (!updateState.check || !$("update-modal")) return;
+  renderUpdate();
+  $("update-modal").classList.remove("hidden");
+  $("update-actions").querySelector(".btn")?.focus();
+}
+function closeUpdate() {
+  if (!updating()) $("update-modal")?.classList.add("hidden");
+}
+/// A newer version found: the dialog asks once per version each time the app runs.
 function showUpdate(c) {
-  if (!c || !c.newer || updateState.phase !== "found") return;
+  if (!c || !c.newer || updating()) return;
   updateState.check = c;
   renderUpdate();
+  if (!updateState.asked.has(c.latest)) {
+    updateState.asked.add(c.latest);
+    openUpdate();
+  }
 }
 async function installUpdate() {
   Object.assign(updateState, { phase: "installing", percent: 0, error: "" });
   renderUpdate();
   try {
     await app.call("install_update");
-    updateState.phase = "ready";
+    updateState.phase = "restarting";
+    renderUpdate();
+    // The app quits here and opens again as the new version.
+    await app.call("restart");
   } catch (e) {
     Object.assign(updateState, { phase: "found", error: String(e) });
+    renderUpdate();
   }
-  renderUpdate();
 }
 document.addEventListener("click", (e) => {
   const action = e.target.closest("[data-update]")?.dataset.update;
   if (!action) return;
   e.preventDefault();
+  if (action === "dialog") openUpdate();
   if (action === "install") installUpdate();
-  if (action === "restart") app.call("restart").catch((err) => toast(String(err)));
-  if (action === "open") app.call("open_url", { url: updateState.check.url });
+  if (action === "later") closeUpdate();
+  if (action === "open") app.call("open_url", { url: updateState.check.url }).catch((err) => toast(String(err)));
 });
+$("update-modal")?.addEventListener("click", (e) => { if (e.target === $("update-modal")) closeUpdate(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeUpdate(); });
 $("btn-update").onclick = async () => {
-  if (updateState.phase !== "found") return renderUpdate();
+  if (updating()) return openUpdate();
   $("update-result").textContent = "Đang kiểm tra...";
   try {
     const c = await app.call("check_update");
     if (c.newer) {
       showUpdate(c);
-      // Pressing the button was the asking, as in figghost.
-      if (c.installable) installUpdate();
+      // Pressing the button was the asking, so the dialog opens even for a version asked about before.
+      openUpdate();
     } else {
       $("update-result").textContent = `Bạn đang dùng bản mới nhất (${c.latest}).`;
     }
@@ -2836,8 +3205,6 @@ async function quickAdd(text) {
   state.kokoroVoices = init.kokoro_voices || [];
   state.platform = init.platform || "";
   state.hotkeys = init.hotkeys || [];
-  state.brew = !!init.brew;
-  state.script = !!init.script;
   applyTheme(state.settings.theme);
   applyCourse();
   $("version").textContent = init.version;

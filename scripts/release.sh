@@ -1,7 +1,6 @@
 #!/bin/sh
-# Releases a version: bumps it, builds the macOS app here (Apple silicon and Intel in one), tags and pushes,
-# publishes the GitHub release with the macOS zip, and points the Homebrew cask at it. The release workflow then
-# builds the Windows zip and adds it to the same release.
+# Releases a version: bumps it, builds the macOS app (Apple silicon and Intel in one) and the Windows app here,
+# tags and pushes, publishes the GitHub release with both zips, and points the Homebrew cask at the macOS one.
 #
 #   scripts/release.sh 0.2.0
 set -eu
@@ -13,6 +12,7 @@ echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "a version is th
 [ -z "$(git status --porcelain)" ] || { echo "commit your changes first" >&2; exit 1; }
 git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null && { echo "v$VERSION is already tagged" >&2; exit 1; }
 gh auth status >/dev/null 2>&1 || { echo "sign in to GitHub first: gh auth login" >&2; exit 1; }
+docker info >/dev/null 2>&1 || { echo "start Docker first; it builds the Windows app" >&2; exit 1; }
 
 sed -i.bak "1,/^version = /s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml && rm Cargo.toml.bak
 cargo update --workspace --offline -q
@@ -23,16 +23,16 @@ UNIVERSAL=1 scripts/bundle-macos.sh
 ZIP="dist/CardEnglish-$VERSION-macos.zip"
 rm -f "$ZIP"
 ditto -c -k --keepParent "dist/Card English.app" "$ZIP"
+scripts/package-windows.sh
+WINZIP="dist/CardEnglish-$VERSION-windows-x64.zip"
 
 # Releasing the version Cargo.toml already has leaves nothing to commit.
 git diff --quiet Cargo.toml Cargo.lock || git commit -q -m "Release $VERSION" Cargo.toml Cargo.lock
 git tag "v$VERSION"
 git push origin HEAD "v$VERSION"
 
-# The workflow may have made the release first; then the zip is added to it.
-gh release create "v$VERSION" "$ZIP" --title "v$VERSION" --generate-notes 2>/dev/null ||
-    gh release upload "v$VERSION" "$ZIP" --clobber
-echo "published v$VERSION with the macOS zip; the release workflow adds the Windows zip"
+gh release create "v$VERSION" "$ZIP" "$WINZIP" --title "v$VERSION" --generate-notes
+echo "published v$VERSION with the macOS and Windows zips"
 
 scripts/update-cask.sh "$VERSION" "$ZIP" ||
     echo "the Homebrew cask was not updated; run scripts/update-cask.sh $VERSION $ZIP once the tap can be pushed to" >&2

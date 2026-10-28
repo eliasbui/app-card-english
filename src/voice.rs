@@ -6,6 +6,7 @@ use sha2::{Digest, Sha256};
 use sherpa_onnx::{GenerationConfig, OfflineTts, OfflineTtsConfig, OfflineTtsKokoroModelConfig, OfflineTtsModelConfig};
 use std::{
     path::{Path, PathBuf},
+    process::Stdio,
     sync::Mutex,
 };
 
@@ -39,6 +40,8 @@ pub const VOICES: [(&str, i32, &str); 12] = [
 static LOADED: Mutex<Option<(&str, OfflineTts)>> = Mutex::new(None);
 /// One download of a pack at a time.
 static DOWNLOADING: Mutex<()> = Mutex::new(());
+/// One reading at a time: they share the WAV file, and two voices at once cannot be followed anyway.
+static SPEAKING: Mutex<()> = Mutex::new(());
 
 fn pack(course: &str) -> Result<(&'static str, u64, &'static str), String> {
     PACKS.iter().find(|p| p.0 == course).map(|p| (p.1, p.2, p.3)).ok_or_else(|| "Không có giọng cho khóa này".into())
@@ -79,6 +82,20 @@ pub fn download(dir: &Path, course: &str, progress: impl Fn(u64, u64)) -> Result
     Ok(())
 }
 
+/// Removes a course's pack from the disk, letting go of it first if it is the one loaded.
+pub fn delete(dir: &Path, course: &str) -> Result<(), String> {
+    let (name, ..) = pack(course)?;
+    let _not_downloading = DOWNLOADING.try_lock().map_err(|_| "Đang tải giọng đọc, chờ tải xong rồi xóa")?;
+    let mut loaded = LOADED.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if loaded.as_ref().is_some_and(|(n, _)| *n == name) {
+        *loaded = None;
+    }
+    match std::fs::remove_dir_all(folder(dir, name)) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(format!("Không xóa được giọng đọc: {e}")),
+        _ => Ok(()),
+    }
+}
+
 fn check(file: &Path, expected: &str) -> Result<(), String> {
     let mut hasher = Sha256::new();
     std::io::copy(&mut std::fs::File::open(file).map_err(|e| e.to_string())?, &mut hasher).map_err(|e| e.to_string())?;
@@ -86,21 +103,53 @@ fn check(file: &Path, expected: &str) -> Result<(), String> {
     if hex == expected { Ok(()) } else { Err("Gói giọng đọc tải về bị hỏng, hãy thử lại".into()) }
 }
 
-/// The system's tar, which reads bzip2 on macOS, Linux and Windows 10 and later.
+/// Unpacks a `.tar.bz2` here rather than with the system's tar, which on Windows 10 cannot read bzip2. Only files
+/// and folders: links need rights Windows does not give, and `unpack_in` refuses paths that leave `into`.
 fn unpack(archive: &Path, into: &Path) -> Result<(), String> {
-    let tar = if cfg!(windows) {
-        PathBuf::from(std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".into())).join(r"System32\tar.exe")
-    } else {
-        PathBuf::from("tar")
-    };
-    let status = net::command(tar).arg("-xjf").arg(archive).arg("-C").arg(into).status().map_err(|e| format!("Không chạy được tar: {e}"))?;
-    if status.success() { Ok(()) } else { Err("Không giải nén được gói giọng đọc".into()) }
+    let err = |e: std::io::Error| format!("Không giải nén được gói giọng đọc: {e}");
+    let file = std::fs::File::open(archive).map_err(err)?;
+    let mut tar = tar::Archive::new(bzip2::read::BzDecoder::new(std::io::BufReader::new(file)));
+    for entry in tar.entries().map_err(err)? {
+        let mut entry = entry.map_err(err)?;
+        let kind = entry.header().entry_type();
+        if kind.is_file() || kind.is_dir() {
+            entry.unpack_in(into).map_err(err)?;
+        }
+    }
+    Ok(())
 }
 
-/// Reads `text` aloud with voice `sid` of the course's pack, at `speed` (1 is normal).
+/// Reads `text` aloud with voice `sid` of the course's pack, at `speed` (1 is normal), and returns once it is heard.
 pub fn speak(dir: &Path, course: &str, sid: i32, text: &str, speed: f32) -> Result<(), String> {
+    let _one_at_a_time = SPEAKING.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     let wav = synthesize(dir, course, sid, text, speed)?;
     play(&wav)
+}
+
+/// A path sherpa-onnx can open. Its C API takes narrow strings, which on Windows lose letters such as those of a
+/// Vietnamese user name, so there a path that is not ASCII goes in its short 8.3 form when the disk keeps one.
+#[cfg(windows)]
+fn narrow(path: &Path) -> String {
+    use std::os::windows::ffi::{OsStrExt, OsStringExt};
+    let text = path.to_string_lossy().into_owned();
+    if text.is_ascii() {
+        return text;
+    }
+    let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+    let mut short = vec![0u16; 1024];
+    // SAFETY: `wide` ends in a zero and `short` holds as many units as it is said to.
+    let n = unsafe {
+        windows_sys::Win32::Storage::FileSystem::GetShortPathNameW(wide.as_ptr(), short.as_mut_ptr(), short.len() as u32)
+    } as usize;
+    if n == 0 || n >= short.len() {
+        return text;
+    }
+    std::ffi::OsString::from_wide(&short[..n]).to_string_lossy().into_owned()
+}
+
+#[cfg(not(windows))]
+fn narrow(path: &Path) -> String {
+    path.to_string_lossy().into_owned()
 }
 
 /// Writes the speech to a WAV file in the data folder and gives its path.
@@ -112,7 +161,7 @@ fn synthesize(dir: &Path, course: &str, sid: i32, text: &str, speed: f32) -> Res
     let mut loaded = LOADED.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
     if loaded.as_ref().is_none_or(|(n, _)| *n != name) {
         *loaded = None;
-        let path = |f: &str| Some(folder(dir, name).join(f).to_string_lossy().into_owned());
+        let path = |f: &str| Some(narrow(&folder(dir, name).join(f)));
         let lexicon = [path("lexicon-us-en.txt"), path("lexicon-zh.txt")].into_iter().flatten().collect::<Vec<_>>().join(",");
         let config = OfflineTtsConfig {
             model: OfflineTtsModelConfig {
@@ -139,10 +188,27 @@ fn synthesize(dir: &Path, course: &str, sid: i32, text: &str, speed: f32) -> Res
     let config = GenerationConfig { sid, speed: speed.clamp(0.5, 1.5), ..Default::default() };
     let audio = tts.generate_with_config(text, &config, None::<fn(&[f32], f32) -> bool>).ok_or("Kokoro không đọc được câu này")?;
     let wav = dir.join("speech.wav");
-    if !audio.save(&wav.to_string_lossy()) {
-        return Err("Không ghi được file âm thanh".into());
-    }
+    write_wav(&wav, audio.samples(), audio.sample_rate().max(1) as u32).map_err(|e| format!("Không ghi được file âm thanh: {e}"))?;
     Ok(wav)
+}
+
+/// A 16-bit mono WAV of `samples` (from -1 to 1), written here because sherpa-onnx's own writer takes a narrow path.
+fn write_wav(path: &Path, samples: &[f32], rate: u32) -> std::io::Result<()> {
+    let data = (samples.len() * 2) as u32;
+    let mut out = Vec::with_capacity(44 + data as usize);
+    out.extend_from_slice(b"RIFF");
+    out.extend_from_slice(&(36 + data).to_le_bytes());
+    // The format: PCM, one channel, the rate, bytes a second, bytes a frame, bits a sample.
+    out.extend_from_slice(b"WAVEfmt ");
+    for (value, width) in [(16, 4), (1, 2), (1, 2), (rate, 4), (rate * 2, 4), (2, 2), (16, 2)] {
+        out.extend_from_slice(&u32::to_le_bytes(value)[..width]);
+    }
+    out.extend_from_slice(b"data");
+    out.extend_from_slice(&data.to_le_bytes());
+    for s in samples {
+        out.extend_from_slice(&((s.clamp(-1.0, 1.0) * 32767.0) as i16).to_le_bytes());
+    }
+    std::fs::write(path, out)
 }
 
 // shortcut: plays through the system's player, one file at a time; stream through cpal if the start is ever too slow.
@@ -152,15 +218,17 @@ fn play(wav: &Path) -> Result<(), String> {
         c.arg(wav);
         c
     } else if cfg!(windows) {
+        // The path goes in through the environment: arguments after -Command join the script's text, not $args.
         let mut c = net::command("powershell");
-        c.args(["-NoProfile", "-Command", "(New-Object Media.SoundPlayer $args[0]).PlaySync()"]).arg(wav);
+        c.args(["-NoProfile", "-Command", "(New-Object Media.SoundPlayer $env:CARD_ENGLISH_WAV).PlaySync()"]).env("CARD_ENGLISH_WAV", wav);
         c
     } else {
         let mut c = net::command("aplay");
         c.arg("-q").arg(wav);
         c
     };
-    cmd.status().map(drop).map_err(|e| format!("Không phát được âm thanh: {e}"))
+    let status = cmd.stdin(Stdio::null()).status().map_err(|e| format!("Không phát được âm thanh: {e}"))?;
+    if status.success() { Ok(()) } else { Err("Không phát được âm thanh".into()) }
 }
 
 #[cfg(test)]
@@ -174,6 +242,49 @@ mod tests {
             assert!((0..103).contains(&sid));
         }
         assert!(pack("fr").is_err());
+    }
+
+    #[test]
+    fn a_pack_unpacks_its_files_and_nothing_else_and_can_be_deleted() {
+        let root = std::env::temp_dir().join(format!("card-english-voice-{}", std::process::id()));
+        let models = root.join("models");
+        std::fs::create_dir_all(&models).unwrap();
+        let archive = models.join("pack.tar.bz2");
+        {
+            let mut tar = tar::Builder::new(bzip2::write::BzEncoder::new(std::fs::File::create(&archive).unwrap(), Default::default()));
+            let name = PACKS[0].1;
+            for f in FILES {
+                let mut header = tar::Header::new_gnu();
+                header.set_size(3);
+                header.set_mode(0o644);
+                tar.append_data(&mut header, format!("{name}/{f}"), &b"abc"[..]).unwrap();
+            }
+            let mut link = tar::Header::new_gnu();
+            link.set_entry_type(tar::EntryType::Symlink);
+            link.set_size(0);
+            tar.append_link(&mut link, format!("{name}/link"), "/etc/passwd").unwrap();
+            tar.into_inner().unwrap().finish().unwrap();
+        }
+        unpack(&archive, &models).unwrap();
+        assert!(ready(&root, "en"));
+        assert!(!folder(&root, PACKS[0].1).join("link").exists(), "links are skipped");
+        delete(&root, "en").unwrap();
+        assert!(!ready(&root, "en") && !folder(&root, PACKS[0].1).exists());
+        delete(&root, "en").unwrap();
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn the_wav_header_says_what_follows() {
+        let path = std::env::temp_dir().join(format!("card-english-wav-{}.wav", std::process::id()));
+        write_wav(&path, &[0.0, 1.0, -1.0, 2.0], 24_000).unwrap();
+        let b = std::fs::read(&path).unwrap();
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(b.len(), 44 + 8);
+        assert_eq!((&b[..4], &b[8..16], &b[36..40]), (&b"RIFF"[..], &b"WAVEfmt "[..], &b"data"[..]));
+        assert_eq!(u32::from_le_bytes(b[24..28].try_into().unwrap()), 24_000);
+        assert_eq!(i16::from_le_bytes([b[46], b[47]]), 32767);
+        assert_eq!(i16::from_le_bytes([b[50], b[51]]), 32767, "clamped");
     }
 
     /// Reads a sentence of each course with the packs in the data folder. Run it by hand:

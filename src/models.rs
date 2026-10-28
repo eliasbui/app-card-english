@@ -9,6 +9,8 @@ use std::sync::Mutex;
 static DOWNLOADING: Mutex<()> = Mutex::new(());
 
 pub const QWEN: &str = "qwen2.5-0.5b-instruct-q4_k_m.gguf";
+/// The larger Qwen, slower but better at Vietnamese; it reads with the same tokenizer as the small one.
+pub const QWEN15: &str = "qwen2.5-1.5b-instruct-q4_k_m.gguf";
 pub const QWEN_TOKENIZER: &str = "qwen2.5-tokenizer.json";
 pub const WHISPER: &str = "whisper-tiny-en-q80.gguf";
 pub const WHISPER_CONFIG: &str = "whisper-tiny-en-config.json";
@@ -20,9 +22,12 @@ pub const WHISPER_ZH_TOKENIZER: &str = "whisper-tiny-tokenizer.json";
 
 /// Group, file name, source and size in bytes (for the progress bar only).
 // shortcut: files are checked by size only, not by hash; add SHA-256 pins if a mirror is ever used.
-const FILES: [(&str, &str, &str, u64); 8] = [
+const FILES: [(&str, &str, &str, u64); 10] = [
     ("llm", QWEN, "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf", 491_400_032),
     ("llm", QWEN_TOKENIZER, "https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct/resolve/main/tokenizer.json", 7_031_645),
+    ("llm15", QWEN15, "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf", 1_117_320_736),
+    // The very same file as the 0.5B one's (same ETag on Hugging Face), shared by both groups.
+    ("llm15", QWEN_TOKENIZER, "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct/resolve/main/tokenizer.json", 7_031_645),
     ("stt", WHISPER, "https://huggingface.co/lmz/candle-whisper/resolve/main/model-tiny-en-q80.gguf", 41_841_216),
     ("stt", WHISPER_CONFIG, "https://huggingface.co/lmz/candle-whisper/resolve/main/config-tiny-en.json", 1_937),
     ("stt", WHISPER_TOKENIZER, "https://huggingface.co/lmz/candle-whisper/resolve/main/tokenizer-tiny-en.json", 2_405_679),
@@ -51,9 +56,36 @@ pub fn status(dir: &Path) -> Value {
     let size = |group: &str| FILES.iter().filter(|f| f.0 == group).map(|f| f.3).sum::<u64>();
     json!({
         "llm": { "ready": ready(dir, "llm"), "size": size("llm") },
+        "llm15": { "ready": ready(dir, "llm15"), "size": size("llm15") },
         "stt": { "ready": ready(dir, "stt"), "size": size("stt") },
         "sttzh": { "ready": ready(dir, "sttzh"), "size": size("sttzh") },
     })
+}
+
+/// Removes the files of a group, but not one that another downloaded group still reads. The models in memory are let
+/// go first: Windows does not delete a file that is open.
+pub fn delete(dir: &Path, group: &str) -> Result<(), String> {
+    let files: Vec<_> = FILES.iter().filter(|f| f.0 == group).collect();
+    if files.is_empty() {
+        return Err("Không có model này".into());
+    }
+    let _no_download = DOWNLOADING.try_lock().map_err(|_| "Đang tải model, hãy chờ tải xong rồi xóa")?;
+    crate::ai::unload();
+    crate::speech::unload(group);
+    for (_, name, ..) in files {
+        let shared = FILES.iter().any(|f| f.0 != group && f.1 == *name && ready(dir, f.0));
+        if shared {
+            continue;
+        }
+        let to = path(dir, name);
+        let _ = std::fs::remove_file(to.with_extension("part"));
+        if let Err(e) = std::fs::remove_file(&to)
+            && e.kind() != std::io::ErrorKind::NotFound
+        {
+            return Err(format!("Không xóa được {name}: {e}"));
+        }
+    }
+    Ok(())
 }
 
 /// Downloads the missing files of a group, reporting the bytes done out of the total.
@@ -81,4 +113,27 @@ pub fn download(dir: &Path, group: &str, progress: impl Fn(u64, u64)) -> Result<
         progress(done, total);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deleting_a_model_keeps_the_tokenizer_the_other_one_reads() {
+        let dir = std::env::temp_dir().join(format!("card-english-models-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("models")).unwrap();
+        // Files of the right size stand in for the downloads.
+        for (_, name, _, size) in FILES.iter().filter(|f| f.0.starts_with("llm")) {
+            std::fs::File::create(path(&dir, name)).unwrap().set_len(*size).unwrap();
+        }
+        assert!(ready(&dir, "llm") && ready(&dir, "llm15"));
+        delete(&dir, "llm15").unwrap();
+        assert!(ready(&dir, "llm") && !ready(&dir, "llm15"));
+        delete(&dir, "llm").unwrap();
+        assert!(!path(&dir, QWEN_TOKENIZER).exists() && !path(&dir, QWEN).exists());
+        delete(&dir, "llm").unwrap();
+        assert!(delete(&dir, "nope").is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

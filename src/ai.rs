@@ -13,7 +13,6 @@ use std::{cell::RefCell, path::Path, sync::Mutex};
 use tokenizers::Tokenizer;
 
 pub const PROVIDERS: [&str; 5] = ["local", "chatgpt", "codex", "gemini", "deepseek"];
-const LOCAL_MODEL: &str = "qwen2.5-0.5b-instruct";
 
 const EXPLAIN_SYSTEM: &str = "You are an English-Vietnamese dictionary for Vietnamese learners. \
 Reply with exactly these ten lines and nothing else:\n\
@@ -220,6 +219,8 @@ pub struct ModelInfo {
 #[derive(Debug, Clone, Default)]
 pub struct Settings {
     pub provider: String,
+    /// The Qwen on this machine: "llm" for 0.5B, "llm15" for 1.5B.
+    pub local_model: String,
     pub chatgpt_model: String,
     pub codex_model: String,
     pub gemini_key: String,
@@ -312,14 +313,28 @@ pub struct Suggestions {
     pub by: By,
 }
 
-pub fn label(provider: &str) -> &'static str {
+/// The name of a provider; for the model on this machine, of the Qwen in `group`.
+fn label(provider: &str, group: &str) -> &'static str {
     match provider {
         "chatgpt" => "ChatGPT",
         "codex" => "ChatGPT (Codex)",
         "gemini" => "Gemini",
         "deepseek" => "DeepSeek",
+        _ if group == "llm15" => "Model trên máy (Qwen 1.5B)",
         _ => "Model trên máy (Qwen 0.5B)",
     }
+}
+
+/// The local model a call uses: the chosen one when it is downloaded, else the other one that is, else the chosen.
+pub fn local_group(dir: &Path, wanted: &str) -> &'static str {
+    let wanted = if wanted == "llm15" { "llm15" } else { "llm" };
+    let other = if wanted == "llm15" { "llm" } else { "llm15" };
+    if !models::ready(dir, wanted) && models::ready(dir, other) { other } else { wanted }
+}
+
+/// The name of a local model in the usage records and the answers.
+fn local_model_id(group: &str) -> &'static str {
+    if group == "llm15" { "qwen2.5-1.5b-instruct" } else { "qwen2.5-0.5b-instruct" }
 }
 
 fn usage_url(provider: &str) -> &'static str {
@@ -370,9 +385,17 @@ impl<'a> Ai<'a> {
         db::open(&self.dir.join("words.db")).map_err(|e| e.to_string())
     }
 
+    fn group(&self) -> &'static str {
+        local_group(self.dir, &self.settings.local_model)
+    }
+
+    fn label(&self, provider: &str) -> &'static str {
+        label(provider, self.group())
+    }
+
     pub fn ready(&self, provider: &str) -> bool {
         match provider {
-            "local" => models::ready(self.dir, "llm"),
+            "local" => models::ready(self.dir, self.group()),
             "chatgpt" => {
                 self.database().ok().and_then(|db| chatgpt::session(&db)).is_some_and(|s| s.signed_in() && s.plan())
             }
@@ -397,7 +420,10 @@ impl<'a> Ai<'a> {
             "codex" => codex::models(&self.database()?),
             "gemini" => cloud::gemini_models(&self.settings.gemini_key),
             "deepseek" => cloud::deepseek_models(&self.settings.deepseek_key),
-            _ => Ok(vec![ModelInfo { id: LOCAL_MODEL.into(), name: "Qwen2.5 0.5B Instruct".into() }]),
+            _ => Ok(vec![
+                ModelInfo { id: local_model_id("llm").into(), name: "Qwen2.5 0.5B Instruct".into() },
+                ModelInfo { id: local_model_id("llm15").into(), name: "Qwen2.5 1.5B Instruct".into() },
+            ]),
         }
     }
 
@@ -407,7 +433,7 @@ impl<'a> Ai<'a> {
             "codex" => &self.settings.codex_model,
             "gemini" => &self.settings.gemini_model,
             "deepseek" => &self.settings.deepseek_model,
-            _ => LOCAL_MODEL,
+            _ => local_model_id(self.group()),
         }
     }
 
@@ -442,7 +468,7 @@ impl<'a> Ai<'a> {
             "codex" => self.database().map_err(CallError::from).and_then(|db| codex::chat(&db, &model, prompt)),
             "gemini" => cloud::gemini_chat(&self.settings.gemini_key, &model, prompt),
             "deepseek" => cloud::deepseek_chat(&self.settings.deepseek_key, &model, prompt),
-            _ => local(prompt, self.dir),
+            _ => local(prompt, self.dir, self.group()),
         };
         (model, result)
     }
@@ -459,7 +485,7 @@ impl<'a> Ai<'a> {
                     if e.limit && manage_url.is_empty() {
                         manage_url = usage_url(provider);
                     }
-                    failures.push(format!("{}: {}.", label(provider), e.message.trim_end_matches('.')));
+                    failures.push(format!("{}: {}.", self.label(provider), e.message.trim_end_matches('.')));
                     self.attempts.borrow_mut().push(Attempt {
                         provider,
                         model,
@@ -488,9 +514,9 @@ impl<'a> Ai<'a> {
             let note = if failures.is_empty() {
                 String::new()
             } else {
-                format!("{} Đã dùng {} thay thế.", failures.join(" "), label(provider))
+                format!("{} Đã dùng {} thay thế.", failures.join(" "), self.label(provider))
             };
-            let by = By { source: provider.into(), source_label: label(provider).into(), model, note, manage_url: manage_url.into() };
+            let by = By { source: provider.into(), source_label: self.label(provider).into(), model, note, manage_url: manage_url.into() };
             return Ok((answer.text, by));
         }
         Err(failures.join(" "))
@@ -833,14 +859,20 @@ struct Llm {
     no_cjk: Tensor,
 }
 
-/// Loaded on first use and kept, since reading the weights takes a second or two.
-static LLM: Mutex<Option<Llm>> = Mutex::new(None);
+/// Loaded on first use and kept with the group it came from, since reading the weights takes a second or two.
+static LLM: Mutex<Option<(&str, Llm)>> = Mutex::new(None);
+
+/// Lets go of the model in memory, before its file is deleted or another one is chosen.
+pub fn unload() {
+    *LLM.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
+}
 
 /// The width of the output layer of the pinned Qwen2.5 0.5B file, larger than its tokenizer's vocabulary.
 const QWEN_VOCAB: usize = 151_936;
 
-fn load(dir: &Path) -> Result<Llm, String> {
-    let (weights, tokenizer) = (models::path(dir, models::QWEN), models::path(dir, models::QWEN_TOKENIZER));
+fn load(dir: &Path, group: &str) -> Result<Llm, String> {
+    let weights = models::path(dir, if group == "llm15" { models::QWEN15 } else { models::QWEN });
+    let tokenizer = models::path(dir, models::QWEN_TOKENIZER);
     let mut file = std::fs::File::open(&weights).map_err(|e| format!("{}: {e}", weights.display()))?;
     let content = candle_core::quantized::gguf_file::Content::read(&mut file).map_err(|e| e.to_string())?;
     let model = ModelWeights::from_gguf(content, &mut file, &device()).map_err(|e| e.to_string())?;
@@ -861,24 +893,28 @@ fn load(dir: &Path) -> Result<Llm, String> {
 
 /// Loads the model ahead of the first question and runs it once, so that the GPU kernels are compiled by then.
 pub fn warm_up(dir: &Path) {
-    if !models::ready(dir, "llm") {
+    let wanted = db::open(&dir.join("words.db")).ok().and_then(|db| db::setting(&db, "local_model").ok().flatten()).unwrap_or_default();
+    let group = local_group(dir, &wanted);
+    if !models::ready(dir, group) {
         return;
     }
     let prompt = Prompt { system: "You are helpful.", example: ("hi", "hello"), question: "hi", max_tokens: 1, cjk: false };
-    if let Err(e) = local(&prompt, dir) {
+    if let Err(e) = local(&prompt, dir, group) {
         eprintln!("warm up: {}", e.message);
     }
 }
 
-fn local(prompt: &Prompt, dir: &Path) -> Result<Answer, CallError> {
-    if !models::ready(dir, "llm") {
+fn local(prompt: &Prompt, dir: &Path, group: &'static str) -> Result<Answer, CallError> {
+    if !models::ready(dir, group) {
         return Err("chưa tải model, vào Cài đặt để tải hoặc chọn AI khác".into());
     }
     let mut guard = LLM.lock().map_err(|_| "model đang lỗi")?;
-    if guard.is_none() {
-        *guard = Some(load(dir)?);
+    if guard.as_ref().is_none_or(|(loaded, _)| *loaded != group) {
+        // The old one goes first, so that both are never in memory together.
+        *guard = None;
+        *guard = Some((group, load(dir, group)?));
     }
-    let llm = guard.as_mut().ok_or("model chưa nạp")?;
+    let (_, llm) = guard.as_mut().ok_or("model chưa nạp")?;
     let mut text = String::new();
     for (role, content) in [("system", prompt.system), ("user", prompt.example.0), ("assistant", prompt.example.1), ("user", prompt.question)] {
         text.push_str(&format!("<|im_start|>{role}\n{content}<|im_end|>\n"));
@@ -936,6 +972,15 @@ mod tests {
         println!("travel: {:?}", s.items);
         assert!(s.items.len() >= 4 && s.items.iter().all(|s| s.word != "passport"));
         assert!(ai.attempts.borrow().iter().all(|a| a.ok && a.output_tokens > 0));
+    }
+
+    #[test]
+    fn the_local_model_is_the_chosen_one_until_only_the_other_is_there() {
+        let dir = std::env::temp_dir().join(format!("card-english-local-{}", std::process::id()));
+        assert_eq!((local_group(&dir, ""), local_group(&dir, "llm15"), local_group(&dir, "x")), ("llm", "llm15", "llm"));
+        assert_eq!((label("local", "llm"), label("local", "llm15")), ("Model trên máy (Qwen 0.5B)", "Model trên máy (Qwen 1.5B)"));
+        assert_eq!(local_model_id("llm15"), "qwen2.5-1.5b-instruct");
+        unload();
     }
 
     #[test]

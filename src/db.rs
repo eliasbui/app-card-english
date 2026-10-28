@@ -11,7 +11,7 @@ pub const DAY: i64 = 86_400;
 /// A forgotten word comes back within the same session.
 const RELEARN_SECONDS: i64 = 600;
 /// The version of the tables in `PRAGMA user_version`; `migrate` brings an older file up to it.
-const SCHEMA: i64 = 3;
+const SCHEMA: i64 = 4;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -52,6 +52,8 @@ pub struct Word {
     pub learned_at: i64,
     /// The last pronunciation score, -1 before any.
     pub score: i64,
+    /// Left out of reviews, exercises and the counts: the learner does not want to study it again.
+    pub skipped: bool,
 }
 
 pub fn open(path: &Path) -> rusqlite::Result<Connection> {
@@ -155,6 +157,9 @@ const V3: &str = "
     DROP TABLE activity;
     ALTER TABLE activity_v3 RENAME TO activity;";
 
+/// Version 4: words the learner set aside.
+const V4: &str = "ALTER TABLE words ADD COLUMN skipped INTEGER NOT NULL DEFAULT 0;";
+
 /// The settings each course keeps for itself; the rest are shared.
 const SCOPED: [&str; 5] = ["palette", "new_per_day", "daily_goal", "voice", "achievements"];
 
@@ -191,7 +196,13 @@ fn migrate(db: &mut Connection) -> rusqlite::Result<()> {
     if user_version(&tx)? < 2 {
         tx.execute_batch(V2)?;
         // Chinese words added before there was a course for them move to it, with their readings.
-        for mut w in select(&tx, "WHERE ?1 = ?1", [0])?.into_iter().filter(|w| pron::is_chinese(&w.word)) {
+        // The columns of this version only: `select` reads ones that later versions add.
+        let old: Vec<Word> = {
+            let mut stmt = tx.prepare("SELECT id, word, ipa, example FROM words")?;
+            let word = |r: &Row| Ok(Word { id: r.get(0)?, word: r.get(1)?, ipa: r.get(2)?, example: r.get(3)?, ..Word::default() });
+            stmt.query_map([], word)?.collect::<rusqlite::Result<_>>()?
+        };
+        for mut w in old.into_iter().filter(|w| pron::is_chinese(&w.word)) {
             derive(&mut w);
             tx.execute(
                 "UPDATE words SET lang = ?2, ipa = ?3, hanviet = ?4, example_reading = ?5 WHERE id = ?1",
@@ -202,13 +213,16 @@ fn migrate(db: &mut Connection) -> rusqlite::Result<()> {
     if user_version(&tx)? < 3 {
         tx.execute_batch(V3)?;
     }
+    if user_version(&tx)? < 4 {
+        tx.execute_batch(V4)?;
+    }
     tx.pragma_update(None, "user_version", SCHEMA)?;
     tx.commit()
 }
 
 const COLUMNS: &str = "id, word, ipa, pos, meaning, explain, example, example_vi, note, synonyms, antonyms, collocations, \
                        level, topic, created, due, interval, stability, difficulty, last_review, reps, lapses, learned_at, score, \
-                       lang, hanviet, example_reading";
+                       lang, hanviet, example_reading, skipped";
 
 fn row(r: &Row) -> rusqlite::Result<Word> {
     Ok(Word {
@@ -239,6 +253,7 @@ fn row(r: &Row) -> rusqlite::Result<Word> {
         lang: r.get(24)?,
         hanviet: r.get(25)?,
         example_reading: r.get(26)?,
+        skipped: r.get(27)?,
     })
 }
 
@@ -315,12 +330,12 @@ pub fn insert(db: &Connection, w: &Word) -> rusqlite::Result<i64> {
     db.execute(
         "INSERT INTO words (word, ipa, pos, meaning, explain, example, example_vi, note, synonyms, antonyms, collocations,
                             level, topic, created, due, interval, stability, difficulty, last_review, reps, lapses,
-                            learned_at, score, lang, hanviet, example_reading)
+                            learned_at, score, lang, hanviet, example_reading, skipped)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23,
-                 ?24, ?25, ?26)",
+                 ?24, ?25, ?26, ?27)",
         params![w.word, w.ipa, w.pos, w.meaning, w.explain, w.example, w.example_vi, w.note, w.synonyms,
                 w.antonyms, w.collocations, w.level, w.topic, w.created, w.due, w.interval, w.stability, w.difficulty,
-                w.last_review, w.reps, w.lapses, w.learned_at, w.score, w.lang, w.hanviet, w.example_reading],
+                w.last_review, w.reps, w.lapses, w.learned_at, w.score, w.lang, w.hanviet, w.example_reading, w.skipped],
     )?;
     Ok(db.last_insert_rowid())
 }
@@ -334,12 +349,18 @@ pub fn set_score(db: &Connection, id: i64, score: i64) -> rusqlite::Result<()> {
     db.execute("UPDATE words SET score = ?2 WHERE id = ?1", [id, score]).map(|_| ())
 }
 
+/// Sets a word aside, or brings it back, and gives it as it is now.
+pub fn set_skipped(db: &Connection, id: i64, on: bool) -> rusqlite::Result<Option<Word>> {
+    db.execute("UPDATE words SET skipped = ?2 WHERE id = ?1", params![id, on])?;
+    get(db, id)
+}
+
 /// What a session of a course ("en" or "zh") works through: the reviews that are due, then as many new words as
 /// today still allows.
 pub fn session(db: &Connection, now: i64, day_start: i64, lang: &str) -> rusqlite::Result<Vec<Word>> {
-    let mut words = select(db, "WHERE learned_at > 0 AND due <= ?1 AND lang = ?2 ORDER BY due", params![now, lang])?;
+    let mut words = select(db, "WHERE learned_at > 0 AND due <= ?1 AND lang = ?2 AND NOT skipped ORDER BY due", params![now, lang])?;
     let left = new_left(db, day_start, lang)?;
-    words.extend(select(db, "WHERE learned_at = 0 AND lang = ?2 ORDER BY created LIMIT ?1", params![left, lang])?);
+    words.extend(select(db, "WHERE learned_at = 0 AND lang = ?2 AND NOT skipped ORDER BY created LIMIT ?1", params![left, lang])?);
     Ok(words)
 }
 
@@ -349,7 +370,7 @@ fn new_left(db: &Connection, day_start: i64, lang: &str) -> rusqlite::Result<i64
         .and_then(|v| v.parse().ok())
         .unwrap_or(10);
     let today: i64 = db.query_row(
-        "SELECT count(*) FROM words WHERE learned_at > 0 AND learned_at >= ?1 AND (?2 = '' OR lang = ?2)",
+        "SELECT count(*) FROM words WHERE learned_at > 0 AND learned_at >= ?1 AND NOT skipped AND (?2 = '' OR lang = ?2)",
         params![day_start, lang],
         |r| r.get(0),
     )?;
@@ -368,14 +389,18 @@ pub struct Stats {
     pub reviews_today: i64,
     /// Words whose last pronunciation scored 90 or more.
     pub perfect: i64,
+    /// Words set aside, which none of the other counts include.
+    pub skipped: i64,
 }
 
-/// The counts of a course, or of both when `lang` is empty; `new_today` only means something for one course.
+/// The counts of a course, or of both when `lang` is empty, without the words set aside; `new_today` only means
+/// something for one course.
 pub fn stats(db: &Connection, now: i64, day_start: i64, lang: &str) -> rusqlite::Result<Stats> {
-    let count = |filter: &str, arg: i64| {
+    let every = |filter: &str, arg: i64| {
         let sql = format!("SELECT count(*) FROM words WHERE (?2 = '' OR lang = ?2) AND {filter}");
         db.query_row(&sql, params![arg, lang], |r| r.get::<_, i64>(0))
     };
+    let count = |filter: &str, arg: i64| every(&format!("NOT skipped AND {filter}"), arg);
     let reviews = |since: i64| {
         let sql = "SELECT count(*) FROM reviews r JOIN words w ON w.id = r.word_id WHERE r.at >= ?1 AND (?2 = '' OR w.lang = ?2)";
         db.query_row(sql, params![since, lang], |r| r.get::<_, i64>(0))
@@ -390,6 +415,7 @@ pub fn stats(db: &Connection, now: i64, day_start: i64, lang: &str) -> rusqlite:
         reviews: reviews(i64::MIN)?,
         reviews_today: reviews(day_start)?,
         perfect: count("score >= ?1", 90)?,
+        skipped: every("skipped AND ?1 = ?1", 0)?,
     })
 }
 
@@ -398,7 +424,7 @@ pub fn stats(db: &Connection, now: i64, day_start: i64, lang: &str) -> rusqlite:
 pub fn forecast(db: &Connection, day_start: i64, days: usize, lang: &str) -> rusqlite::Result<Vec<i64>> {
     let mut out = vec![0; days.max(1)];
     let end = day_start + out.len() as i64 * DAY;
-    let mut stmt = db.prepare("SELECT due FROM words WHERE learned_at > 0 AND due < ?1 AND (?2 = '' OR lang = ?2)")?;
+    let mut stmt = db.prepare("SELECT due FROM words WHERE learned_at > 0 AND NOT skipped AND due < ?1 AND (?2 = '' OR lang = ?2)")?;
     for due in stmt.query_map(params![end, lang], |r| r.get::<_, i64>(0))? {
         let day = ((due? - day_start).max(0) / DAY) as usize;
         let last = out.len() - 1;
@@ -415,17 +441,17 @@ pub fn recent_words(db: &Connection, since: i64, limit: i64, lang: &str) -> rusq
         stmt.query_map(params![since, limit, lang], |r| r.get(0))?.collect()
     };
     let today = words(
-        "SELECT word FROM words WHERE id IN (SELECT word_id FROM reviews WHERE at >= ?1) AND lang = ?3
+        "SELECT word FROM words WHERE id IN (SELECT word_id FROM reviews WHERE at >= ?1) AND lang = ?3 AND NOT skipped
          ORDER BY last_review DESC LIMIT ?2",
     )?;
     if !today.is_empty() {
         return Ok(today);
     }
-    let learned = words("SELECT word FROM words WHERE learned_at > 0 AND lang = ?3 AND ?1 = ?1 ORDER BY last_review DESC LIMIT ?2")?;
+    let learned = words("SELECT word FROM words WHERE learned_at > 0 AND lang = ?3 AND NOT skipped AND ?1 = ?1 ORDER BY last_review DESC LIMIT ?2")?;
     if !learned.is_empty() {
         return Ok(learned);
     }
-    words("SELECT word FROM words WHERE lang = ?3 AND ?1 = ?1 ORDER BY created DESC, id DESC LIMIT ?2")
+    words("SELECT word FROM words WHERE lang = ?3 AND NOT skipped AND ?1 = ?1 ORDER BY created DESC, id DESC LIMIT ?2")
 }
 
 /// Every answer as a copy keeps it: the word, when, and how it went.
@@ -755,6 +781,27 @@ mod tests {
         assert_eq!(recent_words(&db, 0, 8, "zh").unwrap(), ["学习"]);
         assert_eq!(recent_words(&db, 0, 8, "en").unwrap(), ["deadline"], "nothing learned yet: the words added");
         assert!(recent_words(&db, 0, 8, "fr").unwrap().is_empty());
+    }
+
+    #[test]
+    fn a_skipped_word_leaves_the_session_and_the_counts_until_it_comes_back() {
+        let db = memory();
+        let (a, b) = (add(&db, "alpha", 0), add(&db, "beta", 0));
+        grade(&db, a, 3, 10, 0.9).unwrap();
+        let due = 10 + 3 * DAY;
+        let words = || session(&db, due, due, "en").unwrap().into_iter().map(|w| w.word).collect::<Vec<_>>();
+        assert_eq!(words(), ["alpha", "beta"]);
+        assert!(set_skipped(&db, a, true).unwrap().unwrap().skipped);
+        set_skipped(&db, b, true).unwrap();
+        assert!(words().is_empty());
+        let s = stats(&db, due, due, "en").unwrap();
+        assert_eq!((s.total, s.due, s.new_today, s.new_waiting, s.learned, s.skipped), (0, 0, 0, 0, 0, 2));
+        assert_eq!(forecast(&db, 0, 7, "en").unwrap(), [0; 7]);
+        assert!(recent_words(&db, 0, 8, "en").unwrap().is_empty());
+        assert!(!set_skipped(&db, a, false).unwrap().unwrap().skipped);
+        assert_eq!(words(), ["alpha"]);
+        assert_eq!(stats(&db, due, due, "en").unwrap().skipped, 1);
+        assert_eq!(set_skipped(&db, 999, true).unwrap(), None);
     }
 
     #[test]

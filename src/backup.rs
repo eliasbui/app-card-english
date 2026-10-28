@@ -439,7 +439,8 @@ mod tests {
 
         let other = memory();
         db::save(&other, &Word { word: "Deadline".into(), meaning: "giữ nguyên".into(), ..Word::default() }, 1).unwrap();
-        db::save(&db, &Word { word: "brand new".into(), ..Word::default() }, 2).unwrap();
+        let set_aside = db::save(&db, &Word { word: "brand new".into(), ..Word::default() }, 2).unwrap();
+        db::set_skipped(&db, set_aside, true).unwrap();
         let copy = backup(&db, 300).unwrap();
         assert_eq!(import(&other, "card-english.json", &copy, 400).unwrap(), Imported { added: 1, skipped: 1, invalid: 0 });
         assert_eq!(db::find(&other, "deadline").unwrap().unwrap().meaning, "giữ nguyên");
@@ -452,6 +453,10 @@ mod tests {
         let restored = db::find(&third, "deadline").unwrap().unwrap();
         assert_eq!((restored.interval, restored.reps), (2.0, 1));
         assert_eq!(db::stats(&third, 0, 0, "").unwrap().reviews, 1);
+        assert!(db::find(&third, "brand new").unwrap().unwrap().skipped, "a word set aside stays aside");
+        // A copy from before words could be set aside has no such field.
+        let old = r#"{"app":"card-english","words":[{"word":"older"}]}"#;
+        assert!(!import(&third, "old.json", old, 1).map(|_| db::find(&third, "older").unwrap().unwrap().skipped).unwrap());
     }
 
     #[test]

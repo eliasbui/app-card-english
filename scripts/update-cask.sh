@@ -1,12 +1,12 @@
 #!/bin/sh
 # Points the Homebrew cask in the tap (eliasbui/homebrew-card-english) at a release: its version and the SHA-256
-# of its macOS zip. The release workflow runs it after publishing; it can also be run by hand.
+# of its macOS zip. scripts/release.sh runs it after publishing; it can also be run by hand.
 #
 #   scripts/update-cask.sh 0.2.0              # downloads the zip of the GitHub release
 #   scripts/update-cask.sh 0.2.0 dist/x.zip   # or takes one already here
 #   DRY_RUN=1 scripts/update-cask.sh 0.2.0    # writes the cask and shows it, pushes nothing
 #
-# Needs gh signed in with write access to the tap (GH_TOKEN in CI). packaging/homebrew holds the cask and the
+# Needs gh signed in with write access to the tap. packaging/homebrew holds the cask and the
 # tap's README; the tap gets the cask with this release's version and checksum.
 set -eu
 
@@ -27,7 +27,7 @@ trap 'rm -rf "$WORK"' EXIT
 
 if [ -z "$ZIP" ]; then
     gh release download "v$VERSION" --repo "$REPO" --pattern "CardEnglish-$VERSION-macos.zip" --dir "$WORK" ||
-        fail "no macOS zip in release v$VERSION yet; wait for the release workflow to finish"
+        fail "no macOS zip in release v$VERSION"
     ZIP="$WORK/CardEnglish-$VERSION-macos.zip"
 fi
 [ -f "$ZIP" ] || fail "$ZIP does not exist"

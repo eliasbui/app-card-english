@@ -75,6 +75,7 @@ name = "app-card-english"
 version = "0.3.1"
 dependencies = [
  "base64 0.22.1",
+ "bzip2 0.6.1",
  "candle-core",
  "candle-nn",
  "candle-transformers",
@@ -92,6 +93,7 @@ dependencies = [
  "sha2 0.10.9",
  "sherpa-onnx",
  "tao",
+ "tar",
  "tokenizers",
  "tray-icon",
  "windows-sys 0.61.2",

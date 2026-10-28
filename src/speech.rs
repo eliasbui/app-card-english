@@ -167,7 +167,7 @@ pub fn assess(target: &str, pcm: &[f32], dir: &Path) -> Result<Score, String> {
             heard: String::new(),
             heard_ipa: String::new(),
             target_ipa: pron::ipa(target),
-            message: "Không nghe thấy giọng, hãy nói to và gần micro hơn".into(),
+            message: silence_message(pcm).into(),
             missed: Vec::new(),
         });
     }
@@ -177,6 +177,20 @@ pub fn assess(target: &str, pcm: &[f32], dir: &Path) -> Result<Score, String> {
     }
     let (heard, confidence) = transcribe(pcm, dir, &ENGLISH)?;
     Ok(score(target, &heard, confidence))
+}
+
+/// Why nothing was heard. A microphone the system keeps from the app sends exact zeros, which even a quiet room
+/// never does, so that case points to the setting that allows it.
+fn silence_message(pcm: &[f32]) -> &'static str {
+    if pcm.is_empty() || pcm.iter().any(|&s| s != 0.0) {
+        "Không nghe thấy giọng, hãy nói to và gần micro hơn"
+    } else if cfg!(windows) {
+        "Micro không gửi âm thanh nào. Mở Settings > Privacy & security > Microphone, bật Microphone access và Let desktop apps access your microphone, rồi thử lại"
+    } else if cfg!(target_os = "macos") {
+        "Micro không gửi âm thanh nào. Mở System Settings > Privacy & Security > Microphone, bật cho Card English, rồi thử lại"
+    } else {
+        "Micro không gửi âm thanh nào, hãy kiểm tra micro trong cài đặt âm thanh của máy"
+    }
 }
 
 fn message_of(score: u8) -> &'static str {
@@ -302,6 +316,13 @@ static CHINESE: Model = Model {
     missing: "Chưa tải model chấm phát âm tiếng Trung, vào Cài đặt để tải (45 MB)",
     loaded: &STT_ZH,
 };
+
+/// Lets go of the Whisper of a group of models in memory, before its files are deleted.
+pub fn unload(group: &str) {
+    for kind in [&ENGLISH, &CHINESE].into_iter().filter(|k| k.group == group) {
+        *kind.loaded.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
+    }
+}
 
 // Always the CPU: tiny Whisper takes about a second there, and the Metal kernels return garbage on some Macs (macOS 27).
 struct Stt {
@@ -544,6 +565,15 @@ mod tests {
         let sentence = assess("我们明天去北京。", &say("我们明天去北京。"), &crate::data_dir()).unwrap();
         println!("{sentence:?}");
         assert!(sentence.score >= 75, "{sentence:?}");
+    }
+
+    #[test]
+    fn a_blocked_microphone_is_told_apart_from_a_quiet_voice() {
+        let dir = Path::new("/nonexistent");
+        let blocked = assess("hello", &vec![0.0; 16_000], dir).unwrap();
+        assert!(blocked.score == 0 && blocked.message.starts_with("Micro không gửi"), "{blocked:?}");
+        let quiet: Vec<f32> = (0..16_000).map(|i| if i % 2 == 0 { 0.001 } else { -0.001 }).collect();
+        assert!(assess("hello", &quiet, dir).unwrap().message.starts_with("Không nghe thấy giọng"));
     }
 
     #[test]

@@ -22,8 +22,7 @@
     $headers = @{}
     # CI machines share their address, which the API limits unless the request carries a token.
     if ($env:GITHUB_TOKEN) { $headers.Authorization = "Bearer $env:GITHUB_TOKEN" }
-    # The newest release that has the Windows zip: a release is published with the macOS app first and gets the
-    # Windows one from the release workflow some minutes later.
+    # The newest release that has the Windows zip.
     $releases = Invoke-RestMethod "https://api.github.com/repos/$repo/releases?per_page=10" -Headers $headers
     $release = $releases | Where-Object { -not $_.draft -and -not $_.prerelease -and ($_.assets | Where-Object name -Like 'CardEnglish-*-windows-x64.zip') } | Select-Object -First 1
     if (-not $release) { throw 'Chưa có bản nào cho Windows.' }

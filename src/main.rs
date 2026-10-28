@@ -358,7 +358,7 @@ impl App {
         let window = WindowBuilder::new()
             .with_title(APP_NAME)
             .with_inner_size(LogicalSize::new(1000.0, 700.0))
-            .with_min_inner_size(LogicalSize::new(760.0, 540.0))
+            .with_min_inner_size(LogicalSize::new(440.0, 560.0))
             .with_window_icon(icon)
             .with_theme(self.theme())
             .build(target)
@@ -530,6 +530,15 @@ impl App {
                     Ok(models::status(&dir))
                 }));
             }
+            "delete_model" => {
+                let group = text("group");
+                // Deleting a model changes no setting, so they are read here, on the thread that holds them.
+                let settings = self.settings();
+                background(Box::new(move || {
+                    models::delete(&dir, &group)?;
+                    Ok(json!({ "models": models::status(&dir), "settings": settings }))
+                }));
+            }
             "rec_stop" => {
                 let target = text("target");
                 let word_id = args["id"].as_i64().unwrap_or(0);
@@ -570,12 +579,12 @@ impl App {
             "install_update" => {
                 let proxy = self.proxy.clone();
                 background(Box::new(move || {
-                    let bundle = update::running_bundle().ok_or("Bản này không tự cập nhật được, hãy tải từ trang phát hành")?;
+                    let app = update::installed().ok_or("Bản này không tự cập nhật được, hãy tải từ trang phát hành")?;
                     let check = update::check()?;
                     if !check.newer {
                         return Err("Bạn đang dùng bản mới nhất".into());
                     }
-                    update::install(&check, &bundle, |percent| {
+                    update::install(&check, &app, |percent| {
                         let _ = proxy.send_event(UserEvent::Post(json!({ "event": "update_progress", "data": percent })));
                     })?;
                     Ok(json!(check.latest))
@@ -611,6 +620,18 @@ impl App {
                     })?;
                     Ok(voice::status(&dir))
                 }));
+            }
+            "delete_voice" => {
+                let course = if text("course") == "zh" { "zh" } else { "en" };
+                let result = voice::delete(&dir, course).and_then(|()| {
+                    // The voice chosen in its place is gone with it: the course reads with the system's voice again.
+                    let key = db::scoped("voice", course);
+                    if db::setting(&self.db, &key).ok().flatten().is_some_and(|v| v.starts_with("kokoro:")) {
+                        db::set_setting(&self.db, &key, "").map_err(|e| e.to_string())?;
+                    }
+                    Ok(json!({ "voices": voice::status(&dir), "settings": self.settings() }))
+                });
+                self.post(&reply(result));
             }
             _ => {
                 let result = self.handle(&cmd, &args);
@@ -709,6 +730,8 @@ impl App {
                     }
                     "hotkey" => self.apply_hotkey(),
                     "tray_count" | "new_per_day" | "course" => self.update_count(),
+                    // The model in memory waits for a question in progress, so it is let go off the event loop.
+                    "local_model" => drop(thread::spawn(ai::unload)),
                     _ => {}
                 }
                 Ok(self.settings())
@@ -747,6 +770,15 @@ impl App {
             "codex_sign_out" => codex::sign_out(db).map(|_| codex::status(db)),
             "models" => Ok(models::status(&self.dir)),
             "rec_start" => speech::start().map(|_| Value::Null),
+            "spell" => {
+                let word: String = args["word"].as_str().unwrap_or_default().chars().take(80).collect();
+                let (ok, suggestions) = pron::spell(&word);
+                Ok(json!({ "ok": ok, "suggestions": suggestions }))
+            }
+            "skip" => db::set_skipped(db, args["id"].as_i64().unwrap_or(0), args["on"].as_bool().unwrap_or(true))
+                .map_err(e)?
+                .map(|w| json!(w))
+                .ok_or_else(|| "Không tìm thấy từ này".into()),
             "rec_level" => Ok(json!(speech::level())),
             "open_url" => {
                 let url = args["url"].as_str().unwrap_or_default();
@@ -770,6 +802,7 @@ impl App {
         let text = |key: &str| self.setting(key).unwrap_or_default();
         ai::Settings {
             provider: self.provider(),
+            local_model: text("local_model"),
             chatgpt_model: text("chatgpt_model"),
             codex_model: text("codex_model"),
             gemini_key: text("gemini_key"),
@@ -812,6 +845,7 @@ impl App {
         let on = |key: &str| self.setting(key).as_deref() != Some("0");
         json!({
             "ai_provider": self.provider(),
+            "local_model": if text("local_model") == "llm15" { "llm15" } else { "llm" },
             "has_gemini_key": self.setting("gemini_key").is_some(),
             "has_deepseek_key": self.setting("deepseek_key").is_some(),
             "chatgpt_model": text("chatgpt_model"),
@@ -879,6 +913,7 @@ fn valid_setting(key: &str, value: &str) -> bool {
         "gemini_key" | "deepseek_key" => value.len() <= 500 && !value.chars().any(char::is_control),
         "new_per_day" | "remind_hours" | "daily_goal" => value.parse::<u32>().is_ok_and(|n| n <= 1000),
         "chatgpt_welcomed" => value == "1",
+        "local_model" => matches!(value, "llm" | "llm15"),
         "desired_retention" => between(value, 0.7, 0.97),
         "speech_rate" => between(value, 0.5, 1.5),
         "streak_freeze" | "tray_count" => matches!(value, "0" | "1"),
@@ -913,8 +948,8 @@ fn record_usage(dir: &Path, day: &str, attempts: &[ai::Attempt]) {
 
 fn start_update_checks(proxy: EventLoopProxy<UserEvent>) {
     thread::spawn(move || {
-        if let Some(bundle) = update::running_bundle() {
-            update::tidy(&bundle);
+        if let Some(app) = update::app_path() {
+            update::tidy(&app);
         }
         thread::sleep(UPDATE_FIRST_CHECK);
         loop {
@@ -1011,8 +1046,9 @@ fn speak(text: &str, slow: bool, accent: &str, rate: f64) -> Result<(), String> 
     };
     let rate = rate.clamp(0.5, 1.5) * if slow { 0.6 } else { 1.0 };
     let per_minute = ((175.0 * rate).round() as u32).to_string();
+    // Standard input is read as UTF-8, not in the console's code page, which has no Chinese or Vietnamese letters.
     let windows_script = format!(
-        "Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; \
+        "[Console]::InputEncoding = [Text.Encoding]::UTF8; Add-Type -AssemblyName System.Speech; $s = New-Object System.Speech.Synthesis.SpeechSynthesizer; \
          try {{ $s.SelectVoiceByHints([System.Speech.Synthesis.VoiceGender]::NotSet, [System.Speech.Synthesis.VoiceAge]::NotSet, 0, \
          [System.Globalization.CultureInfo]::new('{culture}')) }} catch {{}}; $s.Rate = {}; $s.Speak([Console]::In.ReadToEnd())",
         ((rate - 1.0) * 10.0).round().clamp(-10.0, 10.0) as i32,
@@ -1038,10 +1074,7 @@ fn speak(text: &str, slow: bool, accent: &str, rate: f64) -> Result<(), String> 
         child.wait().map(|s| s.success()).map_err(|e| e.to_string())
     };
     // A voice that is not installed fails, and macOS reads with its own default one instead.
-    if !run(&args)? && cfg!(target_os = "macos") {
-        run(&["-r", &per_minute])?;
-    }
-    Ok(())
+    if run(&args)? || (cfg!(target_os = "macos") && run(&["-r", &per_minute])?) { Ok(()) } else { Err("Máy không đọc được câu này".into()) }
 }
 
 /// The text on the clipboard, through the system's own tool.

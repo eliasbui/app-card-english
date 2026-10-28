@@ -10,6 +10,8 @@ Từ vựng:
 - Tra phiên âm IPA từ CMU Pronouncing Dictionary.
 - Lọc danh sách theo trạng thái và theo chủ đề.
 - Cửa sổ riêng cho từng từ: luyện phát âm, viết câu, sửa, xóa.
+- Kiểm tra chính tả ngay khi gõ từ tiếng Anh (theo CMUdict) và gợi ý từ đúng; từ tiếng Trung phải có trong CC-CEDICT.
+- Bỏ qua từ không muốn học nữa: từ đó ra khỏi lịch ôn, bài tập và các con số thống kê, bật lại được bất cứ lúc nào.
 
 Khóa tiếng Trung:
 
@@ -51,7 +53,7 @@ Nhắc học:
 - Số từ cần học hiển thị cạnh icon trên thanh menu và trong tooltip của khay hệ thống.
 - Khởi động cùng máy tính (LaunchAgent trên macOS, khóa Run trên Windows, mục autostart trên Linux), khi đó app chỉ chạy trong khay.
 
-Giọng đọc: mỗi khóa tải được một gói giọng Kokoro chạy trên máy qua sherpa-onnx (tiếng Anh 132 MB với các giọng Heart, Bella, Nicole, Michael, Emma, George; tiếng Trung 147 MB với 6 giọng nam và nữ), hoặc dùng giọng của hệ điều hành; chỉnh tốc độ.
+Giọng đọc: mỗi khóa tải được một gói giọng Kokoro chạy trên máy qua sherpa-onnx (tiếng Anh 132 MB với các giọng Heart, Bella, Nicole, Michael, Emma, George; tiếng Trung 147 MB với 6 giọng nam và nữ), hoặc dùng giọng của hệ điều hành; chỉnh tốc độ. Gói giọng đã tải xóa được trong Cài đặt để lấy lại dung lượng, khóa đó quay về giọng của hệ điều hành.
 
 Phím tắt toàn cục (Cmd hoặc Ctrl + Shift + E, và vài tổ hợp khác): thêm từ vừa copy (có tra nghĩa), hoặc nếu là cả đoạn văn thì để AI chọn ra những từ đáng học.
 
@@ -63,7 +65,7 @@ Dữ liệu:
 
 Giao diện: hình dán hoạt hình dễ thương (tạo bằng công cụ sinh ảnh AI), màu nhấn xanh, hồng hoặc tím, giao diện sáng, tối hoặc theo hệ thống.
 
-Cập nhật: app kiểm tra phiên bản mới qua GitHub Releases của `eliasbui/app-card-english`; nếu cài bằng Homebrew hoặc bằng script PowerShell trên Windows thì app hiện lệnh cập nhật thay vì trang tải về.
+Cập nhật: app kiểm tra phiên bản mới qua GitHub Releases của `eliasbui/app-card-english` và hỏi trước khi cập nhật. Trên macOS và Windows app tự tải bản mới, kiểm tra kích thước và mã SHA-256 mà GitHub công bố, thay vào chỗ bản đang cài rồi tự mở lại, không cần chạy `brew` hay `irm`. Chỉ khi thư mục cài không ghi được (ví dụ cài cho mọi người dùng) app mới hiện lệnh cập nhật hoặc trang tải về.
 
 ## AI
 
@@ -71,13 +73,13 @@ Chọn nguồn AI trong Cài đặt. Khi nguồn đang chọn lỗi hoặc hết
 
 | Nguồn | Cách dùng | Model |
 | --- | --- | --- |
-| Model trên máy | Tải về trong Cài đặt (Qwen2.5 0.5B, 498 MB), chạy offline | qwen2.5-0.5b-instruct |
+| Model trên máy | Tải về trong Cài đặt, chạy offline: Qwen2.5 0.5B (498 MB, nhanh) hoặc Qwen2.5 1.5B (1,1 GB, dịch tốt hơn nhưng chậm hơn); chọn bản muốn dùng và xóa bản đã tải để lấy lại chỗ trống | qwen2.5-0.5b-instruct, qwen2.5-1.5b-instruct |
 | ChatGPT | Bấm Continue with ChatGPT, đăng nhập trong trình duyệt; dùng hạn mức của gói Plus hoặc Pro (gói Free không dùng được) | Lấy từ tài khoản (`GET /v1/models`) |
 | ChatGPT qua Codex | Đăng nhập bằng client của Codex CLI; dùng hạn mức Codex của tài khoản, kể cả gói Free khi OpenAI còn tặng. Không chính thức, có thể ngừng chạy bất cứ lúc nào | Lấy từ `backend-api/codex/models` |
 | Gemini | API key miễn phí từ Google AI Studio | Lấy từ `models.list`, mặc định là bản flash mới nhất |
 | DeepSeek | API key, trả phí theo lượt | Lấy từ `GET /models` |
 
-Chấm phát âm luôn chạy trên máy bằng Whisper: tiếng Anh dùng tiny.en Q8_0 (44 MB), tiếng Trung dùng bản tiny đa ngôn ngữ (tải thêm 45 MB). Trên Mac model chạy bằng GPU (Metal); `CARD_ENGLISH_CPU=1` ép dùng CPU.
+Chấm phát âm luôn chạy trên máy bằng Whisper: tiếng Anh dùng tiny.en Q8_0 (44 MB), tiếng Trung dùng bản tiny đa ngôn ngữ (tải thêm 45 MB). Trên Mac model chạy bằng GPU (Metal); `CARD_ENGLISH_CPU=1` ép dùng CPU. Mọi model đã tải đều xóa được trong Cài đặt; hai bản Qwen dùng chung một file tokenizer, file này chỉ bị xóa khi không còn bản nào cần.
 
 ChatGPT dùng luồng chính thức "Sign in with ChatGPT" cho app mã nguồn mở chạy trên máy người dùng
 (https://developers.openai.com/siwc/token-sharing-open-source, đang ở giai đoạn preview). App đóng mã hoặc thu phí
@@ -108,7 +110,7 @@ Trên macOS, cài bằng Homebrew:
 
 Ghi đủ tên cask như trên thì Homebrew chỉ tin đúng cask này, không cần `brew trust`.
 
-- Cập nhật: `brew upgrade --cask card-english`.
+- Cập nhật: bấm Cập nhật ngay trong app, hoặc `brew upgrade --cask card-english`.
 - Gỡ: `brew uninstall --cask card-english`, gỡ luôn mục khởi động cùng máy tính nếu đã bật. Thêm `--zap` để xóa cả dữ liệu.
 
 Trên Windows 10 và 11, mở PowerShell và chạy:
@@ -117,7 +119,7 @@ Trên Windows 10 và 11, mở PowerShell và chạy:
 
 Script cài app cho tài khoản đang dùng vào `%LOCALAPPDATA%\Programs\CardEnglish`, không cần quyền quản trị, kiểm tra file tải về bằng mã SHA-256 mà GitHub công bố, rồi thêm lối tắt vào menu Start.
 
-- Cập nhật: chạy lại lệnh trên. Nếu app đang chạy, script đóng app rồi mở lại sau khi thay.
+- Cập nhật: bấm Cập nhật ngay trong app, hoặc chạy lại lệnh trên. Nếu app đang chạy, script đóng app rồi mở lại sau khi thay.
 - Gỡ: Settings > Apps > Card English > Uninstall, gỡ luôn mục khởi động cùng máy tính nếu đã bật. Dữ liệu trong `%APPDATA%\CardEnglish` được giữ lại; xóa thư mục đó nếu muốn xóa cả dữ liệu.
 
 Hoặc tải bản zip trong GitHub Releases và cài bằng tay. Lưu ý:
@@ -164,7 +166,7 @@ Cấu trúc:
 - `src/cloud.rs`: Gemini và DeepSeek.
 - `src/speech.rs`: ghi âm (cpal), Whisper, chấm điểm.
 - `src/pron.rs`: IPA và so khớp âm vị từ CMUdict, pinyin và âm Hán Việt.
-- `src/voice.rs`: giọng đọc Kokoro (tải gói, đọc ra file WAV, phát).
+- `src/voice.rs`: giọng đọc Kokoro (tải và giải nén gói, xóa gói, đọc ra file WAV, phát).
 - `src/update.rs`, `src/models.rs`, `src/net.rs`: phiên bản mới, tải model, HTTP qua curl của hệ thống.
 - `ui/index.html`: toàn bộ giao diện.
 - `ui/stickers.webp`: bộ hình dán.
@@ -173,6 +175,7 @@ Cấu trúc:
 - `scripts/make-zh-data.py`: dựng lại hai file trên từ nguồn.
 - `packaging/homebrew/`, `scripts/update-cask.sh`: cask Homebrew và script cập nhật tap.
 - `scripts/install.ps1`: cài, cập nhật và đăng ký gỡ app trên Windows.
+- `scripts/package-windows.sh`: build bản Windows ngay trên máy Mac, trong Docker.
 
 ## Phát hành
 
@@ -180,7 +183,9 @@ Cấu trúc:
 scripts/release.sh 0.2.0
 ```
 
-Chạy trên máy Mac. Script tăng version, chạy test, build bản macOS universal (Apple silicon và Intel) ngay trên máy, tạo tag và push, đăng GitHub Release kèm file zip macOS, rồi trỏ cask trong tap `eliasbui/homebrew-card-english` sang file zip đó. GitHub Actions chỉ build bản Windows x64 và thêm vào cùng release; app sẽ tự thấy bản mới.
+Chạy trên máy Mac đang mở Docker. Script tăng version, chạy test, build bản macOS universal (Apple silicon và Intel) và bản Windows x64 ngay trên máy, tạo tag và push, đăng GitHub Release kèm hai file zip, rồi trỏ cask trong tap `eliasbui/homebrew-card-english` sang file zip macOS; app sẽ tự thấy bản mới. Không dùng GitHub Actions.
+
+Bản Windows được cross-compile sang MSVC bằng `cargo-xwin` trong Docker (`scripts/package-windows.sh`), vì thư viện sherpa-onnx dựng sẵn cho Windows là bản MSVC. Test chỉ chạy trên macOS; bản Windows được biên dịch và link nhưng không chạy thử, nên sau khi phát hành nên mở thử trên một máy Windows. Docker Desktop mặc định chỉ cấp 3,5 GB RAM, script vì thế chạy 2 tiến trình biên dịch song song; tăng RAM trong Settings, Resources rồi tăng `CARGO_BUILD_JOBS` trong script nếu muốn nhanh hơn.
 
 Nếu cask chưa cập nhật được (chưa có quyền push vào tap), chạy lại bằng tay:
 

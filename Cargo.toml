@@ -32,13 +32,16 @@ dirs = "7"
 # The shortcut that adds the copied word from any app.
 global-hotkey = "0.9"
 sherpa-onnx = "2.0.1"
+# Unpacking the Kokoro voice packs: the tar of Windows 10 cannot read bzip2.
+bzip2 = "0.6"
+tar = { version = "0.4", default-features = false }
 
 # The time on the learner's clock, for reminders at a set hour; std knows only UTC.
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_SystemInformation"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_SystemInformation"] }
 
 # The GPU of a Mac; other machines run on the CPU.
 [target.'cfg(target_os = "macos")'.dependencies]
@@ -49,7 +52,8 @@ candle-transformers = { version = "0.9", features = ["metal"] }
 [dev-dependencies]
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "ico"] }
 
-[target.'cfg(windows)'.build-dependencies]
+# Not only on Windows: the Windows app is also built from a Mac, in Docker (scripts/package-windows.sh).
+[build-dependencies]
 winresource = "0.1"
 
 [profile.release]

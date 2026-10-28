@@ -151,6 +151,138 @@ fn symbol(arpabet: &str) -> &'static str {
     }
 }
 
+/// The longest word the spell check looks for corrections of; a longer one gets none.
+const SPELL_LONGEST: usize = 30;
+
+/// The letters a word has, one bit each: a word one edit away differs in at most two of them.
+fn letter_set(word: impl Iterator<Item = char>) -> u32 {
+    word.fold(0, |set, c| set | if c.is_ascii_lowercase() { 1 << (c as u8 - b'a') } else { 1 << 26 })
+}
+
+/// The words of the dictionary that can be suggested (letters and apostrophes, no abbreviations), by length, each
+/// with its letter set.
+fn by_length() -> &'static Vec<Vec<(u32, &'static str)>> {
+    static WORDS: OnceLock<Vec<Vec<(u32, &str)>>> = OnceLock::new();
+    WORDS.get_or_init(|| {
+        let mut out = vec![Vec::new(); SPELL_LONGEST + 3];
+        let mut words: Vec<&str> = dict().keys().copied().filter(|w| w.bytes().all(|b| b.is_ascii_lowercase() || b == b'\'')).collect();
+        words.sort_unstable();
+        for w in words {
+            if let Some(bucket) = out.get_mut(w.len()) {
+                bucket.push((letter_set(w.chars()), w));
+            }
+        }
+        out
+    })
+}
+
+/// The edit distance of `a` and `b` with a swap of two neighbours as one edit, or None once it is beyond `max`.
+fn distance_within(a: &[char], b: &[u8], max: usize) -> Option<usize> {
+    let (n, m) = (a.len(), b.len());
+    if n.abs_diff(m) > max || n > SPELL_LONGEST || m > SPELL_LONGEST + 2 {
+        return None;
+    }
+    let (mut before, mut prev, mut cur) = ([0u8; SPELL_LONGEST + 3], [0u8; SPELL_LONGEST + 3], [0u8; SPELL_LONGEST + 3]);
+    for (j, cell) in prev.iter_mut().enumerate().take(m + 1) {
+        *cell = j as u8;
+    }
+    for i in 1..=n {
+        cur[0] = i as u8;
+        let mut least = i as u8;
+        for j in 1..=m {
+            let same = a[i - 1] == char::from(b[j - 1]);
+            let mut v = (prev[j] + 1).min(cur[j - 1] + 1).min(prev[j - 1] + u8::from(!same));
+            if i > 1 && j > 1 && a[i - 1] == char::from(b[j - 2]) && a[i - 2] == char::from(b[j - 1]) {
+                v = v.min(before[j - 2] + 1);
+            }
+            cur[j] = v;
+            least = least.min(v);
+        }
+        if usize::from(least) > max {
+            return None;
+        }
+        (before, prev) = (prev, cur);
+    }
+    let d = usize::from(prev[m]);
+    (d <= max).then_some(d)
+}
+
+/// The dictionary words closest to an unknown word, best first: fewest edits, the same first letter, the same set of
+/// letters (a swap or a doubled key: `teh`, `offf`), the nearest length, then the alphabet.
+// ponytail: CMUdict has no word frequencies, so a common word does not outrank a rare one at the same distance; add a
+// frequency list if the order bothers learners.
+fn corrections(word: &str, limit: usize) -> Vec<&'static str> {
+    let a: Vec<char> = word.chars().collect();
+    let set = letter_set(word.chars());
+    let mut found: Vec<(usize, bool, bool, usize, &str)> = Vec::new();
+    let buckets = by_length();
+    for (len, bucket) in buckets.iter().enumerate().take(a.len() + 3).skip(a.len().saturating_sub(2)) {
+        for &(letters, w) in bucket {
+            if (letters ^ set).count_ones() > 4 {
+                continue;
+            }
+            if let Some(d) = distance_within(&a, w.as_bytes(), 2) {
+                found.push((d, w.as_bytes()[0] as char != a[0], letters != set, len.abs_diff(a.len()), w));
+            }
+        }
+    }
+    found.sort_unstable();
+    found.into_iter().map(|f| f.4).take(limit).collect()
+}
+
+/// Whether text is spelt right and, when it is not, up to five corrections of it. English is checked word by word
+/// against CMUdict, numbers counting as known; Chinese has to be a word of CC-CEDICT, with no corrections.
+pub fn spell(text: &str) -> (bool, Vec<String>) {
+    let text = text.trim();
+    if text.is_empty() {
+        return (true, Vec::new());
+    }
+    if is_chinese(text) {
+        let word = text.trim_matches(|c: char| !is_han(c));
+        return (cedict().contains_key(word), Vec::new());
+    }
+    // The words between spaces and hyphens, each with the punctuation around it kept apart.
+    let mut parts: Vec<(String, Vec<String>)> = Vec::new();
+    let mut ok = true;
+    let mut rest = text;
+    while !rest.is_empty() {
+        let end = rest.find(|c: char| c.is_whitespace() || c == '-').unwrap_or(rest.len());
+        let (token, after) = rest.split_at(end);
+        let gap = after.len() - after.trim_start_matches(|c: char| c.is_whitespace() || c == '-').len();
+        let (gap, next) = after.split_at(gap);
+        rest = next;
+        let core = token.trim_matches(|c: char| !(c.is_alphanumeric() || c == '\'' || c == '’'));
+        let lower = core.replace('’', "'").to_lowercase();
+        let known = |w: &str| w.is_empty() || w.chars().any(|c| c.is_numeric()) || dict().contains_key(w);
+        let mut choices = Vec::new();
+        if !known(&lower) && !known(lower.trim_matches('\'')) {
+            ok = false;
+            let capital = core.starts_with(char::is_uppercase);
+            let at = token.find(core).unwrap_or(0);
+            choices = corrections(lower.trim_matches('\''), 5)
+                .into_iter()
+                .map(|w| {
+                    let w = if capital { w[..1].to_uppercase() + &w[1..] } else { w.to_owned() };
+                    format!("{}{w}{}{gap}", &token[..at], &token[at + core.len()..])
+                })
+                .collect();
+        }
+        parts.push((format!("{token}{gap}"), choices));
+    }
+    if ok {
+        return (true, Vec::new());
+    }
+    let mut out: Vec<String> = Vec::new();
+    for rank in 0..5 {
+        let whole: String = parts.iter().map(|(as_is, choices)| choices.get(rank).or(choices.last()).unwrap_or(as_is).as_str()).collect();
+        let whole = whole.trim_end().to_owned();
+        if whole != text && !out.contains(&whole) {
+            out.push(whole);
+        }
+    }
+    (false, out)
+}
+
 /// How alike two sequences are, from 0 to 1, by edit distance.
 pub fn similarity<T: PartialEq>(a: &[T], b: &[T]) -> f32 {
     let longest = a.len().max(b.len());
@@ -400,6 +532,38 @@ mod tests {
         assert_eq!(ipa("cat"), "/kæt/");
         assert_eq!(ipa("thank you"), "/θæŋk ju/");
         assert_eq!(ipa("qwzxv"), "");
+    }
+
+    #[test]
+    fn spelling_is_checked_word_by_word_with_corrections() {
+        assert_eq!(spell("  "), (true, vec![]));
+        assert_eq!(spell("Take off!"), (true, vec![]));
+        assert_eq!(spell("well-known 3D students'"), (true, vec![]));
+        assert_eq!(spell("recieve").1.first().map(String::as_str), Some("receive"));
+        assert_eq!(spell("beautifull").1.first().map(String::as_str), Some("beautiful"));
+        assert_eq!(spell("teh").1.first().map(String::as_str), Some("the"), "a swap of letters comes first");
+        let (ok, fixes) = spell("take offf");
+        assert!(!ok && fixes.iter().all(|f| f.starts_with("take ")), "{fixes:?}");
+        assert_eq!(fixes.first().map(String::as_str), Some("take off"), "a doubled key");
+        let (_, fixes) = spell("Recieve,");
+        assert_eq!(fixes.first().map(String::as_str), Some("Receive,"));
+        assert!(fixes.len() <= 5 && !fixes.contains(&"Recieve,".to_owned()));
+        assert_eq!(spell("qzxqzxqzx"), (false, vec![]));
+        assert_eq!(spell("学习"), (true, vec![]));
+        assert_eq!(spell("学习习习"), (false, vec![]));
+    }
+
+    #[test]
+    fn spelling_answers_quickly() {
+        spell("warm");
+        let start = std::time::Instant::now();
+        for word in ["recieve", "beautifull", "acommodation", "enviroment", "definately"] {
+            spell(word);
+        }
+        let each = start.elapsed() / 5;
+        println!("spell: {each:?} a word");
+        // Debug builds of this crate are not optimised; the app is built for release.
+        assert!(cfg!(debug_assertions) || each < std::time::Duration::from_millis(50), "{each:?}");
     }
 
     #[test]
