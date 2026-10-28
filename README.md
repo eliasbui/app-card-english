@@ -195,7 +195,7 @@ Cấu trúc:
 - `scripts/make-zh-data.py`: dựng lại hai file trên từ nguồn.
 - `packaging/homebrew/`, `scripts/update-cask.sh`: cask Homebrew và script cập nhật tap.
 - `scripts/install.ps1`: cài, cập nhật và đăng ký gỡ app trên Windows.
-- `scripts/package-windows.sh`: build bản Windows ngay trên máy Mac, trong Docker.
+- `scripts/package-windows.sh`: build bản Windows ngay trên máy Mac bằng `cargo-xwin` và LLVM của Homebrew.
 
 ## Phát hành
 
