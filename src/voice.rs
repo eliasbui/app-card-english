@@ -121,9 +121,16 @@ fn unpack(archive: &Path, into: &Path) -> Result<(), String> {
 
 /// Reads `text` aloud with voice `sid` of the course's pack, at `speed` (1 is normal), and returns once it is heard.
 pub fn speak(dir: &Path, course: &str, sid: i32, text: &str, speed: f32) -> Result<(), String> {
+    speak_and_keep(dir, course, sid, text, speed).map(drop)
+}
+
+/// Reads `text` aloud like `speak` and gives back what was heard, its samples and their rate, for holding a
+/// learner's voice against it.
+pub fn speak_and_keep(dir: &Path, course: &str, sid: i32, text: &str, speed: f32) -> Result<(Vec<f32>, u32), String> {
     let _one_at_a_time = SPEAKING.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-    let wav = synthesize(dir, course, sid, text, speed)?;
-    play(&wav)
+    let (wav, samples, rate) = synthesize(dir, course, sid, text, speed)?;
+    play(&wav)?;
+    Ok((samples, rate))
 }
 
 /// A path sherpa-onnx can open. Its C API takes narrow strings, which on Windows lose letters such as those of a
@@ -152,8 +159,8 @@ fn narrow(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
 
-/// Writes the speech to a WAV file in the data folder and gives its path.
-fn synthesize(dir: &Path, course: &str, sid: i32, text: &str, speed: f32) -> Result<PathBuf, String> {
+/// Writes the speech to a WAV file in the data folder and gives its path, with the samples and their rate.
+pub(crate) fn synthesize(dir: &Path, course: &str, sid: i32, text: &str, speed: f32) -> Result<(PathBuf, Vec<f32>, u32), String> {
     let (name, ..) = pack(course)?;
     if !ready(dir, course) {
         return Err("Chưa tải giọng đọc Kokoro".into());
@@ -187,9 +194,9 @@ fn synthesize(dir: &Path, course: &str, sid: i32, text: &str, speed: f32) -> Res
     let (_, tts) = loaded.as_ref().ok_or("Không mở được giọng đọc Kokoro")?;
     let config = GenerationConfig { sid, speed: speed.clamp(0.5, 1.5), ..Default::default() };
     let audio = tts.generate_with_config(text, &config, None::<fn(&[f32], f32) -> bool>).ok_or("Kokoro không đọc được câu này")?;
-    let wav = dir.join("speech.wav");
-    write_wav(&wav, audio.samples(), audio.sample_rate().max(1) as u32).map_err(|e| format!("Không ghi được file âm thanh: {e}"))?;
-    Ok(wav)
+    let (wav, rate) = (dir.join("speech.wav"), audio.sample_rate().max(1) as u32);
+    write_wav(&wav, audio.samples(), rate).map_err(|e| format!("Không ghi được file âm thanh: {e}"))?;
+    Ok((wav, audio.samples().to_vec(), rate))
 }
 
 /// A 16-bit mono WAV of `samples` (from -1 to 1), written here because sherpa-onnx's own writer takes a narrow path.
@@ -294,7 +301,7 @@ mod tests {
     fn kokoro_reads_english_and_chinese() {
         let dir = std::env::var_os("KOKORO_DIR").map(PathBuf::from).expect("KOKORO_DIR is the data folder");
         for (course, text) in [("en", "Hello, I am learning new words today."), ("zh", "你好，我在学习中文。")] {
-            let wav = synthesize(&dir, course, VOICES.iter().find(|v| v.0 == course).unwrap().1, text, 1.0).unwrap();
+            let (wav, ..) = synthesize(&dir, course, VOICES.iter().find(|v| v.0 == course).unwrap().1, text, 1.0).unwrap();
             assert!(std::fs::metadata(&wav).unwrap().len() > 10_000, "{course}");
             if std::env::var_os("KOKORO_PLAY").is_some() {
                 play(&wav).unwrap();
