@@ -1,0 +1,24 @@
+  /* Shadowing: the reading's tune and the learner's, two colours apart in hue and in lightness on both themes. */
+  :root { --shadow-ref: #0e8a7e; --shadow-you: #dd5a0f; }
+  :root[data-theme="dark"] { --shadow-ref: #45d0bf; --shadow-you: #ff9d57; }
+  /* The speaking sticker turned the other way: the learner answering the voice. */
+  .mode[data-kind="shadow"] .st, .flash .shadow-st { scale: -1 1; }
+  .shadow-line { margin: 10px 0 4px; font-size: 22px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+  :root[data-course="zh"] .shadow-line { font-size: 26px; }
+  .shadow-line .shadow-heard { color: var(--green); }
+  .shadow-box { min-height: 92px; }
+  .shadow-cue { font-size: 20px; font-weight: 700; color: var(--red); text-align: center; }
+  .shadow-cue.muted { padding-top: 24px; font-size: 15px; font-weight: 500; color: var(--muted); }
+  .shadow-wave { margin: 8px 0 12px; }
+  .shadow-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin-top: 14px; }
+  .shadow-key { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-2); }
+  .shadow-key::before { content: ""; width: 22px; border-top: 3px solid var(--shadow-you); }
+  .shadow-key.ref::before { border-top-style: dashed; border-top-color: var(--shadow-ref); }
+  .shadow-chart { margin-top: 6px; }
+  .shadow-chart canvas { display: block; width: 100%; }
+  .shadow-feedback { margin: 8px 0 0; font-weight: 600; }
+  .shadow-feedback + .btn { margin-top: 8px; }
+  @media (max-width: 640px) {
+    .shadow-line { font-size: 19px; }
+    :root[data-course="zh"] .shadow-line { font-size: 22px; }
+  }

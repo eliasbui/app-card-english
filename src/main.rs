@@ -13,6 +13,7 @@ mod fsrs;
 mod models;
 mod net;
 mod pron;
+mod shadow;
 mod speech;
 mod update;
 mod voice;
@@ -610,6 +611,32 @@ impl App {
                         None => speak(&words, slow, &accent, rate),
                     }
                     .map(|_| Value::Null)
+                }));
+            }
+            // Shadowing reads with the course's Kokoro voice whenever its pack is there, even when the system's is
+            // chosen, since the tune the learner copies is the one their own is held against.
+            "shadow_say" => {
+                let words = text("text");
+                let rate = args["rate"].as_f64().unwrap_or(0.95) as f32;
+                let lang = if pron::is_chinese(&words) { "zh" } else { "en" };
+                let sid = db::setting(&self.db, &db::scoped("voice", lang))
+                    .ok()
+                    .flatten()
+                    .and_then(|v| v.strip_prefix("kokoro:").and_then(|sid| sid.parse::<i32>().ok()))
+                    .or_else(|| voice::VOICES.iter().find(|v| v.0 == lang).map(|v| v.1))
+                    .unwrap_or_default();
+                background(Box::new(move || {
+                    let (samples, rate) = voice::speak_and_keep(&dir, lang, sid, &words, rate)?;
+                    Ok(json!({ "reference": shadow::contour(&samples, rate) }))
+                }));
+            }
+            "shadow_stop" => {
+                let target = text("target");
+                let reference = args["reference"].as_array().map(|a| a.iter().map(|v| v.as_f64().map(|x| x as f32)).collect());
+                background(Box::new(move || {
+                    let pcm = speech::stop()?;
+                    let score = speech::assess(&target, &pcm, &dir)?;
+                    Ok(json!(shadow::compare(&target, score, &pcm, reference)))
                 }));
             }
             "download_voice" => {
