@@ -58,12 +58,12 @@
     }));
   }
 
-  /// The learner says the word, when the Chinese Whisper model is there, and sees the tone of each syllable.
+  /// The learner says the word, when a Chinese recognizer is there, and sees the tone of each syllable.
   function sayAloud(w) {
     const box = $("tone-pron");
     box.classList.remove("hidden");
-    if (!state.models.sttzh?.ready) {
-      box.innerHTML = `<span class="muted">Tải Whisper tiếng Trung trong Cài đặt để tự đọc từ này và xem chữ nào sai thanh.</span>`;
+    if (!hears("zh")) {
+      box.innerHTML = `<span class="muted">Tải SenseVoice trong Cài đặt, mục Model trên máy để tự đọc từ này và xem chữ nào sai thanh.</span>`;
       return;
     }
     pronWidget(box, w, { onScore: (score, button, s) => {

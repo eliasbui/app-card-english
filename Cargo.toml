@@ -31,7 +31,10 @@ getrandom = "0.3"
 dirs = "7"
 # The shortcut that adds the copied word from any app.
 global-hotkey = "0.9"
-sherpa-onnx = "2.0.1"
+sherpa-onnx = "=2.0.1"
+# The result of a recognition as sherpa-onnx writes it, with the probabilities of its tokens that the wrapper drops;
+# speech.rs reads it through the inside of the wrapper's stream, so both stay at this version.
+sherpa-onnx-sys = { version = "=2.0.1", default-features = false }
 # Unpacking the Kokoro voice packs: the tar of Windows 10 cannot read bzip2.
 bzip2 = "0.6"
 tar = { version = "0.4", default-features = false }

@@ -4,7 +4,7 @@
 //! hard: each of its stages ends with a stage test and the last one with a full mock. A paper is written set by set,
 //! kept whole in the `exams` table with the learner's answers and result, and scored on the exam's own scale.
 
-use crate::{ai, db, models, pron, roadmap, speech};
+use crate::{ai, db, pron, roadmap, speech};
 use rusqlite::{Connection, OptionalExtension, params};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -2384,7 +2384,7 @@ pub fn handle(db: &Connection, dir: &Path, lang: &str, settings: &ai::Settings, 
                 Ok(warning) => json!({ "error": "", "warning": warning.unwrap_or_default() }),
                 Err(error) => json!({ "error": error, "warning": "" }),
             };
-            v["whisper"] = models::ready(dir, if lang == "zh" { "sttzh" } else { "stt" }).into();
+            v["whisper"] = speech::chosen(dir, lang, "").is_some().into();
             Ok(v)
         }
         "exam_get" => load(db, lang, uid).map_err(e)?.map(|x| view(&x)).ok_or_else(|| "Không tìm thấy bài thi này".into()),

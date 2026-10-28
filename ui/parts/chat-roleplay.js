@@ -26,7 +26,7 @@
 
   const zh = () => courseOf() === "zh";
   const language = () => (zh() ? "tiếng Trung" : "tiếng Anh");
-  const speechReady = () => !!state.models?.[zh() ? "sttzh" : "stt"]?.ready;
+  const speechReady = () => hears();
   const weakModel = () => window.chatAi?.() === "local:llm";
 
   function show() {

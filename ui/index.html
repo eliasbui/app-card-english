@@ -971,7 +971,7 @@
       <p class="muted">Khi AI đang chọn bị lỗi hoặc hết hạn mức, app tự chuyển sang nguồn khác đã sẵn sàng và cho bạn biết. Mở từng nguồn bên dưới để thiết lập.</p>
     </div>
     <details class="card provider" id="pd-local"><summary><span class="sum"><b>Model trên máy</b><span class="grow"></span><span class="row" id="ps-local"></span></span></summary>
-      <div class="pbody"><div id="model-llm"></div><div id="model-llm15"></div><div id="model-stt"></div><div id="model-sttzh"></div><div id="usage-local"></div></div></details>
+      <div class="pbody"><div id="model-llm"></div><div id="model-llm15"></div><div id="model-stt110m"></div><div id="model-stt06b"></div><div id="model-stt"></div><div id="model-sttsv"></div><div id="model-sttzh"></div><div id="usage-local"></div></div></details>
     <details class="card provider" id="pd-codex"><summary><span class="sum"><b>ChatGPT qua Codex</b><span class="grow"></span><span class="row" id="ps-codex"></span></span></summary><div class="pbody" id="pv-codex"></div></details>
     <details class="card provider" id="pd-chatgpt"><summary><span class="sum"><b>ChatGPT</b><span class="grow"></span><span class="row" id="ps-chatgpt"></span></span></summary><div class="pbody" id="pv-chatgpt"></div></details>
     <details class="card provider" id="pd-gemini"><summary><span class="sum"><b>Gemini</b><span class="grow"></span><span class="row" id="ps-gemini"></span></span></summary><div class="pbody" id="pv-gemini"></div></details>
@@ -2881,9 +2881,17 @@ function renderVoicePack() {
 const MODELS = {
   llm: ["Qwen2.5 0.5B", "Giải thích nghĩa, gợi ý từ mới bằng tiếng Việt; nhanh, nhẹ"],
   llm15: ["Qwen2.5 1.5B", "Hiểu và dịch tốt hơn, chậm hơn"],
-  stt: ["Whisper tiny.en", "Nghe và chấm điểm phát âm tiếng Anh"],
-  sttzh: ["Whisper tiny đa ngôn ngữ", "Nghe và chấm điểm phát âm tiếng Trung"],
+  stt110m: ["Parakeet 110M", "Nghe và chấm điểm phát âm tiếng Anh; nhanh, nhẹ"],
+  stt06b: ["Parakeet 0.6B", "Nghe tiếng Anh chính xác hơn, chậm hơn; hợp máy mạnh"],
+  stt: ["Whisper tiny.en (bản cũ)", "Model nghe tiếng Anh cũ, chậm hơn Parakeet nhiều"],
+  sttsv: ["SenseVoice", "Nghe và chấm điểm phát âm tiếng Trung; nhanh, chính xác"],
+  sttzh: ["Whisper tiny đa ngôn ngữ (bản cũ)", "Model nghe tiếng Trung cũ, chậm và kém chính xác hơn SenseVoice"],
 };
+/// The recognizers of each course; the Whisper of the first versions, last, shows only while it is downloaded.
+const HEARS = { en: ["stt110m", "stt06b", "stt"], zh: ["sttsv", "sttzh"] };
+const OLD_STT = ["stt", "sttzh"];
+/// Whether a recognizer of the course is downloaded, to hear the learner with.
+const hears = (course = courseOf()) => HEARS[course].some((g) => state.models?.[g]?.ready);
 const sizeText = (bytes) => (bytes >= 1e9 ? (bytes / 1e9).toFixed(1).replace(".", ",") + " GB" : Math.round(bytes / 1e6) + " MB");
 /// The model on this machine that answers: the chosen one once downloaded, else the other one if it is.
 function localModel() {
@@ -2892,13 +2900,14 @@ function localModel() {
 }
 /// Downloads still running, so that the settings drawn again keep their progress bar.
 state.downloading = {};
-/// A model or voice pack: what it is, its size, and the download, or the `actions` once it is there.
-function downloadRow(box, group, { name, size, use, ready, active = false, actions, fetch, retry }) {
+/// A model or voice pack: what it is, its size, a tag such as a suggestion, and the download, or the `actions` once it
+/// is there.
+function downloadRow(box, group, { name, size, use, ready, active = false, tag = "", actions, fetch, retry }) {
   const busy = state.downloading[group];
   box.innerHTML = `
     <div class="model-row ${active ? "active" : ""}">
       <div class="grow"><b>${name}</b> <span class="muted">${sizeText(size)}</span><div class="muted">${use}</div></div>
-      <div class="model-actions">${ready ? actions : `<button class="btn primary small" id="dl-${group}" ${busy ? "disabled" : ""}>${busy ? "Đang tải..." : "Tải về"}</button>`}</div>
+      <div class="model-actions">${tag}${ready ? actions : `<button class="btn primary small" id="dl-${group}" ${busy ? "disabled" : ""}>${busy ? "Đang tải..." : "Tải về"}</button>`}</div>
     </div>
     <div class="row dl ${busy ? "" : "hidden"}" id="dlrow-${group}"><div class="grow progress"><div id="bar-${group}"></div></div><span class="muted num" id="mb-${group}"></span></div>
     <div class="error" id="dlerr-${group}"></div>`;
@@ -2945,28 +2954,29 @@ function renderSettings() {
   $("s-hotkey").value = s.hotkey || "";
   $("hotkey-error").textContent = s.hotkey_error || "";
   if (!$("model-llm15")) $("model-llm").insertAdjacentHTML("afterend", '<div id="model-llm15"></div>');
-  const zh = courseOf() === "zh";
-  // Each course shows only its own speech model, as it has its own voice pack.
-  ["llm", "llm15", zh ? "sttzh" : "stt"].forEach(renderModel);
-  $("model-" + (zh ? "stt" : "sttzh")).innerHTML = "";
+  ["llm", "llm15", ...HEARS.en, ...HEARS.zh].forEach(renderModel);
   renderProviders();
 }
 function renderModel(group) {
   const m = state.models[group], box = $("model-" + group);
   if (!box) return;
-  if (!m) { box.innerHTML = ""; return; }
-  const llm = group.startsWith("llm"), active = llm && m.ready && localModel() === group;
-  const use = active ? '<span class="tag">Đang dùng</span>'
-    : llm ? `<button class="btn small" data-act="model-use" data-p="${group}">Dùng model này</button>` : '<span class="tag ok">Đã sẵn sàng</span>';
+  const llm = group.startsWith("llm");
+  // Each course shows only its own recognizers, as it has its own voice pack.
+  const shown = llm || HEARS[courseOf()].includes(group) && (m?.ready || !OLD_STT.includes(group));
+  if (!m || !shown) { box.innerHTML = ""; return; }
+  const active = m.ready && (llm ? localModel() : state.settings.stt_model) === group;
+  const use = active ? '<span class="tag">Đang dùng</span>' : `<button class="btn small" data-act="model-use" data-p="${group}">Dùng model này</button>`;
   downloadRow(box, group, {
     name: MODELS[group][0], size: m.size, use: MODELS[group][1], ready: m.ready, active,
+    tag: m.suggested ? '<span class="tag new">Gợi ý cho máy này</span>' : "",
     actions: use + `<button class="btn small danger" data-act="model-del" data-p="${group}">Xóa</button>`,
     fetch: async () => {
       state.models = await app.call("download", { group });
-      // A downloaded Qwen 1.5B is a choice of it, as a downloaded voice is. Qwen 0.5B is not: with nothing chosen the
-      // app uses the better one downloaded, and the settings say which.
+      // A downloaded Qwen 1.5B or recognizer is a choice of it, as a downloaded voice is, while its course is the one
+      // shown. Qwen 0.5B is not: with nothing chosen the app uses the better one downloaded, and the settings say which.
       if (group === "llm15") await saveSetting("local_model", group);
-      else if (llm) state.settings = await app.call("settings");
+      else if (HEARS[courseOf()].includes(group)) await saveSetting("stt_model", group);
+      else state.settings = await app.call("settings");
       toast("Đã tải xong model");
     },
     retry: "Bấm Tải về để tải tiếp phần còn lại.",
@@ -3141,7 +3151,7 @@ $("page-settings").addEventListener("click", async (e) => {
       delete state.modelLists[p];
       return saveSetting(p + "_key", "");
     case "model-use":
-      await saveSetting("local_model", p);
+      await saveSetting(p.startsWith("llm") ? "local_model" : "stt_model", p);
       return toast(`Đang dùng ${MODELS[p][0]}`);
     case "model-del":
     case "voice-del": {
