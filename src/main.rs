@@ -11,6 +11,7 @@ mod cloud;
 mod codex;
 mod db;
 mod fsrs;
+mod hanzi;
 mod models;
 mod net;
 mod packs;
@@ -706,6 +707,10 @@ impl App {
                 }));
             }
             "check_update" => background(Box::new(|| update::check().map(|c| json!(c)))),
+            "hanzi_strokes" => {
+                let chars = text("chars");
+                background(Box::new(move || hanzi::strokes(&dir, &chars)));
+            }
             "install_update" => {
                 let proxy = self.proxy.clone();
                 background(Box::new(move || {
@@ -874,6 +879,7 @@ impl App {
                     None => Ok(json!(std::fs::read_to_string(&path).unwrap_or_default())),
                 }
             }
+            "hanzi_parts" => Ok(json!(hanzi::parts(args["word"].as_str().unwrap_or_default()))),
             "save" => {
                 let mut word: db::Word = serde_json::from_value(args["word"].clone()).map_err(|e| e.to_string())?;
                 word.word = word.word.trim().to_owned();

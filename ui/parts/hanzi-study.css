@@ -1,0 +1,36 @@
+  /* Chinese characters: strokes and components (hanzi-study.js). */
+  :root:not([data-course="zh"]) .hz-mode { display: none; }
+  .hz-line { max-width: 560px; margin: 12px auto 0; color: var(--muted); font-size: 12.5px; }
+  .hz-line:empty, .hz-box:empty, .hz-box { display: none; }
+  .word-dialog .hz-line { display: none; }
+  .word-dialog .hz-box:not(:empty) { display: block; }
+  .hz-grid { position: absolute; inset: 0; width: 100%; height: 100%; fill: none; stroke: var(--line-strong); stroke-width: 1; stroke-dasharray: 3 3;
+             vector-effect: non-scaling-stroke; pointer-events: none; }
+  .hz-tiles { display: flex; flex-wrap: wrap; gap: 10px; }
+  .hz-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 104px; padding: 7px 7px 6px; border: 1px solid var(--line);
+             border-radius: var(--r-md); background: var(--surface-2); color: inherit; cursor: pointer; transition: border-color .15s; }
+  .hz-tile:hover { border-color: var(--accent); }
+  .hz-tile:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
+  .hz-draw { position: relative; width: 88px; height: 88px; }
+  .hz-glyph { position: relative; display: grid; place-items: center; width: 88px; height: 88px; font-size: 64px; line-height: 1; }
+  .hz-glyph svg { display: block; }
+  .hz-cap { color: var(--muted); font-size: 12px; line-height: 1.3; }
+  .hz-again { margin-top: 10px; }
+  .hz-sub { margin: 16px 0 8px; }
+  .hz-rows { display: grid; gap: 10px; }
+  .hz-row { display: flex; align-items: flex-start; gap: 12px; }
+  .hz-char { min-width: 1.2em; font-size: 26px; font-weight: 600; line-height: 1.15; }
+  .hz-part b { font-weight: 600; }
+  .hz-py { color: var(--accent-text); }
+  .hz-slots { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px; margin: 14px 0 12px; }
+  .hz-slot { display: grid; place-items: center; width: 40px; height: 40px; border: 1px dashed var(--line-strong); border-radius: var(--r-sm);
+             font-size: 24px; line-height: 1; }
+  .hz-slot.now { border: 2px solid var(--accent); background: var(--accent-soft); }
+  .hz-slot.good { border-style: solid; color: var(--green); }
+  .hz-slot.bad { border-style: solid; color: var(--red); }
+  .hz-pad { position: relative; width: 260px; height: 260px; margin: 0 auto; border: 1px solid var(--line-strong); border-radius: var(--r-md);
+            background: var(--surface-2); touch-action: none; user-select: none; -webkit-user-select: none; }
+  .hz-quiz { position: relative; cursor: crosshair; }
+  .hz-quiz svg { display: block; }
+  .hz-status { min-height: 1.5em; margin-top: 10px; }
+  @media (max-height: 800px) { .hz-st { display: none; } }

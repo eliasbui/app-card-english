@@ -12,10 +12,11 @@ const HANVIET: &str = include_str!("../assets/hanviet.txt");
 /// The longest word looked for when Chinese text is cut into words, in characters.
 const LONGEST: usize = 8;
 /// Characters whose everyday reading is not the one CC-CEDICT happens to list first.
-const USUAL: [(&str, &str); 24] = [
+const USUAL: [(&str, &str); 25] = [
     ("吗", "ma5"), ("吧", "ba5"), ("啊", "a5"), ("么", "me5"), ("那", "na4"), ("个", "ge4"), ("上", "shang4"), ("看", "kan4"),
     ("得", "de5"), ("着", "zhe5"), ("行", "xing2"), ("重", "zhong4"), ("要", "yao4"), ("只", "zhi3"), ("干", "gan4"), ("乐", "le4"),
     ("假", "jia3"), ("累", "lei4"), ("量", "liang4"), ("落", "luo4"), ("正", "zheng4"), ("转", "zhuan3"), ("觉", "jue2"), ("为", "wei4"),
+    ("说", "shuo1"),
 ];
 
 fn dict() -> &'static HashMap<&'static str, Vec<&'static str>> {
