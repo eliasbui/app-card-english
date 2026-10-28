@@ -54,9 +54,7 @@ if git diff --cached --quiet; then
     echo "the cask already points at $VERSION"
     exit 0
 fi
-NAME=$(git config user.name || echo "github-actions[bot]")
-EMAIL=$(git config user.email || echo "41898282+github-actions[bot]@users.noreply.github.com")
-git -c user.name="$NAME" -c user.email="$EMAIL" commit -q -m "Update card-english to $VERSION"
+git commit -q -m "Update card-english to $VERSION"
 # HEAD, so that the first push into a tap without a branch yet works too.
 git push -q origin HEAD
 echo "the cask points at $VERSION ($SHA)"

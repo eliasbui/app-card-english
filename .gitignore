@@ -2,3 +2,4 @@
 /dist
 /.pi/
 .DS_Store
+/.claude/worktrees/
