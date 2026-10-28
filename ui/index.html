@@ -849,7 +849,7 @@
       </div>
       <div id="suggest-status" class="muted"></div>
       <div class="suggestions" id="suggestions"></div>
-      <div class="row hidden" id="suggest-actions"><button class="btn primary" id="btn-add-all">Thêm tất cả</button></div>
+      <div class="row hidden" id="suggest-actions"><button class="btn primary" id="btn-add-all">Thêm tất cả</button><button class="btn" id="btn-study-suggested">Học chủ đề này</button></div>
     </div>
     <div class="list-tools">
       <input id="search" class="grow" placeholder="Tìm theo từ, nghĩa hoặc chủ đề" aria-label="Tìm từ">
@@ -1650,16 +1650,17 @@ $("btn-go-suggest").onclick = () => { go("words"); openSuggest(); };
 
 let session = null;
 $("btn-start").onclick = () => startSession();
-/// Starts a session, on the topic picked on Home if any; `{ ahead: n }` also brings the reviews due in the next
-/// n days, soonest first.
+/// Starts a session, on the topic picked on Home if any, and answers whether there was anything to study;
+/// `{ ahead: n }` also brings the reviews due in the next n days, soonest first.
 async function startSession(args = {}) {
   const words = await app.call("session", { day_start: dayStart(), topic: $("study-topic")?.value || "", ...args });
-  if (!words.length) return refreshHome();
+  if (!words.length) { refreshHome(); return false; }
   session = { queue: words, done: 0, total: words.length, flipped: false, xp: 0, history: [], seen: [] };
   $("session-start").classList.add("hidden");
   $("session").classList.remove("hidden");
   $("page-home").classList.add("studying");
   showSessionCard();
+  return true;
 }
 $("btn-session-quit").onclick = () => endSession();
 $("btn-undo").onclick = () => undoGrade();
@@ -1944,6 +1945,7 @@ function showSuggestions(found, topic) {
       <button class="btn small primary" data-add="${i}">Thêm</button>
     </div>`).join("");
   $("suggest-actions").classList.remove("hidden");
+  $("btn-study-suggested").classList.toggle("hidden", !topic);
 }
 function suggestFailed(e) {
   $("suggestions").innerHTML = "";
@@ -2005,6 +2007,13 @@ $("btn-add-all").onclick = async () => {
   loadWords();
   toast(`Đã thêm ${suggestions.length} từ mới vào danh sách học`);
   confetti(120);
+};
+// Learning the topic of the suggestions right away; with none of them added yet, all of them first.
+$("btn-study-suggested").onclick = async () => {
+  const topic = suggestions[0]?.topic;
+  if (!topic) return;
+  if (!suggestions.some((s) => s.added)) await $("btn-add-all").onclick();
+  window.studyTopic?.(topic);
 };
 
 const statusOf = (w) => (w.skipped ? "skipped" : w.learned_at === 0 ? "new" : w.due <= nowSec() ? "due" : "known");

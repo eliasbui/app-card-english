@@ -38,6 +38,19 @@
     select.parentElement.classList.toggle("hidden", !names.length);
   }
   $("study-topic").onchange = () => refreshHome();
+  /// Today's session on a topic; with nothing of it left today (the day's new words used up), its smart exercise.
+  window.studyTopic = async (name) => {
+    await loadTopics();
+    $("study-topic").value = name;
+    go("home");
+    if (await startSession({ topic: name })) return;
+    go("practice");
+    await state.sources;
+    $("practice-source").value = "topic:" + name;
+    if ($("practice-source").value !== "topic:" + name) return toast(`Chủ đề "${name}" chưa có từ nào có nghĩa để học.`);
+    toast(`Buổi học hôm nay không còn từ nào của chủ đề "${name}", chuyển sang Học thông minh với các từ của chủ đề.`);
+    startPractice("smart");
+  };
   // The numbers, the hint and the start button of Home then count only what a session on the topic would bring.
   hooks.home.push(async () => {
     const topic = $("study-topic").value;
@@ -90,9 +103,10 @@
       ? `<div class="topic-row" data-name="${esc(t.name)}"><div class="topic-form">${formHtml(t, "edit")}</div></div>`
       : `<div class="topic-row" data-name="${esc(t.name)}">
           <i class="tdot tc-${t.color || "none"}"></i>
-          <div class="grow"><b>${esc(t.name)}</b> <span class="muted small">${t.words ? `${t.words} từ, ${t.learned} đã thuộc` : "chưa có từ nào"}</span>
+          <div class="grow"><button class="topic-name" data-t="study">${esc(t.name)}</button> <span class="muted small">${t.words ? `${t.words} từ, ${t.learned} đã thuộc` : "chưa có từ nào"}</span>
             ${t.description ? `<div class="muted small">${esc(t.description)}</div>` : ""}</div>
-          ${t.words ? '<button class="btn small" data-t="study">Học</button><button class="btn small ghost" data-t="filter">Xem từ</button>' : ""}
+          <button class="btn small primary" data-t="study">Học</button>
+          ${t.words ? '<button class="btn small ghost" data-t="filter">Xem từ</button>' : ""}
           <button class="btn small" data-t="edit">Sửa</button>
           <button class="btn small danger" data-t="del">Xóa</button>
         </div>`).join("") || '<p class="muted">Chưa có chủ đề nào. Đặt tên cho chủ đề đầu tiên ở trên.</p>';
@@ -147,11 +161,15 @@
       renderCard();
       renderWords();
     }
-    if (b.dataset.t === "study") {
-      $("study-topic").value = t.name;
-      go("home");
-      return startSession();
+    // A topic with no words yet gets the AI's words for it first, then "Học chủ đề này" studies them.
+    if (b.dataset.t === "study" && !t.words) {
+      $("topics-card").classList.add("hidden");
+      openSuggest();
+      $("topic").value = t.name;
+      toast(`Chủ đề "${t.name}" chưa có từ nào. AI gợi ý từ cho chủ đề này, thêm rồi bấm Học chủ đề này.`);
+      return suggest(t.name);
     }
+    if (b.dataset.t === "study") return studyTopic(t.name);
     if (b.dataset.t === "filter") {
       $("topic-filter").value = t.name;
       renderWords();
