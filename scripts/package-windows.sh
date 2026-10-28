@@ -1,43 +1,40 @@
 #!/bin/sh
-# Builds the Windows app here, in Docker, and zips it as dist/CardEnglish-<version>-windows-x64.zip with
-# CardEnglish.exe in it. It is cross-compiled for MSVC with cargo-xwin: the sherpa-onnx libraries that the app links
-# on Windows are built by MSVC, so MinGW cannot link them. Nothing of it is run here, so the Windows tests are not.
+# Builds the Windows app here and zips it as dist/CardEnglish-<version>-windows-x64.zip with CardEnglish.exe in it.
+# It is cross-compiled for MSVC with cargo-xwin, which fetches the MSVC CRT and the Windows SDK once into its cache:
+# the sherpa-onnx libraries that the app links on Windows are built by MSVC, so MinGW cannot link them. Nothing of it
+# is run here, so the Windows tests are not.
 #
 #   scripts/package-windows.sh
+#   CHECK=1 scripts/package-windows.sh   # only checks the tools, so that a release stops before it builds anything
 set -eu
 cd "$(dirname "$0")/.."
 VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
 ZIP="CardEnglish-$VERSION-windows-x64.zip"
 
-docker info >/dev/null 2>&1 || { echo "start Docker first; it builds the Windows app" >&2; exit 1; }
-mkdir -p dist
-
-# clang runs as clang-cl for the C of sqlite and oniguruma. The Windows SDK is kept in the image. onnxruntime asks for
-# PathCch.lib, which the SDK names pathcch.lib, and Linux tells the two apart.
-docker build -q -t cardenglish-win - >/dev/null <<'EOF'
-FROM rust:1-trixie
-RUN apt-get update && apt-get install -y --no-install-recommends clang lld llvm zip \
-    && apt-get clean \
-    && rustup target add x86_64-pc-windows-msvc \
-    && cargo install cargo-xwin --locked \
-    && ln -s "$(command -v clang)" /usr/local/bin/clang-cl \
-    && XWIN_ACCEPT_LICENSE=1 cargo xwin cache xwin \
-    && ln -s pathcch.lib /root/.cache/cargo-xwin/xwin/sdk/lib/um/x86_64/PathCch.lib
-EOF
+# Homebrew's LLVM is keg-only, so its bin goes first on the PATH of this script alone: clang-cl compiles the C of
+# sqlite and oniguruma, llvm-lib archives it, llvm-rc puts the icon in the exe, and lld-link (a formula of its own)
+# links. Apple's clang has none of these.
+LLVM=$(brew --prefix llvm 2>/dev/null || :)/bin
+LLD=$(brew --prefix lld 2>/dev/null || :)/bin
+[ -x "$LLVM/clang-cl" ] && [ -x "$LLVM/llvm-lib" ] && [ -x "$LLVM/llvm-rc" ] && [ -x "$LLD/lld-link" ] ||
+    { echo "the Windows app needs Homebrew's LLVM; install it once: brew install llvm lld" >&2; exit 1; }
+command -v cargo-xwin >/dev/null ||
+    { echo "the Windows app needs cargo-xwin; install it once: cargo install --locked cargo-xwin" >&2; exit 1; }
+rustup target list --installed | grep -qx x86_64-pc-windows-msvc ||
+    { echo "the Windows app needs Rust for Windows; add it once: rustup target add x86_64-pc-windows-msvc" >&2; exit 1; }
+[ "${CHECK:-}" = 1 ] && exit 0
+PATH="$LLVM:$LLD:$PATH"
 
 # crt-static, because the sherpa-onnx libraries for Windows use the static C runtime and the C of sqlite has to agree
-# with them; it also leaves no Visual C++ redistributable to install. ponytail: 2 jobs fit the 3.5 GB that Docker
-# Desktop gives by default, four rustc processes at once are killed for memory; raise both when Docker has more.
-# The OAuth client of the Google Drive sync goes in from this shell's environment, when it is set there.
-docker run --rm \
-    -v "$PWD":/src:ro -v "$PWD/dist":/out \
-    -v cardenglish-win-target:/target -v cardenglish-win-cargo:/usr/local/cargo/registry \
-    -e CARGO_TARGET_DIR=/target -e CARGO_BUILD_JOBS=2 -e RUSTFLAGS="-C target-feature=+crt-static" \
-    -e CARD_ENGLISH_GOOGLE_CLIENT_ID -e CARD_ENGLISH_GOOGLE_CLIENT_SECRET \
-    -w /src cardenglish-win sh -euc '
-        cargo xwin build --release --locked --target x86_64-pc-windows-msvc
-        cp /target/x86_64-pc-windows-msvc/release/card-english.exe /tmp/CardEnglish.exe
-        rm -f /out/'"$ZIP"'
-        zip -qj /out/'"$ZIP"' /tmp/CardEnglish.exe
-    '
+# with them; it also leaves no Visual C++ redistributable to install. /ignore:4099 quiets the linker's hundred
+# warnings that Microsoft's CRT ships without its PDB files. The OAuth client of the Google Drive sync goes in from
+# this shell's environment, when it is set there. The Windows SDK names it pathcch.lib where onnxruntime asks for
+# PathCch.lib, which only a case-sensitive disk tells apart, and a Mac's is not.
+RUSTFLAGS="-C target-feature=+crt-static -C link-arg=/ignore:4099" \
+    cargo xwin build --release --locked --target x86_64-pc-windows-msvc
+OUT=${CARGO_TARGET_DIR:-target}/x86_64-pc-windows-msvc/release
+cp "$OUT/card-english.exe" "$OUT/CardEnglish.exe"
+mkdir -p dist
+rm -f "dist/$ZIP"
+zip -qj "dist/$ZIP" "$OUT/CardEnglish.exe"
 echo "dist/$ZIP"

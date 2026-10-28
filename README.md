@@ -203,9 +203,24 @@ Cấu trúc:
 scripts/release.sh 0.2.0
 ```
 
-Chạy trên máy Mac đang mở Docker. Script tăng version, chạy test, build bản macOS universal (Apple silicon và Intel) và bản Windows x64 ngay trên máy, tạo tag và push, đăng GitHub Release kèm hai file zip, rồi trỏ cask trong tap `eliasbui/homebrew-card-english` sang file zip macOS; app sẽ tự thấy bản mới. Không dùng GitHub Actions.
+Chạy trên máy Mac. Script tăng version, chạy test, build bản macOS universal (Apple silicon và Intel) và bản Windows x64 ngay trên máy, tạo tag và push, đăng GitHub Release kèm hai file zip, rồi trỏ cask trong tap `eliasbui/homebrew-card-english` sang file zip macOS; app sẽ tự thấy bản mới. Không dùng GitHub Actions.
 
-Bản Windows được cross-compile sang MSVC bằng `cargo-xwin` trong Docker (`scripts/package-windows.sh`), vì thư viện sherpa-onnx dựng sẵn cho Windows là bản MSVC. Test chỉ chạy trên macOS; bản Windows được biên dịch và link nhưng không chạy thử, nên sau khi phát hành nên mở thử trên một máy Windows. Docker Desktop mặc định chỉ cấp 3,5 GB RAM, script vì thế chạy 2 tiến trình biên dịch song song; tăng RAM trong Settings, Resources rồi tăng `CARGO_BUILD_JOBS` trong script nếu muốn nhanh hơn.
+Bản Windows được cross-compile sang MSVC ngay trên máy Mac bằng `cargo-xwin` và LLVM của Homebrew (`scripts/package-windows.sh`), vì thư viện sherpa-onnx dựng sẵn cho Windows là bản MSVC. Không cần Docker nữa, chỉ cần cài một lần:
+
+```sh
+brew install llvm lld
+cargo install --locked cargo-xwin
+rustup target add x86_64-pc-windows-msvc
+```
+
+LLVM của Homebrew chỉ được đưa vào PATH bên trong script, không đụng tới cấu hình shell. Lần build đầu `cargo-xwin` tải MSVC CRT và Windows SDK (khoảng 1 GB, vào `~/Library/Caches/cargo-xwin`), các lần sau dùng lại. Test chỉ chạy trên macOS; bản Windows được biên dịch và link nhưng không chạy thử, nên sau khi phát hành nên mở thử trên một máy Windows.
+
+Image và volume Docker của cách build cũ không còn dùng tới; muốn lấy lại chỗ trống thì xóa bằng tay:
+
+```sh
+docker image rm cardenglish-win
+docker volume rm cardenglish-win-target cardenglish-win-cargo
+```
 
 Nếu cask chưa cập nhật được (chưa có quyền push vào tap), chạy lại bằng tay:
 
