@@ -106,6 +106,8 @@ enum UserEvent {
     Hotkey,
     /// For the page to look up: the copied text, read after the shortcut, or what the browser extension sent.
     QuickAdd(Value),
+    /// A click on a study reminder.
+    Reminder,
 }
 
 fn now() -> i64 {
@@ -301,6 +303,13 @@ fn main() {
                 });
             }
             Event::UserEvent(UserEvent::QuickAdd(text)) => app.quick_add(target, text),
+            Event::UserEvent(UserEvent::Reminder) => {
+                if reminder_opens_quiz(&app.db, &app.course()) {
+                    app.quiz(target);
+                } else {
+                    app.show(target);
+                }
+            }
             _ => {}
         }
     });
@@ -848,21 +857,29 @@ impl App {
             "download" => {
                 let group = text("group");
                 let proxy = self.proxy.clone();
+                // Qwen 1.5B takes over from the 0.5B in memory once it is there, for a learner who never chose one.
+                let takes_over = group == "llm15" && self.setting("local_model").is_none();
                 background(Box::new(move || {
                     let event = group.clone();
                     models::download(&dir, &group, |done, total| {
                         let message = json!({ "event": "progress", "data": { "group": event, "done": done, "total": total } });
                         let _ = proxy.send_event(UserEvent::Post(message));
                     })?;
+                    if takes_over {
+                        ai::unload();
+                    }
                     Ok(models::status(&dir))
                 }));
             }
             "delete_model" => {
                 let group = text("group");
-                // Deleting a model changes no setting, so they are read here, on the thread that holds them.
-                let settings = self.settings();
+                // Deleting a model changes no setting, so they are read here, on the thread that holds them; only the
+                // local model in use is worked out again once the files are gone.
+                let mut settings = self.settings();
+                let wanted = self.setting("local_model").unwrap_or_default();
                 background(Box::new(move || {
                     models::delete(&dir, &group)?;
+                    settings["local_model"] = json!(ai::local_group(&dir, &wanted));
                     Ok(json!({ "models": models::status(&dir), "settings": settings }))
                 }));
             }
@@ -1374,7 +1391,8 @@ impl App {
         let on = |key: &str| self.setting(key).as_deref() != Some("0");
         json!({
             "ai_provider": self.provider(),
-            "local_model": if text("local_model") == "llm15" { "llm15" } else { "llm" },
+            // The one in use, which is the better one downloaded when the learner never chose.
+            "local_model": ai::local_group(&self.dir, &text("local_model")),
             "tutor_ai": text("tutor_ai"),
             "has_gemini_key": self.setting("gemini_key").is_some(),
             "has_deepseek_key": self.setting("deepseek_key").is_some(),
@@ -1532,8 +1550,10 @@ fn start_reminders(dir: PathBuf, proxy: EventLoopProxy<UserEvent>) {
         let Ok(db) = db::open(&dir.join("words.db")) else { return };
         #[cfg(target_os = "macos")]
         let _ = notify_rust::set_application("com.eliasbui.cardenglish");
+        // A debug build started with CARD_ENGLISH_REMIND reminds every ten seconds, for trying the reminders out.
+        let trying = cfg!(debug_assertions) && std::env::var_os("CARD_ENGLISH_REMIND").is_some();
         loop {
-            thread::sleep(REMIND_TICK);
+            thread::sleep(if trying { Duration::from_secs(10) } else { REMIND_TICK });
             let _ = proxy.send_event(UserEvent::Count);
             let local = clock::now();
             if let Some(l) = &local
@@ -1553,7 +1573,7 @@ fn start_reminders(dir: PathBuf, proxy: EventLoopProxy<UserEvent>) {
             if let (true, Some(l)) = (due.daily, &local) {
                 let _ = db::set_setting(&db, "last_daily_remind", &l.date());
             }
-            if !(due.every || due.daily) {
+            if !(due.every || due.daily || trying) {
                 continue;
             }
             // The course the learner is on now, as the window and the menu bar show it.
@@ -1564,11 +1584,55 @@ fn start_reminders(dir: PathBuf, proxy: EventLoopProxy<UserEvent>) {
             }
             let body = format!("{} từ cần ôn, {} từ mới đang chờ. Học vài phút nhé!", stats.due, stats.new_waiting);
             let title = if zh { "Đến giờ học tiếng Trung" } else { "Đến giờ học tiếng Anh" };
-            if let Err(e) = notify_rust::Notification::new().summary(title).body(&body).show() {
-                eprintln!("notification: {e}");
-            }
+            remind(title, &body, &proxy);
         }
     });
+}
+
+/// Shows a reminder and waits for a click on it off the event loop. Only the newest one waits: on macOS the reminders
+/// before it leave the Notification Center, which ends their wait, and a toast of Windows stops waiting once it is
+/// off the screen.
+fn remind(title: &str, body: &str, proxy: &EventLoopProxy<UserEvent>) {
+    #[cfg(target_os = "macos")]
+    clear_reminders();
+    let mut notification = notify_rust::Notification::new();
+    notification.summary(title).body(body);
+    // Without a button macOS reports nothing back, not even a click on the reminder itself.
+    #[cfg(target_os = "macos")]
+    notification.action("default", "Học ngay");
+    let proxy = proxy.clone();
+    thread::spawn(move || {
+        use notify_rust::NotificationResponse as Response;
+        let shown = notification.show().and_then(|handle| {
+            handle.wait_for_response(|response: &Response| {
+                if matches!(response, Response::Default | Response::Action(_)) {
+                    let _ = proxy.send_event(UserEvent::Reminder);
+                }
+            })
+        });
+        if let Err(e) = shown {
+            eprintln!("notification: {e}");
+        }
+    });
+}
+
+/// Takes the reminders already shown out of the Notification Center, out of date once a new one comes.
+#[cfg(target_os = "macos")]
+fn clear_reminders() {
+    use objc2::{class, msg_send, runtime::AnyObject};
+    // SAFETY: two Foundation methods without arguments; the shared center is only borrowed.
+    unsafe {
+        let center: *mut AnyObject = msg_send![class!(NSUserNotificationCenter), defaultUserNotificationCenter];
+        if let Some(center) = center.as_ref() {
+            let _: () = msg_send![center, removeAllDeliveredNotifications];
+        }
+    }
+}
+
+/// Whether a click on a reminder opens the quick quiz, which has only the reviews: with none due, the main window
+/// opens instead, where the new words waiting are learned.
+fn reminder_opens_quiz(db: &Connection, course: &str) -> bool {
+    db::stats(db, now(), day_start(), course).is_ok_and(|s| s.due > 0)
 }
 
 #[derive(Debug, Default, PartialEq)]
@@ -1751,6 +1815,17 @@ mod tests {
         for wrong in ["tutor:0123", "tutor:0123456789abcdeg", "tutors", "roleplay:airport:0123456789abcdef", ""] {
             assert!(!is_tutor(wrong), "{wrong}");
         }
+    }
+
+    #[test]
+    fn a_click_on_a_reminder_opens_the_quiz_only_with_a_review_due() {
+        let db = db::open(Path::new(":memory:")).unwrap();
+        let id = db::save(&db, &db::Word { word: "negotiate".into(), ..db::Word::default() }, 0).unwrap();
+        // A new word waiting is learned in the main window; the quiz has only reviews.
+        assert!(!reminder_opens_quiz(&db, "en"));
+        // Learned long ago, so due again by now, in its own course only.
+        db::grade(&db, id, 3, 1_000, 0.9).unwrap();
+        assert!(reminder_opens_quiz(&db, "en") && !reminder_opens_quiz(&db, "zh"));
     }
 
     #[test]

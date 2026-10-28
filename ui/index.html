@@ -2950,8 +2950,10 @@ function renderModel(group) {
     actions: use + `<button class="btn small danger" data-act="model-del" data-p="${group}">Xóa</button>`,
     fetch: async () => {
       state.models = await app.call("download", { group });
-      // A downloaded model is a choice of it, as a downloaded voice is.
-      if (llm) await saveSetting("local_model", group);
+      // A downloaded Qwen 1.5B is a choice of it, as a downloaded voice is. Qwen 0.5B is not: with nothing chosen the
+      // app uses the better one downloaded, and the settings say which.
+      if (group === "llm15") await saveSetting("local_model", group);
+      else if (llm) state.settings = await app.call("settings");
       toast("Đã tải xong model");
     },
     retry: "Bấm Tải về để tải tiếp phần còn lại.",

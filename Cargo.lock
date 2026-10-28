@@ -87,6 +87,7 @@ dependencies = [
  "image",
  "libc",
  "notify-rust",
+ "objc2",
  "png",
  "rusqlite",
  "serde",

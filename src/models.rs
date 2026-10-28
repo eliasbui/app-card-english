@@ -115,6 +115,15 @@ pub fn download(dir: &Path, group: &str, progress: impl Fn(u64, u64)) -> Result<
     Ok(())
 }
 
+/// Files of the right size, standing in for the downloads of a group in a test.
+#[cfg(test)]
+pub fn fake_download(dir: &Path, group: &str) {
+    std::fs::create_dir_all(dir.join("models")).unwrap();
+    for (_, name, _, size) in FILES.iter().filter(|f| f.0 == group) {
+        std::fs::File::create(path(dir, name)).unwrap().set_len(*size).unwrap();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -122,11 +131,8 @@ mod tests {
     #[test]
     fn deleting_a_model_keeps_the_tokenizer_the_other_one_reads() {
         let dir = std::env::temp_dir().join(format!("card-english-models-{}", std::process::id()));
-        std::fs::create_dir_all(dir.join("models")).unwrap();
-        // Files of the right size stand in for the downloads.
-        for (_, name, _, size) in FILES.iter().filter(|f| f.0.starts_with("llm")) {
-            std::fs::File::create(path(&dir, name)).unwrap().set_len(*size).unwrap();
-        }
+        fake_download(&dir, "llm");
+        fake_download(&dir, "llm15");
         assert!(ready(&dir, "llm") && ready(&dir, "llm15"));
         delete(&dir, "llm15").unwrap();
         assert!(ready(&dir, "llm") && !ready(&dir, "llm15"));
