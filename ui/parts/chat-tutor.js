@@ -148,13 +148,18 @@
     return p === "local" ? "local:" + (state.settings.local_model || "llm") : p;
   }
   window.chatAi = chosen;
-  /// The sources ready to answer, and the one chosen even when it is not, since the app falls back from it.
-  function models() {
+  /// The sources ready to answer, and the one chosen even when it is not, since the app falls back from it, as the
+  /// options of a select; the speaking tutor (voice-tutor.js) offers the same.
+  function choices() {
     const t = state.settings.tutor_ai || "", own = state.settings.ai_provider || "local";
     const options = [["", `Theo nguồn AI chung (${own === "local" ? QWEN[state.settings.local_model] || QWEN.llm : PROVIDER_NAME[own]})`]];
     for (const g of ["llm", "llm15"]) if (state.models[g]?.ready || t === "local:" + g) options.push(["local:" + g, QWEN[g]]);
     for (const p of ["chatgpt", "codex", "gemini", "deepseek"]) if (ready(p) || t === p) options.push([p, PROVIDER_NAME[p]]);
-    select.innerHTML = options.map(([v, name]) => `<option value="${v}"${v === t ? " selected" : ""}>${esc(name)}</option>`).join("");
+    return options.map(([v, name]) => `<option value="${v}"${v === t ? " selected" : ""}>${esc(name)}</option>`).join("");
+  }
+  window.chatChoices = choices;
+  function models() {
+    select.innerHTML = choices();
     hint.hidden = chosen() !== "local:llm";
     hint.innerHTML = `Qwen 0.5B rất nhỏ nên trả lời còn ngô nghê. ${state.models.llm15?.ready ? "Chọn Qwen 1.5B ở trên"
       : `<a href="#" data-settings>Tải Qwen 1.5B</a>`} hoặc dùng Gemini (API key miễn phí) để trợ lý thông minh hơn.`;

@@ -40,6 +40,13 @@ Phát âm:
 - Ghi âm và chấm điểm một từ hoặc cả câu ví dụ, chỉ ra những từ chưa nghe rõ.
 - Chấm điểm bằng model nhận giọng chạy trên máy (Parakeet).
 
+Gia sư nói (Beta, mục riêng trên thanh bên): nói chuyện 1 kèm 1 bằng giọng nói với gia sư AI.
+
+- Bấm Bắt đầu nói rồi cứ nói, ngừng một chút là câu được gửi đi; gia sư trả lời xong thì app tự nghe tiếp. Ngắt lời gia sư bất cứ lúc nào, hoặc gõ câu thay cho nói.
+- Nghe được tiếng Việt, tiếng Anh và câu trộn cả hai bằng Whisper small chạy trên máy (tải 375 MB ngay trên trang, xóa được), nên hỏi "câu này nói thế nào" bằng tiếng Việt cũng được.
+- Mỗi lượt gia sư nói một đến ba câu bằng ngôn ngữ của khóa (sửa lỗi quan trọng nhất rồi hỏi tiếp), đưa một câu để bạn nói theo và ghi chú lỗi bằng tiếng Việt (sai thì sửa thế nào, đặt lưỡi và môi ra sao). Câu nói theo được chấm điểm và chỉ ra những từ chưa nghe rõ.
+- Câu trả lời của ChatGPT (hoặc ChatGPT qua Codex) được đọc từng câu ngay khi viết xong, không suy luận trước, bằng giọng đọc đã chọn trong Cài đặt (chưa tải gói giọng nào thì giọng của máy). Chọn nguồn AI và model ngay trên trang; model nhỏ trả lời nhanh nhất.
+
 AI gợi ý từ mới: theo chủ đề, theo các từ đã học, hoặc chọn ra từ một đoạn văn dán vào.
 
 Thống kê:
@@ -139,7 +146,7 @@ Chấm phát âm luôn chạy trên máy, qua sherpa-onnx, bằng model hợp v�
 | SenseVoice, tiếng Trung | 166 MB | 86,7% | 93 ms | Mọi máy |
 | Whisper tiny của các bản trước | 42 MB | 62,9% | 1,2 giây | Chỉ hiện khi đã tải |
 
-Mỗi khóa dùng model bạn chọn (Dùng model này), chưa chọn thì dùng model đã tải hợp với máy nhất; tải về là chọn luôn. Whisper luôn xử lý cả khung 30 giây nên chậm, còn các model mới chỉ nghe đúng đoạn bạn nói. Điểm của từ nói đúng tính theo độ chắc chắn của Parakeet ở từng phần của từ; SenseVoice không cho số này nên từ đúng được 97 điểm. Trên Mac, Qwen chạy bằng GPU (Metal); `CARD_ENGLISH_CPU=1` ép dùng CPU. Mọi model đã tải đều xóa được trong Cài đặt; hai bản Qwen dùng chung một file tokenizer, file này chỉ bị xóa khi không còn bản nào cần.
+Mỗi khóa dùng model bạn chọn (Dùng model này), chưa chọn thì dùng model đã tải hợp với máy nhất; tải về là chọn luôn. Whisper luôn xử lý cả khung 30 giây nên chậm, còn các model mới chỉ nghe đúng đoạn bạn nói. Điểm của từ nói đúng tính theo độ chắc chắn của Parakeet ở từng phần của từ; SenseVoice không cho số này nên từ đúng được 97 điểm. Gia sư nói nghe bằng Whisper small đa ngôn ngữ int8 qua sherpa-onnx (375 MB), tự nhận ra tiếng Việt hay tiếng Anh từng câu: trên Apple M4 mất khoảng 0,5 giây một câu. Trên Mac, Qwen chạy bằng GPU (Metal); `CARD_ENGLISH_CPU=1` ép dùng CPU. Mọi model đã tải đều xóa được trong Cài đặt; hai bản Qwen dùng chung một file tokenizer, file này chỉ bị xóa khi không còn bản nào cần.
 
 ChatGPT dùng luồng chính thức "Sign in with ChatGPT" cho app mã nguồn mở chạy trên máy người dùng
 (https://developers.openai.com/siwc/token-sharing-open-source, đang ở giai đoạn preview). App đóng mã hoặc thu phí
@@ -225,6 +232,7 @@ Cấu trúc:
 - `src/codex.rs`: ChatGPT qua Codex (đăng nhập, model, hạn mức).
 - `src/cloud.rs`: Gemini và DeepSeek.
 - `src/speech.rs`: ghi âm (cpal), nhận giọng (Parakeet, SenseVoice, Whisper cũ), chấm điểm.
+- `src/talk.rs`: Gia sư nói (Whisper small nghe tiếng Việt và ngôn ngữ của khóa, AI trả lời dạng stream, đọc từng câu).
 - `src/pron.rs`: IPA và so khớp âm vị từ CMUdict, pinyin và âm Hán Việt.
 - `src/voice.rs`: các gói giọng Kokoro, Supertonic và Piper (tải, xóa, chọn theo máy, chuẩn bị chữ cho từng giọng, giữ đoạn vừa đọc, đọc sẵn, phát qua cpal).
 - `src/hardware.rs`: bộ xử lý, RAM, xếp loại máy yếu, trung bình, mạnh và số luồng của model.

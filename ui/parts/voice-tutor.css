@@ -1,0 +1,38 @@
+  /* The speaking tutor: its place in the menu with a beta mark, the talk as bubbles, and the button that listens. */
+  .beta { margin-left: auto; padding: 0 6px; border: 1px solid var(--amber-line); border-radius: 99px; background: var(--amber-soft); color: var(--text-2);
+          font-size: 10.5px; font-weight: 700; letter-spacing: .04em; line-height: 17px; text-transform: uppercase; }
+  .page-head h2 .beta { margin-left: 6px; vertical-align: middle; }
+  .vt { max-width: 760px; margin: 0 auto; padding: 0; overflow: hidden; }
+  .vt-models { flex-wrap: wrap; gap: 8px; padding: 12px 18px; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .vt-models label { color: var(--muted); }
+  .vt-models select { max-width: 260px; }
+  #vt-model-box { display: contents; }
+  .vt-note { display: grid; gap: 6px; margin: 0; padding: 10px 18px; border-bottom: 1px solid var(--amber-line); background: var(--amber-soft);
+             color: var(--text-2); font-size: 13px; }
+  .vt-note .btn { margin-left: 4px; vertical-align: middle; }
+  .vt-log { display: flex; flex-direction: column; gap: 12px; min-height: 280px; max-height: calc(100vh - 360px); padding: 18px; overflow-y: auto;
+            background: var(--surface-2); }
+  .vt-log .chat-msg { max-width: 86%; }
+  .vt-empty { margin: auto; max-width: 420px; text-align: center; color: var(--muted); }
+  .vt-empty .st { display: block; width: 84px; height: 84px; margin: 0 auto 6px; }
+  .vt-empty b { color: var(--text); font-size: 16px; }
+  .vt-say { font-size: 15px; }
+  .vt-try { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line-strong); }
+  .vt-try .prompt-label { margin: 0; }
+  .vt-try b { color: var(--accent-text); }
+  .vt-fix { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--line-strong); color: var(--text-2); font-size: 13.5px; }
+  .vt-fix div + div { margin-top: 3px; }
+  .vt-check { margin-top: 4px; font-size: 12.5px; text-align: right; color: var(--muted); }
+  .vt-check.ok { color: var(--green); }
+  .vt-check.low { color: var(--red); }
+  .vt-state { min-height: 40px; padding: 8px 18px 0; font-size: 13px; }
+  .vt-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 18px 16px; }
+  #vt-main { min-width: 140px; }
+  .vt-type { display: flex; flex: 1; min-width: 220px; gap: 8px; }
+  .vt-type input { flex: 1; min-width: 0; }
+
+  @media (max-width: 720px) {
+    nav .nav .beta { position: absolute; top: 2px; right: 2px; padding: 0 4px; font-size: 9px; line-height: 14px; }
+    .vt-log { max-height: none; min-height: 240px; padding: 14px; }
+    .vt-models, .vt-note, .vt-controls { padding-left: 14px; padding-right: 14px; }
+  }

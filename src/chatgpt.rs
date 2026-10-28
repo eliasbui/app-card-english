@@ -631,10 +631,10 @@ fn parse_models(json: &Value) -> Vec<ModelInfo> {
         .collect()
 }
 
-/// One answer from the Responses API, streamed as the flow requires.
-pub fn chat(db: &Connection, model: &str, prompt: &Prompt) -> Result<Answer, CallError> {
+/// One answer from the Responses API, streamed as the flow requires; `on_text` hears each piece of text as it comes.
+pub fn chat(db: &Connection, model: &str, prompt: &Prompt, on_text: Option<&dyn Fn(&str)>) -> Result<Answer, CallError> {
     let token = access_token(db)?;
-    let body = json!({
+    let mut body = json!({
         "model": model,
         "instructions": prompt.system,
         "input": [
@@ -645,9 +645,21 @@ pub fn chat(db: &Connection, model: &str, prompt: &Prompt) -> Result<Answer, Cal
         "store": false,
         "stream": true,
     });
+    // An answer heard while it comes is a spoken one: it should start at once, with no thinking first.
+    if on_text.is_some() {
+        body["reasoning"] = json!({ "effort": "none" });
+    }
     let auth = format!("Bearer {token}");
     let headers = [("Authorization", auth.as_str()), ("Content-Type", "application/json"), ("Accept", "text/event-stream")];
-    let reply = net::fetch(RESPONSES, &headers, Some(&body.to_string()), 120)?;
+    let post = |body: &Value| net::stream(RESPONSES, &headers, Some(&body.to_string()), 120, &mut |line| hand_on(line, on_text));
+    let mut reply = post(&body)?;
+    if reply.status == 400 && reply.body.contains("reasoning") {
+        // A model without that setting, or without that level of it, takes the request without it.
+        if let Some(fields) = body.as_object_mut() {
+            fields.remove("reasoning");
+        }
+        reply = post(&body)?;
+    }
     let limits = rate_limits(&reply.headers);
     if reply.status != 200 {
         let mut error = api_error(&reply);
@@ -669,6 +681,16 @@ fn rate_limits(headers: &[(String, String)]) -> Value {
         .map(|(name, value)| (name.clone(), Value::String(value.clone())))
         .collect();
     if found.is_empty() { Value::Null } else { Value::Object(found) }
+}
+
+/// Hands the text of a line of the stream, if it carries some, to `on_text`.
+pub(crate) fn hand_on(line: &str, on_text: Option<&dyn Fn(&str)>) {
+    let Some(on_text) = on_text else { return };
+    let Some(data) = line.strip_prefix("data:") else { return };
+    let Ok(event) = serde_json::from_str::<Value>(data.trim()) else { return };
+    if event["type"] == "response.output_text.delta" {
+        on_text(event["delta"].as_str().unwrap_or_default());
+    }
 }
 
 /// The text of a stream of Responses events, which only counts once `response.completed` arrives.
