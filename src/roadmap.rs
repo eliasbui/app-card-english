@@ -2,7 +2,7 @@
 //! stage counts the learned words of its topics against its target, and the goal compares the words still to
 //! learn before the deadline with the learner's recent pace.
 
-use crate::db::{self, DAY};
+use crate::{db::{self, DAY}, exam};
 use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -52,6 +52,8 @@ pub struct Topic {
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Step {
+    /// 16 hex digits given as the roadmap is saved, which the stage's tests refer to.
+    pub uid: String,
     pub title: String,
     pub topics: Vec<String>,
     /// Words of its topics to learn.
@@ -92,7 +94,8 @@ pub struct Pace {
     pub needed: i64,
     /// New words a day learned lately.
     pub recent: f64,
-    /// "done", "late", "ahead", "on_track" or "behind".
+    /// "done", "late", "ahead", "on_track" or "behind"; "test" when every word is learned but a stage test is not
+    /// passed yet.
     pub verdict: &'static str,
 }
 
@@ -288,6 +291,7 @@ pub fn sanitize(r: &mut Roadmap, today: &str) -> Result<(), String> {
 }
 
 fn tidy(s: &mut Step, i: usize) {
+    s.uid = cut(&s.uid, 32);
     s.title = cut(&s.title, 80);
     if s.title.is_empty() {
         s.title = format!("Chặng {}", i + 1);
@@ -389,8 +393,12 @@ pub fn plan_days(goal: &Roadmap, today: &str) -> Result<i64, String> {
 /// Keeps a roadmap of a course and makes it the active one; its topics get rows of their own. Answers its uid.
 pub fn save_roadmap(db: &Connection, lang: &str, r: &Roadmap, now: i64) -> Result<String, String> {
     let e = |e: rusqlite::Error| e.to_string();
-    let steps = json!(r.steps).to_string();
     let tx = db.unchecked_transaction().map_err(e)?;
+    let mut steps = r.steps.clone();
+    for s in steps.iter_mut().filter(|s| s.uid.is_empty()) {
+        s.uid = db::new_uid(&tx).map_err(e)?;
+    }
+    let steps = json!(steps).to_string();
     let uid = if r.uid.is_empty() {
         tx.query_row(
             "INSERT INTO roadmaps (lang, purpose, level, start, deadline, minutes, steps, updated)
@@ -465,16 +473,23 @@ fn counts(db: &Connection, lang: &str, steps: &[Step]) -> rusqlite::Result<Vec<(
         .collect())
 }
 
-/// Whether a stage is behind the learner: its target is reached, or it was marked done.
-fn finished(step: &Step, learned: i64) -> bool {
-    step.done || learned >= step.target.max(1)
+/// Whether a stage is behind the learner: its target is reached and, on a hard roadmap (`tested`), its test passed;
+/// or it was marked done.
+fn finished(step: &Step, learned: i64, tested: bool) -> bool {
+    step.done || (learned >= step.target.max(1) && tested)
+}
+
+/// Per stage, whether its test lets it finish: always on an easy roadmap, once passed on a hard one.
+fn tested(tests: &Option<Vec<exam::StageTest>>, n: usize) -> Vec<bool> {
+    (0..n).map(|i| tests.as_ref().is_none_or(|t| t[i].passed)).collect()
 }
 
 /// The topics of the current stage of the course's active roadmap, whose new words a session takes first.
 pub fn focus_topics(db: &Connection, lang: &str) -> rusqlite::Result<Vec<String>> {
     let Some(r) = roadmaps(db, lang)?.into_iter().find(|r| r.active) else { return Ok(Vec::new()) };
     let counts = counts(db, lang, &r.steps)?;
-    Ok(r.steps.into_iter().zip(counts).find(|(s, c)| !finished(s, c.0)).map(|(s, _)| s.topics).unwrap_or_default())
+    let tested = tested(&exam::stage_tests(db, lang, &r)?, r.steps.len());
+    Ok(r.steps.into_iter().zip(counts).zip(tested).find(|((s, c), t)| !finished(s, c.0, *t)).map(|((s, _), _)| s.topics).unwrap_or_default())
 }
 
 /// What the page shows of a course: the active roadmap with the progress of each stage and the pace, and the list
@@ -484,8 +499,10 @@ pub fn view(db: &Connection, lang: &str, today: &str, now: i64) -> rusqlite::Res
     let all: Vec<Value> = list.iter().map(|r| json!({ "uid": r.uid, "purpose": r.purpose, "deadline": r.deadline, "active": r.active })).collect();
     let Some(r) = list.into_iter().find(|r| r.active) else { return Ok(json!({ "active": null, "list": all })) };
     let counts = counts(db, lang, &r.steps)?;
-    let current = r.steps.iter().zip(&counts).position(|(s, c)| !finished(s, c.0));
-    let remaining = r.steps.iter().zip(&counts).filter(|(s, c)| !finished(s, c.0)).map(|(s, c)| (s.target - c.0).max(0)).sum();
+    let tests = exam::stage_tests(db, lang, &r)?;
+    let ok = tested(&tests, r.steps.len());
+    let current = (0..r.steps.len()).position(|i| !finished(&r.steps[i], counts[i].0, ok[i]));
+    let remaining = (0..r.steps.len()).filter(|&i| !finished(&r.steps[i], counts[i].0, ok[i])).map(|i| (r.steps[i].target - counts[i].0).max(0)).sum();
     let days_left = match (day_number(&r.deadline), day_number(today)) {
         (Some(end), Some(now)) => end - now,
         _ => 0,
@@ -506,14 +523,23 @@ pub fn view(db: &Connection, lang: &str, today: &str, now: i64) -> rusqlite::Res
             let mut v = json!(s);
             v["learned"] = learned.into();
             v["words"] = words.into();
-            v["state"] = if finished(s, learned) { "done" } else if Some(i) == current { "current" } else { "next" }.into();
+            v["state"] = if finished(s, learned, ok[i]) { "done" } else if Some(i) == current { "current" } else { "next" }.into();
+            if let Some(t) = tests.as_ref().map(|t| &t[i]) {
+                v["test"] = t.info.clone();
+                v["test"]["pending"] = (!s.done && !t.passed && learned >= s.target.max(1)).into();
+            }
             v
         })
         .collect();
     let mut active = json!(r);
     active["steps"] = steps.into();
     active["current"] = json!(current);
-    Ok(json!({ "active": active, "list": all, "pace": pace(remaining, days_left, learned.unwrap_or(0), days) }))
+    active["hard"] = tests.is_some().into();
+    let mut pace = pace(remaining, days_left, learned.unwrap_or(0), days);
+    if pace.verdict == "done" && current.is_some() {
+        pace.verdict = "test";
+    }
+    Ok(json!({ "active": active, "list": all, "pace": pace }))
 }
 
 /// The topics and roadmaps of both courses, as a copy keeps them.

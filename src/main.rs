@@ -11,6 +11,7 @@ mod cloud;
 mod codex;
 mod db;
 mod drive;
+mod exam;
 mod fsrs;
 mod hanzi;
 mod images;
@@ -724,6 +725,61 @@ impl App {
                     result.map(|p| json!(p))
                 }));
             }
+            // Mock exams: written in the background with their progress, answers scored, recordings read aloud with a
+            // voice per speaker, long spoken answers heard a piece at a time.
+            "exam_make" => {
+                let (settings, course, proxy) = (self.ai_settings(), self.course(), self.proxy.clone());
+                background(Box::new(move || {
+                    exam::make(&dir, &settings, &course, &args, &day, |data| {
+                        let _ = proxy.send_event(UserEvent::Post(json!({ "event": "exam_progress", "data": data })));
+                    })
+                }));
+            }
+            "exam_submit" => {
+                let (settings, course) = (self.ai_settings(), self.course());
+                background(Box::new(move || exam::submit(&dir, &settings, &course, &args, &day)));
+            }
+            "exam_play" => {
+                let course = self.course();
+                let lines = match exam::script(&self.db, &course, &args) {
+                    Ok(lines) => lines,
+                    Err(e) => return self.post(&reply(Err(e))),
+                };
+                // The course's Kokoro voices whenever the pack is there, else the system's voice.
+                let chosen = self
+                    .setting("voice")
+                    .and_then(|v| v.strip_prefix("kokoro:").and_then(|sid| sid.parse::<i32>().ok()))
+                    .or_else(|| voice::VOICES.iter().find(|v| v.0 == course).map(|v| v.1))
+                    .unwrap_or_default();
+                let kokoro = voice::ready(&dir, &course);
+                let accent = self.setting("accent").unwrap_or_default();
+                let rate = args["rate"].as_f64().unwrap_or(0.95);
+                exam::STOP.store(false, std::sync::atomic::Ordering::SeqCst);
+                background(Box::new(move || {
+                    for (who, line) in lines {
+                        if exam::STOP.load(std::sync::atomic::Ordering::SeqCst) {
+                            break;
+                        }
+                        if kokoro {
+                            voice::speak(&dir, &course, exam::voice_for(&course, chosen, &who), &line, rate as f32)?;
+                        } else {
+                            speak(&line, false, &accent, rate)?;
+                        }
+                    }
+                    Ok(Value::Null)
+                }));
+            }
+            "exam_clip" => {
+                // Stopped and started again here rather than on a thread, so that no word falls between two pieces.
+                let course = self.course();
+                let pcm = speech::stop();
+                let more = args["more"].as_bool().unwrap_or(false) && pcm.is_ok();
+                let restarted = if more { speech::start().err() } else { None };
+                background(Box::new(move || {
+                    let (text, confidence) = speech::hear_scored(&pcm?, &course, &dir)?;
+                    Ok(json!({ "text": text, "confidence": confidence, "recording": more && restarted.is_none() }))
+                }));
+            }
             "ai_models" => {
                 let provider = text("provider");
                 let settings = self.ai_settings();
@@ -1177,6 +1233,9 @@ impl App {
                     _ => {}
                 }
                 roadmap::view(db, &course, &today, now()).map_err(e)
+            }
+            "exam_plan" | "exam_get" | "exam_list" | "exam_delete" | "exam_cancel" | "exam_stop" => {
+                exam::handle(db, &self.dir, &self.course(), &self.ai_settings(), cmd, args, now())
             }
             "rec_level" => Ok(json!(speech::level())),
             "packs" => packs::status(db, &self.course()).map_err(e),

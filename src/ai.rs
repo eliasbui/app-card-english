@@ -699,7 +699,7 @@ impl<'a> Ai<'a> {
     }
 
     /// Asks the providers in order until one answers.
-    fn chat(&self, prompt: &Prompt) -> Result<(String, By), String> {
+    pub(crate) fn chat(&self, prompt: &Prompt) -> Result<(String, By), String> {
         let mut failures = Vec::new();
         let mut manage_url = "";
         for provider in self.order() {
@@ -1285,7 +1285,7 @@ fn base_letter(c: char) -> char {
 }
 
 /// A label such as `**Nghĩa**` or `VÍ DỤ` as its unaccented capital letters: `NGHIA`, `VIDU`.
-fn fold_label(label: &str) -> String {
+pub(crate) fn fold_label(label: &str) -> String {
     label.chars().map(base_letter).filter(char::is_ascii_alphabetic).map(|c| c.to_ascii_uppercase()).collect()
 }
 
@@ -1526,6 +1526,7 @@ fn parse_roadmap(text: &str) -> Vec<roadmap::Step> {
             }
         }
         out.push(roadmap::Step {
+            uid: String::new(),
             title,
             topics,
             target: first_number(field(2)),
