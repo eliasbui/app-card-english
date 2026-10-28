@@ -285,8 +285,19 @@ fn issued_client(saved: Option<&str>, from_callback: Option<&str>) -> Result<Str
     }
 }
 
-/// Waits for the browser to come back to a loopback address, until cancelled or out of time.
+/// Waits for the browser to come back to `/auth/callback` on a loopback address, until cancelled or out of time.
 pub(crate) fn wait_for_callback(listeners: &[TcpListener], state: &str) -> Result<HashMap<String, String>, String> {
+    let params = wait_for_redirect(listeners, "/auth/callback", state)?;
+    match params.get("error").map(String::as_str) {
+        Some("access_denied") => Err("Bạn đã từ chối cho phép, app chưa dùng được gói ChatGPT".into()),
+        Some(error) => Err(format!("OpenAI báo lỗi đăng nhập: {error}")),
+        None => Ok(params),
+    }
+}
+
+/// Waits for the browser to come back to `path` with this attempt's `state`, and gives what it brought, an `error`
+/// included, for the caller to put in its own words.
+pub(crate) fn wait_for_redirect(listeners: &[TcpListener], path: &str, state: &str) -> Result<HashMap<String, String>, String> {
     for listener in listeners {
         listener.set_nonblocking(true).map_err(|e| e.to_string())?;
     }
@@ -303,8 +314,8 @@ pub(crate) fn wait_for_callback(listeners: &[TcpListener], state: &str) -> Resul
             match listener.accept() {
                 Ok((stream, _)) => {
                     idle = false;
-                    if let Some(result) = answer_browser(stream, state) {
-                        return result;
+                    if let Some(params) = answer_browser(stream, path, state) {
+                        return Ok(params);
                     }
                 }
                 Err(e) if e.kind() == ErrorKind::WouldBlock => {}
@@ -332,7 +343,7 @@ fn page(stream: &mut TcpStream, status: &str, title: &str, text: &str) {
 }
 
 /// Reads one request; `None` when it is not the callback of this attempt (a favicon, a stale tab).
-fn answer_browser(mut stream: TcpStream, state: &str) -> Option<Result<HashMap<String, String>, String>> {
+fn answer_browser(mut stream: TcpStream, expected: &str, state: &str) -> Option<HashMap<String, String>> {
     let _ = stream.set_nonblocking(false);
     let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
     let mut buf = vec![0u8; 8192];
@@ -351,7 +362,7 @@ fn answer_browser(mut stream: TcpStream, state: &str) -> Option<Result<HashMap<S
     let head = String::from_utf8_lossy(&buf[..len]);
     let target = head.lines().next().and_then(|line| line.split_whitespace().nth(1)).unwrap_or_default();
     let (path, query) = target.split_once('?').unwrap_or((target, ""));
-    if path != "/auth/callback" {
+    if path != expected {
         page(&mut stream, "404 Not Found", "Không tìm thấy", "");
         return None;
     }
@@ -360,16 +371,9 @@ fn answer_browser(mut stream: TcpStream, state: &str) -> Option<Result<HashMap<S
         page(&mut stream, "400 Bad Request", "Phiên đăng nhập không khớp", "Hãy bắt đầu đăng nhập lại từ Card English.");
         return None;
     }
-    if let Some(error) = params.get("error") {
-        page(&mut stream, "200 OK", "Chưa đăng nhập", "Bạn có thể đóng tab này và quay lại Card English.");
-        return Some(Err(if error == "access_denied" {
-            "Bạn đã từ chối cho phép, app chưa dùng được gói ChatGPT".into()
-        } else {
-            format!("OpenAI báo lỗi đăng nhập: {error}")
-        }));
-    }
-    page(&mut stream, "200 OK", "Đăng nhập thành công", "Bạn có thể đóng tab này và quay lại Card English.");
-    Some(Ok(params))
+    let title = if params.contains_key("error") { "Chưa đăng nhập" } else { "Đăng nhập thành công" };
+    page(&mut stream, "200 OK", title, "Bạn có thể đóng tab này và quay lại Card English.");
+    Some(params)
 }
 
 fn parse_query(query: &str) -> HashMap<String, String> {

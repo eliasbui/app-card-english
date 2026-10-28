@@ -35,6 +35,8 @@ sherpa-onnx = "2.0.1"
 # Unpacking the Kokoro voice packs: the tar of Windows 10 cannot read bzip2.
 bzip2 = "0.6"
 tar = { version = "0.4", default-features = false }
+# The Google Drive sync document, gzipped; already in the tree through other crates.
+flate2 = "1"
 
 # The time on the learner's clock, for reminders at a set hour; std knows only UTC.
 [target.'cfg(unix)'.dependencies]

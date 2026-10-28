@@ -1,7 +1,10 @@
 //! The word list in and out of the app: CSV for spreadsheets and Anki, a JSON copy of all that was learned (never
 //! the keys and tokens kept with the settings), and the copy made each day in the data folder.
 
-use crate::db::{self, Word};
+use crate::{
+    db::{self, Word},
+    images,
+};
 use rusqlite::Connection;
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -205,7 +208,7 @@ pub fn import(db: &Connection, name: &str, text: &str, now: i64) -> Result<Impor
     let text = text.trim_start_matches('\u{feff}');
     if name.to_ascii_lowercase().ends_with(".json") || text.trim_start().starts_with('{') {
         let json: Value = serde_json::from_str(text).map_err(|_| "File JSON này không đọc được".to_owned())?;
-        return restore(db, &json);
+        return restore(db, &json, now);
     }
     let (head, body) = header(text);
     let first = body.lines().find(|l| !l.trim().is_empty()).unwrap_or_default();
@@ -280,12 +283,16 @@ fn add(db: &Connection, mut w: Word, now: i64, out: &mut Imported) -> Result<(),
 /// Everything learned: the words with their schedules, the days of study and the answers.
 pub fn backup(db: &Connection, now: i64) -> rusqlite::Result<String> {
     let words = db::list(db, "")?;
-    let mut days = Vec::new();
-    for lang in ["en", "zh"] {
-        for d in db::activity(db, i64::MAX, lang)?.0 {
-            days.push(json!({ "day": d.day, "lang": lang, "xp": d.xp, "answers": d.answers, "correct": d.correct }));
-        }
-    }
+    // Each day under the machine that studied it, so that a copy restored on a synced machine does not count twice.
+    let me = db::device(db)?;
+    let mut stmt = db.prepare("SELECT device, day, lang, xp, answers, correct FROM activity ORDER BY day, lang, device")?;
+    let days: Vec<Value> = stmt
+        .query_map([], |r| {
+            let device: String = r.get(0)?;
+            Ok(json!({ "device": if device.is_empty() { me.clone() } else { device }, "day": r.get::<_, String>(1)?, "lang": r.get::<_, String>(2)?,
+                       "xp": r.get::<_, i64>(3)?, "answers": r.get::<_, i64>(4)?, "correct": r.get::<_, i64>(5)? }))
+        })?
+        .collect::<rusqlite::Result<_>>()?;
     let reviews = db::review_log(db)?;
     Ok(json!({ "app": "card-english", "version": 1, "exported_at": now, "words": words, "activity": days, "reviews": reviews })
         .to_string())
@@ -293,7 +300,7 @@ pub fn backup(db: &Connection, now: i64) -> rusqlite::Result<String> {
 
 /// Puts back what a copy has and the list lacks: new words with their schedules and answers, and the days of study
 /// not already recorded. Nothing already here is changed.
-fn restore(db: &Connection, json: &Value) -> Result<Imported, String> {
+fn restore(db: &Connection, json: &Value, now: i64) -> Result<Imported, String> {
     if json["app"] != "card-english" || !json["words"].is_array() {
         return Err("Đây không phải bản sao lưu của Card English".into());
     }
@@ -312,20 +319,32 @@ fn restore(db: &Connection, json: &Value) -> Result<Imported, String> {
             out.skipped += 1;
         } else {
             w.id = 0;
+            // The copy names a picture of the images folder or none; a synced machine brings the file.
+            if !images::valid(&w.image) {
+                w.image.clear();
+            }
+            // Deleted here since the copy was made: bringing it back is newer than the deletion.
+            if tx.execute("DELETE FROM tombstones WHERE uid = ?1", [&w.uid]).map_err(|e| e.to_string())? > 0 {
+                w.updated = now;
+            }
             let id = db::insert(&tx, &w).map_err(|e| e.to_string())?;
             added.insert(w.word.to_lowercase(), id);
             out.added += 1;
         }
     }
+    let me = db::device(&tx).map_err(|e| e.to_string())?;
     for d in json["activity"].as_array().into_iter().flatten() {
         let day = d["day"].as_str().unwrap_or_default();
         // A copy from before the courses kept their own experience is English.
         let lang = if d["lang"] == "zh" { "zh" } else { "en" };
+        // Another machine's days stay its own, so that the sync replaces them instead of adding them again; a
+        // copy from before the sync has no machine and is this one's.
+        let device = d["device"].as_str().filter(|d| *d != me).unwrap_or_default();
         if db::is_day(day) {
             let n = |key: &str| d[key].as_i64().unwrap_or(0).max(0);
             tx.execute(
-                "INSERT OR IGNORE INTO activity (day, lang, xp, answers, correct) VALUES (?1, ?5, ?2, ?3, ?4)",
-                rusqlite::params![day, n("xp"), n("answers"), n("correct"), lang],
+                "INSERT OR IGNORE INTO activity (device, day, lang, xp, answers, correct) VALUES (?6, ?1, ?5, ?2, ?3, ?4)",
+                rusqlite::params![day, n("xp"), n("answers"), n("correct"), lang, device],
             )
             .map_err(|e| e.to_string())?;
         }
@@ -457,6 +476,33 @@ mod tests {
         // A copy from before words could be set aside has no such field.
         let old = r#"{"app":"card-english","words":[{"word":"older"}]}"#;
         assert!(!import(&third, "old.json", old, 1).map(|_| db::find(&third, "older").unwrap().unwrap().skipped).unwrap());
+    }
+
+    #[test]
+    fn a_copy_keeps_what_the_sync_knows_a_word_by() {
+        let db = memory();
+        let id = db::save(&db, &Word { word: "apple".into(), ..Word::default() }, 1).unwrap();
+        let picture = format!("{}.webp", "c".repeat(64));
+        db::set_image(&db, id, &picture).unwrap();
+        db::add_xp(&db, "2026-10-26", "en", 10, Some(true)).unwrap();
+        let copy = backup(&db, 5).unwrap();
+        let w = db::get(&db, id).unwrap().unwrap();
+        let other = memory();
+        import(&other, "copy.json", &copy, 9).unwrap();
+        let back = db::find(&other, "apple").unwrap().unwrap();
+        assert_eq!((&back.uid, back.updated, &back.image), (&w.uid, w.updated, &picture));
+        // The days of the machine that made the copy stay its own, so the sync replaces them instead of adding them.
+        let doc = crate::sync::export(&db, &db::device(&db).unwrap()).unwrap();
+        crate::sync::merge(&other, &doc, &db::device(&other).unwrap(), &|_, _| true).unwrap();
+        assert_eq!(db::activity(&other, 10, "en").unwrap().1, 10);
+        // Deleted since, then restored: the restore is the newer change.
+        db::delete(&other, back.id).unwrap();
+        import(&other, "copy.json", &copy, 1_000).unwrap();
+        assert_eq!(db::find(&other, "apple").unwrap().unwrap().updated, 1_000);
+        // A copy cannot name a file outside the images folder.
+        let bad = copy.replace(&picture, "../words.db").replace("\"apple\"", "\"pear\"");
+        import(&other, "bad.json", &bad, 1).unwrap();
+        assert_eq!(db::find(&other, "pear").unwrap().unwrap().image, "");
     }
 
     #[test]

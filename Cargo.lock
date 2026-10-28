@@ -81,6 +81,7 @@ dependencies = [
  "candle-transformers",
  "cpal",
  "dirs",
+ "flate2",
  "getrandom 0.3.4",
  "global-hotkey",
  "image",

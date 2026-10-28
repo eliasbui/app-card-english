@@ -1098,8 +1098,9 @@ const app = {
 };
 window.app = app;
 /// Where the parts in ui/parts hook in: `init` runs with the answer of init once the page is set up, `page` with
-/// the name of every page shown, `course` with the course after it changes.
-const hooks = { init: [], page: [], course: [] };
+/// the name of every page shown, `course` with the course after it changes, `editor` and `word` with the word the
+/// editor or the word's window has just opened on.
+const hooks = { init: [], page: [], course: [], editor: [], word: [] };
 
 let state = { settings: {}, models: {}, words: [], editing: null, xpToday: 0, totalXp: 0, days: [], celebrated: "", stats: null, forecast: [],
               platform: "", hotkeys: [] };
@@ -1565,6 +1566,7 @@ function wordDetail(w) {
     <div class="ipa">${esc(w.ipa)} ${w.pos ? `<span class="tag">${esc(w.pos)}</span>` : ""}</div>
     ${zh && w.hanviet ? `<div class="muted">Hán Việt: ${esc(w.hanviet)}</div>` : ""}
     <div class="meaning">${esc(w.meaning)}</div>
+    ${w.image ? `<img class="word-img" data-img="${esc(w.image)}" alt="Hình minh họa">` : ""}
     ${w.explain ? `<p class="explain">${esc(w.explain)}</p>` : ""}
     ${w.example || w.example_vi ? `<div class="example"><div class="grow">
       ${w.example ? `<div class="en">${esc(w.example)}</div>` : ""}${zh && w.example_reading ? `<div class="muted">${esc(w.example_reading)}</div>` : ""}${w.example_vi ? `<div class="vi">${esc(w.example_vi)}</div>` : ""}</div>
@@ -1821,6 +1823,7 @@ function openEditor(w, status = "") {
   // The word moves into the editor, and so does its spelling hint.
   spellNew.clear();
   spellWord.check();
+  hooks.editor.forEach((f) => f(w));
 }
 function closeEditor() {
   state.editing = null;
@@ -2082,6 +2085,7 @@ function openWord(id) {
     </div>`;
   pronWidget($("wd-pron"), w);
   sentenceWidget($("wd-write"), w);
+  hooks.word.forEach((f) => f(w));
   $("word-modal").classList.remove("hidden");
   $("word-detail").querySelector('[data-wd="close"]').focus({ preventScroll: true });
 }

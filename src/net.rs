@@ -68,9 +68,37 @@ pub fn fetch(url: &str, headers: &[(&str, &str)], body: Option<&str>, seconds: u
     if let Some(body) = body {
         config.push_str(&format!("data-binary = {}\n", quote(body)));
     }
+    run(&config, &[], seconds)
+}
+
+/// A request for binary content, which `fetch` cannot carry: the body is read from the file `body` and the answer's
+/// body written to `out`, when given (the reply's own body is then empty). `method` is `GET`, `POST`, `PATCH`
+/// and the like. The paths go on the command line, as `download` has them; the address and headers do not.
+pub fn transfer(method: &str, url: &str, headers: &[(&str, &str)], body: Option<&Path>, out: Option<&Path>, seconds: u64) -> Result<Reply, String> {
+    let mut config = format!("url = {}\nrequest = {}\n", quote(url), quote(method));
+    for (name, value) in headers {
+        config.push_str(&format!("header = {}\n", quote(&format!("{name}: {value}"))));
+    }
+    let mut args = Vec::new();
+    if let Some(body) = body {
+        args.push(std::ffi::OsString::from("--data-binary"));
+        let mut at = std::ffi::OsString::from("@");
+        at.push(body);
+        args.push(at);
+    }
+    if let Some(out) = out {
+        args.push("--output".into());
+        args.push(out.into());
+    }
+    run(&config, &args, seconds)
+}
+
+/// Runs curl on a configuration given on standard input, with `args` before it.
+fn run(config: &str, args: &[std::ffi::OsString], seconds: u64) -> Result<Reply, String> {
     let mut child = command(curl())
         .args(["--silent", "--location", "--proto", "=https", "--max-time"])
         .arg(seconds.to_string())
+        .args(args)
         .args(["--dump-header", "-", "--write-out", "\n%{http_code}", "--config", "-"])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

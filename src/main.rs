@@ -9,11 +9,14 @@ mod clock;
 mod cloud;
 mod codex;
 mod db;
+mod drive;
 mod fsrs;
+mod images;
 mod models;
 mod net;
 mod pron;
 mod speech;
+mod sync;
 mod update;
 mod voice;
 
@@ -510,6 +513,17 @@ impl App {
                 let revoked = chatgpt::sign_out(&db)?;
                 Ok(json!({ "revoked": revoked, "status": chatgpt::status(&db) }))
             })),
+            "sync_sign_in" => background(Box::new(move || {
+                let db = db::open(&dir.join("words.db")).map_err(|e| e.to_string())?;
+                drive::sign_in(&db)?;
+                Ok(sync::status(&db))
+            })),
+            "sync_sign_out" => background(Box::new(move || {
+                let db = db::open(&dir.join("words.db")).map_err(|e| e.to_string())?;
+                let revoked = sync::sign_out(&db)?;
+                Ok(json!({ "revoked": revoked, "status": sync::status(&db) }))
+            })),
+            "sync_now" => background(Box::new(move || sync::run(&dir, valid_setting))),
             "deepseek_balance" => {
                 let key = self.setting("deepseek_key").unwrap_or_default();
                 background(Box::new(move || {
@@ -694,15 +708,46 @@ impl App {
                 }
                 // Only a CEFR or HSK level, so that the list can be sorted by it.
                 word.level = valid_level(&word.level);
+                // A new picture from the page, or none when the learner removed it; otherwise the word keeps its own.
+                let picture = match args["word"]["image_data"].as_str().filter(|d| !d.is_empty()) {
+                    Some(data) => Some(images::store(&self.dir, &images::decode(data)?)?),
+                    None => (args["word"]["image"] == "" && word.id > 0).then(String::new),
+                };
                 match db::save(db, &word, now()) {
-                    Ok(id) => db::get(db, id).map(|w| json!(w)).map_err(e),
-                    Err(rusqlite::Error::SqliteFailure(f, _)) if f.code == rusqlite::ErrorCode::ConstraintViolation => {
-                        Err(format!("Từ \"{}\" đã có trong danh sách", word.word))
+                    Ok(id) => {
+                        if let Some(name) = &picture {
+                            set_picture(db, &self.dir, id, name)?;
+                        }
+                        db::get(db, id).map(|w| json!(w)).map_err(e)
                     }
-                    Err(err) => Err(e(err)),
+                    Err(err) => {
+                        images::release(db, &self.dir, &picture.into_iter().collect::<Vec<_>>());
+                        match err {
+                            rusqlite::Error::SqliteFailure(f, _) if f.code == rusqlite::ErrorCode::ConstraintViolation => {
+                                Err(format!("Từ \"{}\" đã có trong danh sách", word.word))
+                            }
+                            err => Err(e(err)),
+                        }
+                    }
                 }
             }
-            "delete" => db::delete(db, args["id"].as_i64().unwrap_or(0)).map(|_| Value::Null).map_err(e),
+            "delete" => {
+                let id = args["id"].as_i64().unwrap_or(0);
+                let picture = db::get(db, id).map_err(e)?.map(|w| w.image);
+                db::delete(db, id).map_err(e)?;
+                images::release(db, &self.dir, &picture.into_iter().collect::<Vec<_>>());
+                Ok(Value::Null)
+            }
+            "set_image" => {
+                let data = args["data"].as_str().unwrap_or_default();
+                let name = if data.is_empty() { String::new() } else { images::store(&self.dir, &images::decode(data)?)? };
+                let id = args["id"].as_i64().unwrap_or(0);
+                set_picture(db, &self.dir, id, &name)?;
+                db::get(db, id).map(|w| json!(w)).map_err(e)
+            }
+            "image" => images::data_url(&self.dir, args["name"].as_str().unwrap_or_default()).map(Value::from),
+            "sync_status" => Ok(sync::status(db)),
+            "settings" => Ok(self.settings()),
             "grade" => {
                 let rating = args["q"].as_u64().unwrap_or(0).clamp(1, 4) as u8;
                 db::grade(db, args["id"].as_i64().unwrap_or(0), rating, now(), self.retention()).map(|w| json!(w)).map_err(e)
@@ -880,6 +925,14 @@ impl App {
             "achievements": db::setting(&self.db, &db::scoped("achievements", &self.course())).ok().flatten(),
         })
     }
+}
+
+/// Gives a word the picture `name`, or none when it is empty, then lets go of the file it had, and of the new one
+/// when there is no such word, once no word shows them.
+fn set_picture(db: &Connection, dir: &Path, id: i64, name: &str) -> Result<(), String> {
+    let old = db::set_image(db, id, name).map_err(|e| e.to_string())?;
+    images::release(db, dir, &[old.clone().unwrap_or_default(), name.to_owned()]);
+    old.map(|_| ()).ok_or_else(|| "Không tìm thấy từ này".into())
 }
 
 /// A level such as `B2` or `HSK3` from what the page or a model wrote, or nothing.

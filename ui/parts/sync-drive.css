@@ -1,0 +1,3 @@
+  #sync-card .sync-email { overflow-wrap: anywhere; }
+  #sync-card > p { margin: 12px 0 0; }
+  #sync-card > p.muted { padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; }
