@@ -42,8 +42,9 @@ flate2 = "1"
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+# Also the PC's own architecture (IsWow64Process2), so that an x64 build emulated on an ARM64 PC updates to the arm64 zip.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_SystemInformation"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem", "Win32_System_SystemInformation", "Win32_System_Threading"] }
 
 # The GPU of a Mac; other machines run on the CPU.
 [target.'cfg(target_os = "macos")'.dependencies]

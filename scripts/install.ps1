@@ -22,11 +22,15 @@
     $headers = @{}
     # CI machines share their address, which the API limits unless the request carries a token.
     if ($env:GITHUB_TOKEN) { $headers.Authorization = "Bearer $env:GITHUB_TOKEN" }
-    # The newest release that has the Windows zip.
+    # A Snapdragon PC runs the arm64 build natively. PROCESSOR_ARCHITEW6432 is the PC's own when this PowerShell is an
+    # emulated x86 or x64 one, whose PROCESSOR_ARCHITECTURE says the emulated one.
+    $arch = if (($env:PROCESSOR_ARCHITECTURE, $env:PROCESSOR_ARCHITEW6432) -contains 'ARM64') { 'arm64' } else { 'x64' }
+    $pattern = "CardEnglish-*-windows-$arch.zip"
+    # The newest release that has the Windows zip of this PC.
     $releases = Invoke-RestMethod "https://api.github.com/repos/$repo/releases?per_page=10" -Headers $headers
-    $release = $releases | Where-Object { -not $_.draft -and -not $_.prerelease -and ($_.assets | Where-Object name -Like 'CardEnglish-*-windows-x64.zip') } | Select-Object -First 1
+    $release = $releases | Where-Object { -not $_.draft -and -not $_.prerelease -and ($_.assets | Where-Object name -Like $pattern) } | Select-Object -First 1
     if (-not $release) { throw 'Chưa có bản nào cho Windows.' }
-    $asset = $release.assets | Where-Object name -Like 'CardEnglish-*-windows-x64.zip' | Select-Object -First 1
+    $asset = $release.assets | Where-Object name -Like $pattern | Select-Object -First 1
     $version = $release.tag_name.TrimStart('v')
     Write-Host "Đang tải Card English $version..."
 

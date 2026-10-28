@@ -25,8 +25,14 @@ const EXE: &str = "CardEnglish.exe";
 /// Where the running program goes on Windows while the new one takes its name: a running program cannot be
 /// deleted there, only renamed, so it is deleted at the next start.
 const OLD_EXE: &str = "CardEnglish.old.exe";
-/// The end of the name of this platform's zip in a release.
-const PLATFORM: &str = if cfg!(windows) { "windows-x64" } else { "macos" };
+/// The end of the name of this build's zip in a release: the Windows build is of the architecture it was compiled for.
+const PLATFORM: &str = if !cfg!(windows) {
+    "macos"
+} else if cfg!(target_arch = "aarch64") {
+    "windows-arm64"
+} else {
+    "windows-x64"
+};
 /// A program smaller than this is not the app.
 const MIN_EXE: u64 = 1 << 20;
 /// Where the new copy is unpacked and where the old one waits to be deleted: beside the installed app, on the
@@ -61,29 +67,62 @@ fn releases() -> String {
     format!("https://github.com/{REPO}/releases/")
 }
 
+/// The ends of the names of the zips that may replace this build, the best first. Windows runs an x64 build on an
+/// ARM64 PC (a Snapdragon laptop) emulated, and the arm64 zip makes it native; a release without one keeps the x64 zip.
+fn platforms() -> &'static [&'static str] {
+    if PLATFORM == "windows-x64" && arm64_pc() { &["windows-arm64", PLATFORM] } else { &[PLATFORM] }
+}
+
+/// Whether the PC is an ARM64 one, whatever this program was built for: IsWow64Process2 gives the PC's own architecture.
+#[cfg(windows)]
+fn arm64_pc() -> bool {
+    use windows_sys::Win32::System::{
+        SystemInformation::IMAGE_FILE_MACHINE_ARM64,
+        Threading::{GetCurrentProcess, IsWow64Process2},
+    };
+    let (mut process, mut native) = (0, 0);
+    // SAFETY: both results go to variables on this stack, and the handle of the current process needs no closing.
+    let ok = unsafe { IsWow64Process2(GetCurrentProcess(), &mut process, &mut native) };
+    ok != 0 && native == IMAGE_FILE_MACHINE_ARM64
+}
+
+#[cfg(not(windows))]
+fn arm64_pc() -> bool {
+    false
+}
+
+/// The zip a release has for the first of `platforms`, the best first.
+fn pick<'a>(assets: &'a [Value], version: &str, platforms: &[&str]) -> Option<&'a Value> {
+    platforms.iter().find_map(|platform| {
+        let name = format!("CardEnglish-{version}-{platform}.zip");
+        assets.iter().find(|a| a["name"] == name.as_str())
+    })
+}
+
 /// The newest release. Each release since 0.5.2 carries `latest.json`, shaped like the API's answer and read through
 /// github.com's download links, which the API's limit of sixty calls an hour does not touch: that limit counts a whole
 /// network, so an office behind one address runs out of it. Older releases are read from the API.
 pub fn check() -> Result<Check, String> {
     let agent = ("User-Agent", "card-english");
+    let platforms = platforms();
     let manifest = format!("https://github.com/{REPO}/releases/latest/download/latest.json");
     if let Ok((200, body)) = net::request(&manifest, &[agent], None, 10) {
-        if let Ok(check) = parse(&body, PLATFORM) {
+        if let Ok(check) = parse(&body, platforms) {
             return Ok(check);
         }
     }
     let url = format!("https://api.github.com/repos/{REPO}/releases/latest");
     let (status, body) = net::request(&url, &[("Accept", "application/vnd.github+json"), agent], None, 10)?;
     match status {
-        200 => parse(&body, PLATFORM),
+        200 => parse(&body, platforms),
         404 => Err("Chưa có bản phát hành nào".into()),
         403 | 429 => Err("GitHub đang giới hạn số lần kiểm tra từ mạng của bạn, hãy thử lại sau ít phút".into()),
         _ => Err(format!("GitHub trả lỗi {status}")),
     }
 }
 
-/// The release, with the zip whose name ends in `platform` (`macos`, `windows-x64`).
-fn parse(body: &str, platform: &str) -> Result<Check, String> {
+/// The release, with the zip whose name ends in the first of `platforms` that it has (`macos`, `windows-arm64`, `windows-x64`).
+fn parse(body: &str, platforms: &[&str]) -> Result<Check, String> {
     let json: Value = serde_json::from_str(body).map_err(|e| e.to_string())?;
     let latest = json["tag_name"].as_str().unwrap_or_default().trim_start_matches('v').to_owned();
     let url = json["html_url"].as_str().unwrap_or_default().to_owned();
@@ -92,8 +131,8 @@ fn parse(body: &str, platform: &str) -> Result<Check, String> {
         return Err("Bản phát hành không có số phiên bản".into());
     }
     let notes: String = json["body"].as_str().unwrap_or_default().chars().take(2000).collect();
-    let name = format!("CardEnglish-{latest}-{platform}.zip");
-    let asset = json["assets"].as_array().and_then(|a| a.iter().find(|a| a["name"] == name.as_str())).and_then(|a| {
+    let assets = json["assets"].as_array().map(Vec::as_slice).unwrap_or_default();
+    let asset = pick(assets, &latest, platforms).and_then(|a| {
         Some(Asset {
             url: a["browser_download_url"].as_str().filter(|u| u.starts_with(&releases()))?.to_owned(),
             size: a["size"].as_u64()?,
@@ -357,10 +396,10 @@ mod tests {
     #[test]
     fn parse_takes_only_this_repositorys_release() {
         let ok = r#"{"tag_name":"v9.0.0","html_url":"https://github.com/eliasbui/app-card-english/releases/tag/v9.0.0","body":"- new"}"#;
-        let c = parse(ok, "macos").unwrap();
+        let c = parse(ok, &["macos"]).unwrap();
         assert!(c.newer && c.latest == "9.0.0" && c.notes == "- new");
         let elsewhere = r#"{"tag_name":"v9.0.0","html_url":"https://evil.example/releases/tag/v9.0.0"}"#;
-        assert!(parse(elsewhere, "macos").is_err());
+        assert!(parse(elsewhere, &["macos"]).is_err());
     }
 
     #[test]
@@ -369,13 +408,31 @@ mod tests {
             {"name":"CardEnglish-9.0.0-windows-x64.zip","size":1,"browser_download_url":"https://github.com/eliasbui/app-card-english/releases/download/v9.0.0/CardEnglish-9.0.0-windows-x64.zip"},
             {"name":"CardEnglish-9.0.0-macos.zip","size":42,"digest":"sha256:BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD",
              "browser_download_url":"https://github.com/eliasbui/app-card-english/releases/download/v9.0.0/CardEnglish-9.0.0-macos.zip"}]}"#;
-        let asset = parse(body, "macos").unwrap().asset.unwrap();
+        let asset = parse(body, &["macos"]).unwrap().asset.unwrap();
         assert_eq!(asset.size, 42);
         assert_eq!(asset.sha256.as_deref(), Some("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"));
-        let windows = parse(body, "windows-x64").unwrap().asset.unwrap();
+        let windows = parse(body, &["windows-x64"]).unwrap().asset.unwrap();
         assert!(windows.url.ends_with("-windows-x64.zip") && windows.size == 1 && windows.sha256.is_none());
         let evil = body.replace("https://github.com/eliasbui/app-card-english/releases/download", "https://evil.example");
-        assert!(parse(&evil, "macos").unwrap().asset.is_none());
+        assert!(parse(&evil, &["macos"]).unwrap().asset.is_none());
+    }
+
+    #[test]
+    fn an_emulated_x64_build_takes_the_arm64_zip_only_when_the_release_has_one() {
+        let zips = |platforms: &[&str]| -> Vec<Value> {
+            platforms.iter().map(|p| serde_json::json!({ "name": format!("CardEnglish-9.0.0-{p}.zip") })).collect()
+        };
+        let chosen = |assets: &[Value], wanted: &[&str]| pick(assets, "9.0.0", wanted).map(|a| a["name"].as_str().unwrap().to_owned());
+        let (both, x64_only) = (zips(&["macos", "windows-x64", "windows-arm64"]), zips(&["macos", "windows-x64"]));
+        let emulated = ["windows-arm64", "windows-x64"];
+        assert_eq!(chosen(&both, &emulated).as_deref(), Some("CardEnglish-9.0.0-windows-arm64.zip"));
+        assert_eq!(chosen(&x64_only, &emulated).as_deref(), Some("CardEnglish-9.0.0-windows-x64.zip"));
+        // An x64 build on an x64 PC stays x64 although the release has an arm64 zip, and the arm64 build stays arm64.
+        assert_eq!(chosen(&both, &["windows-x64"]).as_deref(), Some("CardEnglish-9.0.0-windows-x64.zip"));
+        assert_eq!(chosen(&both, &["windows-arm64"]).as_deref(), Some("CardEnglish-9.0.0-windows-arm64.zip"));
+        assert_eq!(chosen(&zips(&["macos"]), &emulated), None);
+        // Another version's zip is not this release's.
+        assert_eq!(pick(&both, "8.0.0", &emulated), None);
     }
 
     #[test]
