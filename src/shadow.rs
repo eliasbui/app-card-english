@@ -498,7 +498,7 @@ mod tests {
             ("Are you ready for the trip?", "Daniel", "You are ready for the trip."),
             ("We need to negotiate a better price.", "Samantha", "We need to negotiate a better price."),
         ] {
-            let (_, samples, rate) = crate::voice::synthesize(&dir, "en", 3, sentence, 1.0).unwrap();
+            let (samples, rate) = crate::voice::generate(&dir, "en", 3, sentence, 1.0).unwrap();
             let reference = contour(&samples, rate);
             assert!(reference.is_some(), "Kokoro's reading has a tune");
             let pcm = say(learner, said);
@@ -508,7 +508,7 @@ mod tests {
             assert!(take.learner.is_some() && take.similar.is_some(), "{take:?}");
         }
         let sentence = "我们明天去北京。";
-        let (_, samples, rate) = crate::voice::synthesize(&dir, "zh", 3, sentence, 1.0).unwrap();
+        let (samples, rate) = crate::voice::generate(&dir, "zh", 3, sentence, 1.0).unwrap();
         let take = compare(sentence, crate::speech::score_chinese(sentence, sentence, 1.0), &say("Tingting", sentence), contour(&samples, rate));
         println!("{sentence}: {:?} {} {:?}", take.similar, take.feedback, take.words.iter().map(|w| &w.reading).collect::<Vec<_>>());
         assert!(take.learner.is_some() && take.similar.is_some(), "{take:?}");

@@ -512,11 +512,13 @@
   /* A downloadable model or voice: a box of its own, with its tags and buttons on the right. */
   .model-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-top: 10px; padding: 12px 14px; border: 1px solid var(--line);
                border-radius: var(--r-md); background: var(--surface); transition: border-color .15s, background .15s; }
-  .pbody > div:first-child .model-row, #voice-kokoro .model-row { margin-top: 0; }
+  .pbody > div:first-child .model-row, #voice-packs > div:first-child .model-row { margin-top: 0; }
   .model-row > .grow { min-width: 180px; }
   .model-row.active { border-color: var(--accent); background: var(--accent-soft); }
   .model-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; margin-left: auto; }
-  #voice-kokoro:not(:empty) { margin-bottom: 16px; }
+  #voice-packs:not(:empty) { margin-bottom: 16px; }
+  #machine-line { margin-top: 0; }
+  .meaning .btn { vertical-align: middle; margin-left: 6px; }
   .dl { margin: 10px 0 0; }
   .usage { margin-top: 14px; padding: 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); font-size: 13px; }
   .usage-title { margin-bottom: 8px; font-weight: 600; }
@@ -1004,7 +1006,8 @@
 
     <h3 class="group">Giọng đọc</h3>
     <div class="card">
-      <div id="voice-kokoro"></div>
+      <p class="muted small" id="machine-line"></p>
+      <div id="voice-packs"></div>
       <div class="setting-row">
         <div><b>Giọng</b><div class="muted" id="voice-hint">Anh-Mỹ hay Anh-Anh, và giọng cụ thể nếu máy có nhiều giọng.</div></div>
         <div class="only-en"><div class="seg" id="s-accent" role="radiogroup" aria-label="Giọng">
@@ -1012,6 +1015,10 @@
           <input type="radio" name="accent" id="ac-en-GB" value="en-GB"><label for="ac-en-GB">Anh-Anh</label>
         </div></div>
         <select id="s-voice" aria-label="Giọng cụ thể"></select>
+      </div>
+      <div class="setting-row">
+        <div><b>Giọng tiếng Việt</b><div class="muted">Đọc nghĩa của từ khi bấm Nghe nghĩa.</div></div>
+        <select id="s-voice_vi" aria-label="Giọng tiếng Việt"></select>
       </div>
       <div class="setting-row">
         <div><b>Tốc độ đọc</b><div class="muted" id="rate-label"></div></div>
@@ -1401,17 +1408,32 @@ function pickZhVoice() {
   }
   return all.find((v) => voiceLang(v).toLowerCase() === "zh-cn") || all.find((v) => voiceLang(v).toLowerCase() === "zh-tw");
 }
-const kokoroChosen = () => String(state.settings.voice || "").startsWith("kokoro:") && !!state.voices?.[courseOf()]?.ready;
+// A Vietnamese voice of the system for the meanings, the one chosen first.
+function pickViVoice() {
+  const all = window.speechSynthesis ? speechSynthesis.getVoices().filter((v) => /^vi([-_]|$)/i.test(v.lang)) : [];
+  return all.find((v) => v.name === state.settings.voice_vi) || all[0] || null;
+}
+/// The app's voice packs downloaded for a language.
+const packsFor = (lang) => (state.voices?.packs || []).filter((p) => p.ready && p.langs.includes(lang));
+/// Whether a voice setting such as "kokoro:3" names one of the app's voices whose pack is downloaded.
+const appVoice = (setting, lang) => String(setting || "").includes(":") && packsFor(lang).some((p) => p.family === String(setting).split(":")[0]);
 /// Reads text aloud and answers once it has been read: the app's voices answer when playback ends, the web view's
-/// when the utterance ends or is cut off.
-function speak(text, slow = false) {
+/// when the utterance ends or is cut off. `lang` is "vi" for a meaning; English and Chinese are told apart by script.
+function speak(text, slow = false, lang = "") {
   if (!text) return Promise.resolve();
   const rate = +state.settings.speech_rate || 0.95;
-  const zh = hasHan(text);
-  if (zh === (courseOf() === "zh") && kokoroChosen()) {
-    return app.call("speak", { text, slow, accent: state.settings.accent || "en-US", rate }).catch((e) => toast(String(e)));
+  const vi = lang === "vi", zh = !vi && hasHan(text);
+  // Vietnamese reads with the app's voice downloaded when none was chosen: few systems have one.
+  const ours = vi ? appVoice(state.settings.voice_vi, "vi") || (!state.settings.voice_vi && packsFor("vi").length > 0)
+    : zh === (courseOf() === "zh") && appVoice(state.settings.voice, zh ? "zh" : "en");
+  if (ours) {
+    return app.call("speak", { text, slow, accent: state.settings.accent || "en-US", rate, lang: vi ? "vi" : "" }).catch((e) => toast(String(e)));
   }
-  const voice = zh ? pickZhVoice() : pickVoice();
+  const voice = vi ? pickViVoice() : zh ? pickZhVoice() : pickVoice();
+  if (!voice && vi) {
+    toast("Tải giọng Supertonic trong Cài đặt, mục Giọng đọc, để nghe tiếng Việt");
+    return Promise.resolve();
+  }
   if (!voice) return app.call("speak", { text, slow, accent: zh ? "zh-CN" : (state.settings.accent || "en-US"), rate }).catch(() => {});
   return new Promise((resolve) => {
     const u = new SpeechSynthesisUtterance(text);
@@ -1426,13 +1448,13 @@ function speak(text, slow = false) {
   });
 }
 /// A listen button stays busy while its speech plays and comes back once it ends; a press while busy does nothing.
-async function sayWith(button, text, slow = false) {
+async function sayWith(button, text, slow = false, lang = "") {
   if (button.classList.contains("loading")) return;
   button.classList.add("loading");
   button.disabled = true;
   button.setAttribute("aria-busy", "true");
   try {
-    await speak(text, slow);
+    await speak(text, slow, lang);
   } finally {
     button.classList.remove("loading");
     button.disabled = false;
@@ -1579,7 +1601,7 @@ function wordDetail(w) {
   return `
     <div class="ipa">${esc(w.ipa)} ${w.pos ? `<span class="tag">${esc(w.pos)}</span>` : ""}</div>
     ${zh && w.hanviet ? `<div class="muted">Hán Việt: ${esc(w.hanviet)}</div>` : ""}
-    <div class="meaning">${esc(w.meaning)}</div>
+    <div class="meaning">${esc(w.meaning)}${w.meaning ? ` <button class="btn small" data-say="${esc(w.meaning)}" data-lang="vi">Nghe nghĩa</button>` : ""}</div>
     ${w.image ? `<img class="word-img" data-img="${esc(w.image)}" alt="Hình minh họa">` : ""}
     ${w.explain ? `<p class="explain">${esc(w.explain)}</p>` : ""}
     ${w.example || w.example_vi ? `<div class="example"><div class="grow">
@@ -1591,7 +1613,7 @@ function wordDetail(w) {
 }
 document.addEventListener("click", (e) => {
   const say = e.target.closest("[data-say]");
-  if (say) sayWith(say, say.dataset.say);
+  if (say) sayWith(say, say.dataset.say, false, say.dataset.lang || "");
   const link = e.target.closest("[data-link]");
   if (link) {
     e.preventDefault();
@@ -1702,6 +1724,9 @@ function showSessionCard() {
     </div>`;
   slideIn(card);
   speak(w.word);
+  // The next cards' words are made while this one is read, so that each plays at once when its card comes.
+  const lang = courseOf(), next = session.queue.slice(1, 3).map((x) => x.word).filter((t) => hasHan(t) === (lang === "zh"));
+  if (next.length && appVoice(state.settings.voice, lang)) app.call("voice_prefetch", { texts: next, lang, rate: +state.settings.speech_rate || 0.95 }).catch(() => {});
   $("btn-flip").onclick = flip;
   $("grade-row").querySelectorAll("[data-q]").forEach((b) => (b.onclick = () => grade(+b.dataset.q, b)));
   $("btn-session-skip").onclick = skipInSession;
@@ -2844,39 +2869,67 @@ function renderProviders() {
 
 const rateLabel = (r) => `${Math.round(r * 100)}% tốc độ thường${Math.abs(r - 0.95) < 0.01 ? " (mặc định)" : ""}`;
 function renderVoices() {
-  const select = $("s-voice"), s = state.settings, zh = courseOf() === "zh", accent = s.accent || "en-US";
+  const select = $("s-voice"), s = state.settings, zh = courseOf() === "zh", lang = zh ? "zh" : "en", accent = s.accent || "en-US";
   const system = zh
     ? (window.speechSynthesis ? speechSynthesis.getVoices().filter((v) => /^zh[-_](cn|tw)$/i.test(voiceLang(v))) : [])
     : englishVoices().filter((v) => voiceLang(v) === accent);
-  const kokoro = state.voices?.[courseOf()]?.ready ? (state.kokoroVoices || []).filter((v) => v.lang === courseOf()) : [];
+  const viSystem = window.speechSynthesis ? speechSynthesis.getVoices().filter((v) => /^vi([-_]|$)/i.test(v.lang)) : [];
   const options = (list, value, label) => list.map((v) => `<option value="${esc(value(v))}">${esc(label(v))}</option>`).join("");
-  select.innerHTML = `<option value="">Tự chọn giọng phù hợp</option>`
-    + (kokoro.length ? `<optgroup label="Kokoro, giọng tự nhiên">${options(kokoro, (v) => "kokoro:" + v.sid, (v) => v.name)}</optgroup>` : "")
+  // One group for each pack downloaded, its voices named as the settings keep them, "kokoro:3".
+  const ours = (forLang) => packsFor(forLang).map((p) => `<optgroup label="${esc(PACK_INFO[p.id]?.name || p.id)}">${
+    options((state.voices.voices || []).filter((v) => v.pack === p.id), (v) => p.family + ":" + v.sid, (v) => v.name)}</optgroup>`).join("");
+  select.innerHTML = `<option value="">Tự chọn giọng phù hợp</option>` + ours(lang)
     + (system.length ? `<optgroup label="Giọng của máy">${options(system, (v) => v.name, (v) => v.name)}</optgroup>` : "");
   select.value = [...select.options].some((o) => o.value === s.voice) ? s.voice : "";
+  const vi = $("s-voice_vi");
+  vi.innerHTML = `<option value="">Tự chọn</option>` + ours("vi")
+    + (viSystem.length ? `<optgroup label="Giọng của máy">${options(viSystem, (v) => v.name, (v) => v.name)}</optgroup>` : "");
+  vi.value = [...vi.options].some((o) => o.value === s.voice_vi) ? s.voice_vi : "";
   $("voice-hint").textContent = zh ? "Giọng đọc chữ Hán, Quan Thoại." : "Anh-Mỹ hay Anh-Anh, và giọng cụ thể nếu máy có nhiều giọng.";
-  const notes = [kokoro.length ? "" : "Tải giọng Kokoro ở trên để có giọng đọc tự nhiên hơn.",
-    !zh && !system.length && englishVoices().length ? `Máy này chưa có giọng ${accent === "en-GB" ? "Anh-Anh" : "Anh-Mỹ"}.` : ""];
+  const notes = [packsFor(lang).length ? "" : "Tải một gói giọng ở trên để có giọng đọc tự nhiên hơn.",
+    !zh && !system.length && englishVoices().length ? `Máy này chưa có giọng ${accent === "en-GB" ? "Anh-Anh" : "Anh-Mỹ"}.` : "",
+    packsFor("vi").length || viSystem.length ? "" : "Tải Supertonic để nghe nghĩa tiếng Việt."];
   $("voice-note").textContent = notes.filter(Boolean).join(" ");
-  renderVoicePack();
+  renderVoicePacks();
 }
-/// The download of the course's Kokoro pack, with the same progress bar as the models.
-function renderVoicePack() {
-  const course = courseOf(), pack = state.voices?.[course];
-  if (!pack) return;
-  downloadRow($("voice-kokoro"), "voice-" + course, {
-    name: `Giọng Kokoro ${course === "zh" ? "tiếng Trung" : "tiếng Anh"}`, size: pack.size, ready: pack.ready,
-    use: "Giọng đọc tự nhiên, chạy trên máy, không cần mạng",
-    actions: `<span class="tag ok">Đã sẵn sàng</span><button class="btn small danger" data-act="voice-del" data-p="${course}">Xóa</button>`,
-    fetch: async () => {
-      state.voices = await app.call("download_voice", { course });
-      const first = (state.kokoroVoices || []).find((v) => v.lang === course);
-      // A download is a choice of the new voice; the learner can pick another one after.
-      if (first && courseOf() === course) await saveSetting("voice", "kokoro:" + first.sid);
-      toast("Đã tải xong giọng Kokoro");
-    },
-    retry: "Bấm Tải về để thử lại.",
-  });
+const PACK_INFO = {
+  supertonic: { name: "Supertonic 3", use: "Nhanh và nhẹ, 10 giọng nam nữ, đọc được cả tiếng Anh và tiếng Việt. Hợp với máy yếu và trung bình." },
+  "kokoro-en": { name: "Kokoro", use: "Giọng tự nhiên nhất, 14 giọng Anh-Mỹ và Anh-Anh. Nặng hơn, hợp với máy mạnh, đọc một từ dưới một giây." },
+  "kokoro-zh": { name: "Kokoro tiếng Trung", use: "Giọng Quan Thoại tự nhiên nhất, 6 giọng nam nữ. Nặng hơn, hợp với máy mạnh." },
+  "piper-zh": { name: "Piper Xiao Ya", use: "Một giọng nữ Quan Thoại, rất nhẹ và nhanh. Hợp với máy yếu và trung bình." },
+};
+const TIER = { weak: "yếu", medium: "trung bình", strong: "mạnh" };
+const msText = (ms) => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1).replace(".", ",")} giây`);
+/// The course's voice packs, the one suggested for this machine first, then Supertonic for the Vietnamese meanings,
+/// each with the same download row as the models.
+function renderVoicePacks() {
+  const v = state.voices;
+  if (!v?.packs) return;
+  const lang = courseOf() === "zh" ? "zh" : "en", m = v.machine;
+  $("machine-line").textContent = m
+    ? `Máy này: ${m.cpu || "bộ xử lý không rõ tên"}, ${m.threads} luồng, ${Math.round(m.ram_gb)} GB RAM, cấu hình ${TIER[m.tier] || m.tier}.` : "";
+  const packs = v.packs.filter((p) => p.langs.includes(lang)).sort((a, b) => b.suggested.includes(lang) - a.suggested.includes(lang));
+  if (!packs.some((p) => p.id === "supertonic")) packs.push(...v.packs.filter((p) => p.id === "supertonic"));
+  $("voice-packs").innerHTML = packs.map((p) => `<div id="vp-${p.id}"></div>`).join("");
+  for (const p of packs) {
+    const info = PACK_INFO[p.id] || { name: p.id, use: "" };
+    const forVi = !p.langs.includes(lang), suggested = p.suggested.includes(forVi ? "vi" : lang);
+    const use = info.use + (forVi ? " Ở khóa này dùng để đọc nghĩa tiếng Việt." : "")
+      + (p.ms ? ` Lần gần nhất đọc một từ mất ${msText(p.ms)} trên máy này.` : "")
+      + (p.old ? " Bạn đang dùng bản cũ chậm hơn khoảng 2,5 lần; tải bản mới để đọc nhanh hơn, bản cũ sẽ được xóa." : "");
+    downloadRow($("vp-" + p.id), "voice-" + p.id, {
+      name: esc(info.name) + (suggested ? ' <span class="tag">Gợi ý cho máy này</span>' : ""), size: p.size, ready: p.ready && !p.old, use,
+      actions: `<span class="tag ok">Đã sẵn sàng</span><button class="btn small danger" data-act="voice-del" data-p="${p.id}">Xóa</button>`,
+      fetch: async () => {
+        state.voices = await app.call("download_voice", { pack: p.id });
+        // A download is a choice of its first voice; the learner can pick another one after.
+        const first = state.voices.voices.find((x) => x.pack === p.id);
+        if (first && p.langs.includes(courseOf() === "zh" ? "zh" : "en")) await saveSetting("voice", p.family + ":" + first.sid);
+        toast(`Đã tải xong ${info.name}`);
+      },
+      retry: "Bấm Tải về để thử lại.",
+    });
+  }
 }
 const MODELS = {
   llm: ["Qwen2.5 0.5B", "Giải thích nghĩa, gợi ý từ mới bằng tiếng Việt; nhanh, nhẹ"],
@@ -2995,9 +3048,10 @@ $("s-autostart").onchange = async (e) => {
 };
 $("s-accent").addEventListener("change", async (e) => {
   await saveSetting("accent", e.target.value);
-  if (!String(state.settings.voice).startsWith("kokoro:")) await saveSetting("voice", "");
+  if (!String(state.settings.voice).includes(":")) await saveSetting("voice", "");
 });
 $("s-voice").onchange = (e) => saveSetting("voice", e.target.value);
+$("s-voice_vi").onchange = (e) => saveSetting("voice_vi", e.target.value);
 $("s-speech_rate").oninput = (e) => ($("rate-label").textContent = rateLabel(+e.target.value));
 $("s-speech_rate").onchange = (e) => saveSetting("speech_rate", e.target.value);
 $("btn-f-say").onclick = (e) => sayWith(e.currentTarget, $("f-word").value.trim());
@@ -3148,10 +3202,10 @@ $("page-settings").addEventListener("click", async (e) => {
       if (!armed(b)) return;
       const model = b.dataset.act === "model-del";
       try {
-        const r = await app.call(model ? "delete_model" : "delete_voice", model ? { group: p } : { course: p });
+        const r = await app.call(model ? "delete_model" : "delete_voice", model ? { group: p } : { pack: p });
         if (model) state.models = r.models; else state.voices = r.voices;
         state.settings = r.settings;
-        toast(model ? `Đã xóa ${MODELS[p][0]}` : "Đã xóa giọng Kokoro");
+        toast(`Đã xóa ${model ? MODELS[p][0] : PACK_INFO[p]?.name || "giọng đọc"}`);
       } catch (err) {
         toast(String(err));
       }
@@ -3302,7 +3356,6 @@ async function quickAdd(text) {
   state.settings = init.settings;
   state.models = init.models;
   state.voices = init.voices;
-  state.kokoroVoices = init.kokoro_voices || [];
   state.platform = init.platform || "";
   state.hotkeys = init.hotkeys || [];
   applyTheme(state.settings.theme);

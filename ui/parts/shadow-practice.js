@@ -34,13 +34,13 @@
     const box = card.querySelector(".shadow-box"), line = card.querySelector(".shadow-line");
     const button = (a) => card.querySelector(`[data-a="${a}"]`);
     const alive = () => practice === p && box.isConnected;
-    const kokoro = !!state.voices?.[zh ? "zh" : "en"]?.ready;
+    const ours = (state.voices?.packs || []).some((p) => p.ready && p.langs.includes(zh ? "zh" : "en"));
     const longest = Math.min(15000, 2500 + (zh ? 400 * sentence.length : 500 * sentence.split(/\s+/).length));
     let first = true, busy = false;
 
-    // The reading: with the Kokoro voice, whose pitch the take is held against, or else the system's voice.
+    // The reading: with the app's voice, whose pitch the take is held against, or else the system's voice.
     const read = async () => {
-      if (kokoro) {
+      if (ours) {
         const r = await app.call("shadow_say", { text: sentence, rate: +state.settings.speech_rate || 0.95 }).catch(() => null);
         if (r) return r.reference;
       }

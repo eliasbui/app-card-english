@@ -2550,23 +2550,6 @@ fn split_speakers(text: &str) -> Vec<(String, String)> {
     }
 }
 
-/// The Kokoro voice for a speaker: the chosen one when its gender fits, else the first of the course's voices of the
-/// speaker's gender; the narrator reads with the chosen one.
-pub fn voice_for(lang: &str, chosen: i32, who: &str) -> i32 {
-    let male = |name: &str| name.to_lowercase().contains("nam");
-    let voices: Vec<&(&str, i32, &str)> = crate::voice::VOICES.iter().filter(|v| v.0 == lang).collect();
-    let want = match who {
-        "M" => Some(true),
-        "W" => Some(false),
-        _ => None,
-    };
-    let fits = |sid: i32| voices.iter().find(|v| v.1 == sid).is_some_and(|v| want.is_none_or(|m| male(v.2) == m));
-    if fits(chosen) {
-        return chosen;
-    }
-    voices.iter().find(|v| want.is_none_or(|m| male(v.2) == m)).map_or(chosen, |v| v.1)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2866,15 +2849,6 @@ mod tests {
         assert_eq!((hidden["items"][0]["key"].as_str(), hidden["items"][0]["why"].as_str(), hidden["items"][0]["say"].as_str()), (Some(""), Some(""), Some("")));
         assert_eq!((hidden["lines"].as_array().unwrap().len(), hidden["items"][0]["options"][1].as_str()), (0, Some("")));
         assert_eq!(v["next"], 1);
-    }
-
-    #[test]
-    fn speakers_get_a_voice_of_their_gender() {
-        assert_eq!(voice_for("en", 3, "M"), 16, "Heart is a woman's voice, Michael the first man's");
-        assert_eq!(voice_for("en", 26, "M"), 26);
-        assert_eq!(voice_for("en", 26, "W"), 3);
-        assert_eq!(voice_for("en", 26, ""), 26);
-        assert_eq!(voice_for("zh", 3, "M"), 58);
     }
 
     #[test]

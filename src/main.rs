@@ -220,6 +220,11 @@ fn main() {
         let dir = dir.clone();
         thread::spawn(move || {
             thread::sleep(Duration::from_secs(2));
+            if let Ok(db) = db::open(&dir.join("words.db")) {
+                let get = |key: &str| db::setting(&db, key).ok().flatten().unwrap_or_default();
+                let course = if get("course") == "zh" { "zh" } else { "en" };
+                voice::warm_up(&dir, &get(&db::scoped("voice", course)), course);
+            }
             ai::warm_up(&dir);
             speech::warm_up(&dir);
         });
@@ -806,13 +811,8 @@ impl App {
                     Ok(lines) => lines,
                     Err(e) => return self.post(&reply(Err(e))),
                 };
-                // The course's Kokoro voices whenever the pack is there, else the system's voice.
-                let chosen = self
-                    .setting("voice")
-                    .and_then(|v| v.strip_prefix("kokoro:").and_then(|sid| sid.parse::<i32>().ok()))
-                    .or_else(|| voice::VOICES.iter().find(|v| v.0 == course).map(|v| v.1))
-                    .unwrap_or_default();
-                let kokoro = voice::ready(&dir, &course);
+                // The voice chosen, else the best of the app's voices downloaded, else the system's.
+                let chosen = voice::for_lang(&dir, &self.setting("voice").unwrap_or_default(), &course);
                 let accent = self.setting("accent").unwrap_or_default();
                 let rate = args["rate"].as_f64().unwrap_or(0.95);
                 exam::STOP.store(false, std::sync::atomic::Ordering::SeqCst);
@@ -821,10 +821,16 @@ impl App {
                         if exam::STOP.load(std::sync::atomic::Ordering::SeqCst) {
                             break;
                         }
-                        if kokoro {
-                            voice::speak(&dir, &course, exam::voice_for(&course, chosen, &who), &line, rate as f32)?;
-                        } else {
-                            speak(&line, false, &accent, rate)?;
+                        match chosen {
+                            Some(chosen) => {
+                                let read = voice::speak(&dir, &voice::for_speaker(chosen, &who), &line, rate as f32);
+                                if read.as_ref().is_err_and(|e| e == voice::UNKNOWN_WORD) {
+                                    speak(&line, false, &accent, rate)?;
+                                } else {
+                                    read?;
+                                }
+                            }
+                            None => speak(&line, false, &accent, rate)?,
                         }
                     }
                     Ok(Value::Null)
@@ -984,17 +990,18 @@ impl App {
                 let slow = args["slow"].as_bool().unwrap_or(false);
                 let accent = text("accent");
                 let rate = args["rate"].as_f64().unwrap_or(0.95);
-                // The Kokoro voice chosen for the language of the text, once its pack is downloaded.
-                let lang = if pron::is_chinese(&words) { "zh" } else { "en" };
-                let kokoro = db::setting(&self.db, &db::scoped("voice", lang))
-                    .ok()
-                    .flatten()
-                    .and_then(|v| v.strip_prefix("kokoro:").and_then(|sid| sid.parse::<i32>().ok()))
-                    .filter(|_| voice::ready(&dir, lang));
+                // The app's voice chosen for the language of the text, once its pack is downloaded; for Vietnamese, the
+                // one downloaded when none was chosen, since few systems have a Vietnamese voice.
+                let lang = if args["lang"] == "vi" { "vi" } else if pron::is_chinese(&words) { "zh" } else { "en" };
+                let setting = self.voice_setting(lang);
+                let accent = if lang == "vi" { "vi-VN".to_owned() } else { accent };
+                let chosen = voice::chosen(&dir, &setting, lang).or_else(|| (lang == "vi" && setting.is_empty()).then(|| voice::for_lang(&dir, "", lang)).flatten());
                 background(Box::new(move || {
-                    match kokoro {
-                        Some(sid) => voice::speak(&dir, lang, sid, &words, (rate * if slow { 0.7 } else { 1.0 }) as f32),
-                        None => speak(&words, slow, &accent, rate),
+                    let slowed = (rate * if slow { 0.7 } else { 1.0 }) as f32;
+                    match chosen.map(|v| voice::speak(&dir, &v, &words, slowed)) {
+                        Some(Err(e)) if e != voice::UNKNOWN_WORD => Err(e),
+                        Some(Ok(_)) => Ok(()),
+                        _ => speak(&words, slow, &accent, rate),
                     }
                     .map(|_| Value::Null)
                 }));
@@ -1005,14 +1012,10 @@ impl App {
                 let words = text("text");
                 let rate = args["rate"].as_f64().unwrap_or(0.95) as f32;
                 let lang = if pron::is_chinese(&words) { "zh" } else { "en" };
-                let sid = db::setting(&self.db, &db::scoped("voice", lang))
-                    .ok()
-                    .flatten()
-                    .and_then(|v| v.strip_prefix("kokoro:").and_then(|sid| sid.parse::<i32>().ok()))
-                    .or_else(|| voice::VOICES.iter().find(|v| v.0 == lang).map(|v| v.1))
-                    .unwrap_or_default();
+                let chosen = voice::for_lang(&dir, &self.voice_setting(lang), lang);
                 background(Box::new(move || {
-                    let (samples, rate) = voice::speak_and_keep(&dir, lang, sid, &words, rate)?;
+                    let chosen = chosen.ok_or("Chưa tải giọng đọc nào, vào Cài đặt để tải")?;
+                    let (samples, rate) = voice::speak(&dir, &chosen, &words, rate)?;
                     Ok(json!({ "reference": shadow::contour(&samples, rate) }))
                 }));
             }
@@ -1026,27 +1029,39 @@ impl App {
                 }));
             }
             "download_voice" => {
-                let course = if text("course") == "zh" { "zh" } else { "en" };
+                let pack = text("pack");
                 let proxy = self.proxy.clone();
                 background(Box::new(move || {
-                    voice::download(&dir, course, |done, total| {
-                        let message = json!({ "event": "progress", "data": { "group": format!("voice-{course}"), "done": done, "total": total } });
+                    voice::download(&dir, &pack, |done, total| {
+                        let message = json!({ "event": "progress", "data": { "group": format!("voice-{pack}"), "done": done, "total": total } });
                         let _ = proxy.send_event(UserEvent::Post(message));
                     })?;
                     Ok(voice::status(&dir))
                 }));
             }
             "delete_voice" => {
-                let course = if text("course") == "zh" { "zh" } else { "en" };
-                let result = voice::delete(&dir, course).and_then(|()| {
-                    // The voice chosen in its place is gone with it: the course reads with the system's voice again.
-                    let key = db::scoped("voice", course);
-                    if db::setting(&self.db, &key).ok().flatten().is_some_and(|v| v.starts_with("kokoro:")) {
-                        db::set_setting(&self.db, &key, "").map_err(|e| e.to_string())?;
+                let result = voice::delete(&dir, &text("pack")).and_then(|()| {
+                    // A voice chosen from it is gone with it: its language reads with the system's voice again.
+                    for key in ["voice", "voice@zh", "voice_vi"] {
+                        let setting = db::setting(&self.db, key).ok().flatten().unwrap_or_default();
+                        let lang = match key { "voice@zh" => "zh", "voice_vi" => "vi", _ => "en" };
+                        if setting.contains(':') && voice::chosen(&dir, &setting, lang).is_none() {
+                            db::set_setting(&self.db, key, "").map_err(|e| e.to_string())?;
+                        }
                     }
                     Ok(json!({ "voices": voice::status(&dir), "settings": self.settings() }))
                 });
                 self.post(&reply(result));
+            }
+            // The words about to be read, made ahead so that each plays at once when its card comes.
+            "voice_prefetch" => {
+                let lang = if args["lang"] == "zh" { "zh" } else { "en" };
+                if let Some(chosen) = voice::chosen(&dir, &self.voice_setting(lang), lang) {
+                    let texts = args["texts"].as_array().map(|a| a.iter().filter_map(|t| t.as_str().map(str::to_owned)).collect()).unwrap_or_default();
+                    let rate = args["rate"].as_f64().unwrap_or(0.95) as f32;
+                    voice::prefetch(dir, chosen, texts, rate);
+                }
+                self.post(&reply(Ok(Value::Null)));
             }
             _ => {
                 let result = self.handle(&cmd, &args);
@@ -1071,7 +1086,6 @@ impl App {
                     "settings": self.settings(),
                     "models": models::status(&self.dir),
                     "voices": voice::status(&self.dir),
-                    "kokoro_voices": voice::VOICES.iter().map(|(lang, sid, name)| json!({ "lang": lang, "sid": sid, "name": name })).collect::<Vec<_>>(),
                     "update": self.update.as_ref().filter(|_| main),
                     "data_dir": self.dir,
                     "platform": std::env::consts::OS,
@@ -1422,6 +1436,12 @@ impl App {
     }
 
     /// A setting of the current course, or a shared one.
+    /// The voice setting of a language: the course's own for English and Chinese, one for Vietnamese in both.
+    fn voice_setting(&self, lang: &str) -> String {
+        let key = if lang == "vi" { "voice_vi".to_owned() } else { db::scoped("voice", lang) };
+        db::setting(&self.db, &key).ok().flatten().unwrap_or_default()
+    }
+
     fn setting(&self, key: &str) -> Option<String> {
         db::setting(&self.db, &db::scoped(key, &self.course())).ok().flatten().filter(|v| !v.is_empty())
     }
@@ -1462,6 +1482,7 @@ impl App {
             "autostart": autostart::enabled(),
             "accent": if text("accent") == "en-GB" { "en-GB" } else { "en-US" },
             "voice": text("voice"),
+            "voice_vi": db::setting(&self.db, "voice_vi").ok().flatten().unwrap_or_default(),
             "speech_rate": self.setting("speech_rate").and_then(|v| v.parse::<f64>().ok()).filter(|r| (0.5..=1.5).contains(r)).unwrap_or(0.95),
             "hotkey": text("hotkey"),
             "hotkey_error": self.hotkey_error,
@@ -1536,7 +1557,7 @@ fn valid_setting(key: &str, value: &str) -> bool {
         "streak_freeze" | "tray_count" => matches!(value, "0" | "1"),
         "remind_at" | "quiet_from" | "quiet_to" => value.is_empty() || clock::parse_hm(value).is_some(),
         "accent" => matches!(value, "en-US" | "en-GB"),
-        "voice" => value.len() <= 100 && !value.chars().any(char::is_control),
+        "voice" | "voice_vi" => value.len() <= 100 && !value.chars().any(char::is_control),
         "hotkey" => value.is_empty() || HOTKEYS.contains(&value),
         // Weekdays, 0 for Sunday, such as `0,6`.
         "easy_days" => value.len() <= 13 && (value.is_empty() || value.split(',').all(|d| matches!(d.as_bytes(), [b'0'..=b'6']))),
@@ -1706,6 +1727,8 @@ fn speak(text: &str, slow: bool, accent: &str, rate: f64) -> Result<(), String> 
     let text: String = text.chars().filter(|c| !c.is_control()).take(2000).collect();
     let (culture, voice, espeak) = if pron::is_chinese(&text) {
         ("zh-CN", "Tingting", "cmn")
+    } else if accent == "vi-VN" {
+        ("vi-VN", "Linh", "vi")
     } else if accent == "en-GB" {
         ("en-GB", "Daniel", "en-gb")
     } else {
