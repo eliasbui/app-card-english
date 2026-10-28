@@ -275,7 +275,7 @@
     pop.innerHTML = `
       <div class="rd-pop-head"><b class="rd-pop-word">${esc(word)}</b>${w ? status(w) : `<span class="tag plain">${STATES.unknown}</span>`}</div>
       <div class="ipa" id="rd-pop-ipa">${esc(w?.ipa || "")}</div>
-      ${zh() ? `<div class="muted small" id="rd-pop-hv">${w?.hanviet ? `Hán Việt: ${esc(w.hanviet)}` : ""}</div>` : ""}
+      ${zh() ? `<div class="muted small" id="rd-pop-hv">${w?.hanviet ? `Hán Việt: ${esc(w.hanviet)}` : ""}</div><div class="muted small" id="rd-pop-en"></div>` : ""}
       ${w ? `<div class="rd-pop-mean">${w.meaning ? esc(w.meaning) : '<span class="muted">Chưa có nghĩa</span>'}</div>` : ""}
       <div class="row rd-pop-actions">
         ${w ? "" : '<button class="btn small primary" id="rd-add">Thêm vào danh sách</button>'}
@@ -289,6 +289,8 @@
     // What the dictionaries know of a word the list does not have.
     if (!w?.ipa) app.call("ipa", { word }).then((r) => { if (reader.pop === mine) $("rd-pop-ipa").textContent = r || (zh() ? "" : "Không có phiên âm trong từ điển"); }).catch(() => {});
     if (zh() && !w?.hanviet) app.call("hanviet", { word }).then((r) => { if (reader.pop === mine && r) $("rd-pop-hv").textContent = `Hán Việt: ${r}`; }).catch(() => {});
+    // CC-CEDICT's English, which may make the card taller: it is placed again.
+    if (zh()) app.call("gloss", { word }).then((r) => { if (reader.pop === mine && r) { $("rd-pop-en").textContent = `Tiếng Anh: ${r}`; place(pop, el); } }).catch(() => {});
   }
   /// Under the word, or over it when there is no room below, and inside the window.
   function place(pop, el) {

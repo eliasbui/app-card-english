@@ -1,12 +1,16 @@
 //! How words are said. English: the IPA and the phonemes the speaking score compares, from the CMU Pronouncing
 //! Dictionary (assets/cmudict-LICENSE). Chinese: pinyin from CC-CEDICT (assets/cedict-LICENSE) and the
-//! Sino-Vietnamese reading of each character (assets/hanviet-LICENSE).
+//! Sino-Vietnamese reading of each character (assets/hanviet-LICENSE), with a short English gloss of each word from
+//! CC-CEDICT.
 
-use std::{collections::HashMap, sync::OnceLock};
+use std::{collections::HashMap, io::Read, sync::OnceLock};
 
 const CMUDICT: &str = include_str!("../assets/cmudict.dict");
 /// `traditional simplified [pin1 yin1]` per line, made by scripts/make-zh-data.py.
 const CEDICT: &str = include_str!("../assets/cedict.txt");
+/// A short English gloss for each line of `CEDICT`, in the same order, made by scripts/make-zh-data.py. Packed, it
+/// keeps the binary small; it is unpacked the first time a gloss is asked for.
+const GLOSSES: &[u8] = include_bytes!("../assets/cedict-gloss.txt.gz");
 /// `字 tự` per line, made by scripts/make-zh-data.py.
 const HANVIET: &str = include_str!("../assets/hanviet.txt");
 /// The longest word looked for when Chinese text is cut into words, in characters.
@@ -512,6 +516,47 @@ pub fn hanviet(text: &str) -> String {
     out.join(" ")
 }
 
+/// A short English gloss of a Chinese word from CC-CEDICT, such as `to learn; to study` for 学习: the one of the
+/// reading that `pinyin` gives the word.
+pub fn gloss(word: &str) -> Option<&'static str> {
+    static TABLE: OnceLock<HashMap<&str, &str>> = OnceLock::new();
+    let table = TABLE.get_or_init(|| {
+        let mut text = String::new();
+        if flate2::read::GzDecoder::new(GLOSSES).read_to_string(&mut text).is_err() {
+            return HashMap::new();
+        }
+        // Unpacked once and kept as long as the app runs, like the dictionaries built into it.
+        let text: &'static str = text.leak();
+        let entries: Vec<(&str, &str, &str, &str)> = CEDICT
+            .lines()
+            .zip(text.lines())
+            .filter_map(|(line, gloss)| {
+                let (heads, pinyin) = line.split_once(" [")?;
+                let (traditional, simplified) = heads.split_once(' ')?;
+                Some((traditional, simplified, pinyin.trim_end_matches(']'), gloss))
+            })
+            .collect();
+        // Several traditional forms may share a simplified one and its reading, such as 後 behind and 后 empress for
+        // 后; the one more words are written with is the meaning meant.
+        let mut uses: HashMap<char, usize> = HashMap::new();
+        for c in entries.iter().flat_map(|e| e.0.chars()) {
+            *uses.entry(c).or_default() += 1;
+        }
+        let mut best: HashMap<&str, (usize, &str)> = HashMap::new();
+        for &(traditional, simplified, pinyin, gloss) in &entries {
+            let weight = traditional.chars().map(|c| uses[&c]).sum();
+            for key in [simplified, traditional] {
+                let shown = cedict().get(key) == Some(&pinyin);
+                if shown && !gloss.is_empty() && best.get(key).is_none_or(|b| weight > b.0) {
+                    best.insert(key, (weight, gloss));
+                }
+            }
+        }
+        best.into_iter().map(|(key, (_, gloss))| (key, gloss)).collect()
+    });
+    table.get(word).copied()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -566,6 +611,24 @@ mod tests {
         assert_eq!(hanviet("电脑"), "điện não");
         assert_eq!(hanviet("hello"), "");
         assert_eq!(hanviet("氧气"), "");
+    }
+
+    #[test]
+    fn chinese_words_have_a_short_english_gloss() {
+        assert_eq!(gloss("学习"), Some("to learn; to study"));
+        assert_eq!(gloss("學習"), Some("to learn; to study"));
+        assert_eq!(gloss("电脑"), Some("computer"), "without the classifier");
+        assert_eq!(gloss("苹果"), Some("apple"), "the word, not the company");
+        // The reading the app gives: 着 as the particle zhe5, whose own entry only says it is a variant of 著.
+        assert_eq!(gloss("着"), Some("aspect particle indicating action in progress or ongoing state"));
+        assert_eq!(gloss("吗"), Some("(question particle for \"yes-no\" questions)"));
+        // A simplified form shared by several traditional ones means the common one, a traditional form itself.
+        assert_eq!(gloss("后"), Some("back; behind; rear"));
+        assert_eq!(gloss("年"), Some("year"), "not 秊, an old character for the harvest");
+        assert_eq!(gloss("麵"), Some("flour; noodles; (of food) soft (not crunchy)"));
+        assert_eq!(gloss("我们学习"), None);
+        assert_eq!(gloss("hello"), None);
+        assert_eq!(gloss(""), None);
     }
 
     #[test]

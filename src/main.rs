@@ -1076,6 +1076,7 @@ impl App {
             }
             "ipa" => Ok(json!(pron::ipa(args["word"].as_str().unwrap_or_default()))),
             "hanviet" => Ok(json!(pron::hanviet(args["word"].as_str().unwrap_or_default()))),
+            "gloss" => Ok(json!(pron::gloss(args["word"].as_str().unwrap_or_default()))),
             "segment" => {
                 let text = args["text"].as_str().unwrap_or_default();
                 if text.len() > MAX_READER {
