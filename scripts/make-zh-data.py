@@ -1,7 +1,15 @@
-"""Builds the two Chinese files of assets from the downloads:
-  cedict.txt   "traditional simplified [pin1 yin1]" per line, CC-CEDICT without the English definitions
-  hanviet.txt  "字 tự" per line, the Sino-Vietnamese reading of a character
+"""Builds the Chinese files of assets from the downloads:
+  cedict.txt           "traditional simplified [pin1 yin1]" per line, CC-CEDICT without the English definitions
+  cedict-gloss.txt.gz  a short English gloss for each line of cedict.txt, in the same order (gzip, rebuilt byte for
+                       byte by the same Python)
+  hanviet.txt          "字 tự" per line, the Sino-Vietnamese reading of a character
 Usage: make_zh.py <cedict.txt.gz> <Unihan.zip> <TudienThienChuu.tab> <out dir>
+CC-CEDICT comes from https://www.mdbg.net/chinese/export/cedict/cedict_1_0_ts_utf-8_mdbg.txt.gz; the version in
+assets is the one of 2026-10-27 (assets/cedict-LICENSE).
+
+A gloss is the first senses of the entry that fit in 80 characters (two words of each when there are more), without
+classifiers, pronunciation notes and references to other entries (个 for 個|个[ge4]); an entry that is only a variant
+of another has the gloss of that one, and an entry that is only a reference keeps it ("used in 吗啡").
 
 A reading comes from Thiều Chửu (1942, public domain; CC0 as catusf/tudien), or else from Unihan kVietnamese when
 that is a syllable Thiều Chửu also reads: Unihan mixes in readings of chữ Nôm, some of them vulgar, which are not
@@ -10,29 +18,91 @@ reads as its traditional form (儿 as 兒, nhi, not as the radical 儿, nhân), 
 own takes that of a variant (告 as 吿)."""
 import gzip
 import pathlib
+import re
 import sys
 import unicodedata
 import zipfile
 
 cedict_gz, unihan_zip, thieu_chuu, out = sys.argv[1], sys.argv[2], sys.argv[3], pathlib.Path(sys.argv[4])
 
-lines, seen, header = [], set(), []
+lines, senses, header = [], {}, []
 with gzip.open(cedict_gz, "rt", encoding="utf-8") as f:
     for line in f:
         line = line.rstrip("\n")
         if line.startswith("#"):
             header.append(line)
             continue
-        head, sep, _ = line.partition("/")
+        head, sep, rest = line.partition("/")
         head = head.strip()
         if not sep or "[" not in head or not head.endswith("]"):
             continue
-        if head not in seen:
-            seen.add(head)
+        if head not in senses:
+            senses[head] = []
             lines.append(head)
+        senses[head] += [s for s in rest.split("/") if s.strip()]
 (out / "cedict.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
 print("cedict entries", len(lines), "bytes", (out / "cedict.txt").stat().st_size)
 print("\n".join(h for h in header if "date=" in h or "license=" in h))
+
+GLOSS = 80
+# 個|个[ge4] or 得[de2]: the traditional form when it differs, the simplified one and the pinyin.
+REF = re.compile(r"(?:([^\s\[\]|,;()]+)\|)?([^\s\[\]|,;()]+)\[([^\]]*)\]")
+DROP = re.compile(r"CL:|(?:Taiwan |also )?pr\. ")
+XREF = re.compile(r"see |used in |(?:\w+ )*variant of |same as |also written |erhua form of ")
+VARIANT = re.compile(r"(?:\w+ )*variant of |same as |also written ")
+NOTE = re.compile(r"\s*\((?:CL:|(?:Taiwan |also )?pr\. )[^)]*\)")
+LEAD = re.compile(r"\([^()]*\)\s*(?=\S)")
+
+
+def plain(sense):
+    sense = REF.sub(r"\2", NOTE.sub("", sense))
+    # A reference may come without its pinyin, and pinyin without its word.
+    sense = re.sub(r"[^\s\[\]|,;()]+\|([^\s\[\]|,;()]+)", r"\1", sense)
+    return re.sub(r"\s*\[[^\]]*\]", "", sense).strip()
+
+
+def trim(part):
+    # A sense too long to show loses the note in front of it: "(used to describe sb ...) intense; severe".
+    lead = LEAD.match(part)
+    return part[lead.end():] if lead and len(part) > GLOSS else part
+
+
+def short(parts):
+    # Two words of each sense, when there are more senses, leave room for them.
+    if len(parts) > 1:
+        parts = ["; ".join(p.split("; ")[:2]) for p in parts]
+    text = ""
+    for part in map(trim, parts[:3]):
+        if text and len(text) + 2 + len(part) > GLOSS:
+            break
+        text = f"{text}; {part}" if text else part
+    if len(text) > GLOSS:
+        text = text[: GLOSS - 1].rsplit(" ", 1)[0].rstrip(",;:") + "…"
+    return text
+
+
+# A reference names the traditional form, or the one form when both are the same.
+entry = {}
+for head in lines:
+    t, _, p = head.split(" ", 2)
+    entry.setdefault((t, p[1:-1]), head)
+meant = {h: [p for s in senses[h] if not DROP.match(s) and not XREF.match(s) and (p := plain(s))] for h in lines}
+
+
+def gloss(head):
+    if meant[head]:
+        return short(meant[head])
+    first = senses[head][0] if senses[head] else ""
+    ref = REF.search(first) if VARIANT.match(first) else None
+    target = ref and entry.get((ref.group(1) or ref.group(2), ref.group(3)))
+    if target and meant[target]:
+        return short(meant[target])
+    return short([p for s in senses[head] if not DROP.match(s) and (p := plain(s))])
+
+
+glosses = "".join(gloss(h) + "\n" for h in lines).encode("utf-8")
+(out / "cedict-gloss.txt.gz").write_bytes(gzip.compress(glosses, compresslevel=9, mtime=0))
+print("glosses bytes", len(glosses), "gzip", (out / "cedict-gloss.txt.gz").stat().st_size)
 
 
 def char(code):

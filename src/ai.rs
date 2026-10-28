@@ -85,6 +85,7 @@ const EXTRACT_CHARS: usize = 4000;
 
 // The same five questions for the Chinese course: the answers keep the Vietnamese labels the parsers read.
 const EXPLAIN_ZH_SYSTEM: &str = "You are a Chinese-Vietnamese dictionary for Vietnamese learners. \
+The English meaning from CC-CEDICT may follow the word: translate it, never copy English into NGHIA. \
 Reply with exactly these eleven lines and nothing else:\n\
 TYPE: <part of speech in English>\n\
 NGHIA: <short Vietnamese meaning>\n\
@@ -98,7 +99,7 @@ CUMTU: <up to 3 common Chinese collocations with the word, comma separated>\n\
 CAPDO: <the HSK level of the word, such as HSK 2>\n\
 CHUDE: <one short Vietnamese topic such as Du lịch, Công việc, Ẩm thực>";
 const EXPLAIN_ZH_SHOT: (&str, &str) = (
-    "苹果",
+    "苹果\nCC-CEDICT: apple",
     "TYPE: noun\n\
      NGHIA: quả táo\n\
      GIAITHICH: Dùng để chỉ loại quả tròn, vỏ đỏ hoặc xanh, ăn được.\n\
@@ -755,7 +756,8 @@ impl<'a> Ai<'a> {
         }
         let zh = pron::is_chinese(word);
         let (system, example) = if zh { (EXPLAIN_ZH_SYSTEM, EXPLAIN_ZH_SHOT) } else { (EXPLAIN_SYSTEM, EXPLAIN_SHOT) };
-        let prompt = Prompt { system, example, question: word, max_tokens: 380, cjk: zh };
+        let question = explain_question(word);
+        let prompt = Prompt { system, example, question: &question, max_tokens: 380, cjk: zh };
         let (text, by) = self.chat(&prompt)?;
         let mut out = parse_explain(&text);
         if out.meaning.is_empty() {
@@ -1349,6 +1351,15 @@ fn level_of(text: &str) -> String {
     hsk.map_or_else(|| cefr(text), |n| format!("HSK{n}"))
 }
 
+/// The word to explain; a Chinese one comes with its English gloss from CC-CEDICT, which keeps the Vietnamese meaning
+/// of a small model on the right sense.
+fn explain_question(word: &str) -> String {
+    match pron::gloss(word).filter(|_| pron::is_chinese(word)) {
+        Some(gloss) => format!("{word}\nCC-CEDICT: {gloss}"),
+        None => word.to_owned(),
+    }
+}
+
 /// The lines of an explanation; labels are matched by how they start since a small model drifts.
 fn parse_explain(text: &str) -> Explain {
     let slot = |l: &str| {
@@ -1681,6 +1692,27 @@ mod tests {
         println!("travel: {:?}", s.items);
         assert!(s.items.len() >= 4 && s.items.iter().all(|s| s.word != "passport"));
         assert!(ai.attempts.borrow().iter().all(|a| a.ok && a.output_tokens > 0));
+    }
+
+    #[test]
+    #[ignore = "needs the downloaded models: cargo test -- --ignored"]
+    fn qwen_explains_chinese() {
+        // A folder of its own with only `models` in it keeps the test away from the learner's words.
+        let dir = std::env::var_os("CARD_ENGLISH_DIR").map_or_else(crate::data_dir, std::path::PathBuf::from);
+        let mut failed = Vec::new();
+        for local_model in ["llm", "llm15"] {
+            let settings = Settings { provider: "local".into(), local_model: local_model.into(), ..Settings::default() };
+            let ai = Ai::new(&settings, &dir);
+            for word in ["银行", "打算", "厉害", "马上", "着急", "加油"] {
+                let start = std::time::Instant::now();
+                let e = ai.explain(word).unwrap_or_default();
+                println!("{local_model} {word}: {} | {} | {} in {:?}", e.meaning, e.explain, e.example, start.elapsed());
+                if e.meaning.is_empty() || e.example.is_empty() {
+                    failed.push(format!("{local_model} {word}"));
+                }
+            }
+        }
+        assert!(failed.is_empty(), "{failed:?}");
     }
 
     #[test]
@@ -2024,6 +2056,12 @@ mod tests {
         assert_eq!((e.meaning.as_str(), e.level.as_str(), e.collocations.as_str()), ("quả táo", "HSK1", "苹果汁, 红苹果, 吃苹果"));
         assert_eq!(e.example, "我每天早上吃一个苹果。");
         assert!(e.example_reading.starts_with("Wǒ měitiān"), "{}", e.example_reading);
+        // The model is told what CC-CEDICT says the word means, when it knows the word.
+        assert_eq!(explain_question("银行"), "银行\nCC-CEDICT: bank");
+        assert_eq!(explain_question("学习"), "学习\nCC-CEDICT: to learn; to study");
+        assert_eq!(explain_question("我们学习中文"), "我们学习中文");
+        assert!(pron::gloss("IP").is_some());
+        assert_eq!(explain_question("IP"), "IP", "an English word has no hint, even one CC-CEDICT lists");
         assert_eq!([level_of("hsk 4"), level_of("B2"), level_of("HSK"), level_of("")], ["HSK4", "B2", "", ""]);
         // Full-width bars and colons, as Chinese answers have them; a word is one script or the other.
         let s = parse_suggestions("1. 机场｜sân bay\n护照：hộ chiếu\nhotel | khách sạn\n飞机 plane | máy bay", &["护照".into()]);

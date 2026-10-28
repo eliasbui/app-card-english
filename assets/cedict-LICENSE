@@ -1,7 +1,8 @@
-assets/cedict.txt
+assets/cedict.txt, assets/cedict-gloss.txt.gz
 
-Nội dung: mỗi dòng là một mục từ gồm chữ phồn thể, chữ giản thể và phiên âm pinyin, dạng
-"traditional simplified [pin1 yin1]".
+Nội dung: mỗi dòng của cedict.txt là một mục từ gồm chữ phồn thể, chữ giản thể và phiên âm pinyin, dạng
+"traditional simplified [pin1 yin1]". cedict-gloss.txt.gz (nén gzip) có một dòng cho mỗi dòng của cedict.txt, cùng
+thứ tự: nghĩa tiếng Anh ngắn gọn của mục từ đó.
 
 Nguồn: CC-CEDICT
   https://www.mdbg.net/chinese/dictionary?page=cc-cedict
@@ -11,8 +12,11 @@ Ghi công: MDBG và những người đóng góp cho CC-CEDICT.
 
 Phiên bản dùng ở đây: bản ngày 2026-10-27.
 
-Thay đổi so với bản gốc: đã bỏ toàn bộ phần định nghĩa tiếng Anh, chỉ giữ lại chữ viết và pinyin.
+Thay đổi so với bản gốc: cedict.txt bỏ toàn bộ phần định nghĩa tiếng Anh, chỉ giữ lại chữ viết và pinyin.
+cedict-gloss.txt.gz giữ phần định nghĩa tiếng Anh nhưng rút gọn: chỉ vài nghĩa đầu, tối đa khoảng 80 ký tự, bỏ lượng
+từ, ghi chú cách đọc và phần dẫn chiếu sang mục từ khác; mục từ chỉ là dị thể của mục khác lấy nghĩa của mục đó.
+Cả hai file được tạo bằng scripts/make-zh-data.py.
 
-Giấy phép: file này là tác phẩm phái sinh của CC-CEDICT và được phát hành theo cùng giấy phép,
+Giấy phép: hai file này là tác phẩm phái sinh của CC-CEDICT và được phát hành theo cùng giấy phép,
 Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0).
   https://creativecommons.org/licenses/by-sa/4.0/
