@@ -45,6 +45,8 @@ use wry::{WebView, WebViewBuilder, http::Request};
 
 const APP_NAME: &str = "Card English";
 const INDEX_HTML: &str = include_str!("../ui/index.html");
+/// The scripts and styles of ui/parts, put together by build.rs.
+const PARTS: &str = include_str!(concat!(env!("OUT_DIR"), "/parts.html"));
 /// The cartoon stickers on one sheet, made by examples/make_stickers.rs; the page's CSS takes it inline.
 const STICKERS: &[u8] = include_bytes!("../ui/stickers.webp");
 /// Made from the artwork in assets by examples/make_icons.rs.
@@ -367,7 +369,7 @@ impl App {
         use base64::Engine;
         let sheet = format!("data:image/webp;base64,{}", base64::engine::general_purpose::STANDARD.encode(STICKERS));
         let builder = WebViewBuilder::new()
-            .with_html(INDEX_HTML.replacen("__STICKERS__", &sheet, 1))
+            .with_html(INDEX_HTML.replacen("__STICKERS__", &sheet, 1).replacen("<!--PARTS-->", PARTS, 1))
             .with_ipc_handler(move |request: Request<String>| {
                 let _ = proxy.send_event(UserEvent::Ipc(request.into_body()));
             })
