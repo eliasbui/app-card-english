@@ -28,7 +28,7 @@
         <div class="chat-log" id="chat-log" role="log" aria-live="polite"></div>
         <div class="chips chat-starters" id="chat-starters">${STARTERS.map((s) => `<button type="button">${esc(s)}</button>`).join("")}</div>
         <form class="chat-compose" id="chat-form">
-          <textarea id="chat-input" rows="1" maxlength="1000" aria-label="Câu hỏi cho trợ lý"></textarea>
+          <textarea id="chat-input" rows="1" maxlength="2000" aria-label="Câu hỏi cho trợ lý"></textarea>
           <button class="btn primary" type="submit" id="chat-send">Gửi</button>
         </form>
       </div>
@@ -67,7 +67,7 @@
   }
   function empty() {
     log.innerHTML = `<div class="chat-empty">${st(zh() ? "mascot-zh" : "mascot-think")}<b>Chào bạn!</b>
-      <p>Mình giúp bạn học tiếng ${zh() ? "Trung" : "Anh"} với chính các từ trong danh sách của bạn: đố từ, giải thích nghĩa và ngữ pháp, đặt câu ví dụ. Chọn một gợi ý bên dưới hoặc tự hỏi nhé.</p></div>`;
+      <p>Mình giúp bạn học và dùng tiếng ${zh() ? "Trung" : "Anh"}: giải thích từ và ngữ pháp, dịch câu hay đoạn văn, viết và sửa email, tin nhắn, đố các từ trong danh sách của bạn. Chọn một gợi ý bên dưới hoặc tự hỏi nhé.</p></div>`;
   }
   function add(html) {
     log.querySelector(".chat-empty")?.remove();
