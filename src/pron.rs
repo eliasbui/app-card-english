@@ -338,20 +338,27 @@ enum Piece {
     Other(char),
 }
 
+/// The longest word of the dictionary that starts at the character `i` of `text`, as its length in characters and
+/// its numbered pinyin; only a Han character starts one.
+fn longest(text: &str, chars: &[(usize, char)], i: usize) -> Option<(usize, &'static str)> {
+    let (start, c) = chars[i];
+    if !is_han(c) {
+        return None;
+    }
+    (1..=LONGEST.min(chars.len() - i)).rev().find_map(|n| {
+        let end = chars.get(i + n).map_or(text.len(), |c| c.0);
+        cedict().get(&text[start..end]).map(|p| (n, *p))
+    })
+}
+
 /// Text cut into words, the longest that the dictionary knows first.
 fn pieces(text: &str) -> Vec<Piece> {
     let chars: Vec<(usize, char)> = text.char_indices().collect();
     let mut out = Vec::new();
     let mut i = 0;
     while i < chars.len() {
-        let (start, c) = chars[i];
-        let found = is_han(c).then(|| {
-            (1..=LONGEST.min(chars.len() - i)).rev().find_map(|n| {
-                let end = chars.get(i + n).map_or(text.len(), |c| c.0);
-                cedict().get(&text[start..end]).map(|p| (n, *p))
-            })
-        });
-        match found.flatten() {
+        let c = chars[i].1;
+        match longest(text, &chars, i) {
             Some((n, pinyin)) => {
                 out.push(Piece::Word(pinyin));
                 i += n;
@@ -361,6 +368,29 @@ fn pieces(text: &str) -> Vec<Piece> {
                 i += 1;
             }
         }
+    }
+    out
+}
+
+/// Chinese text cut into words for reading, by forward maximum matching on CC-CEDICT: each piece with whether it is
+/// a word of the dictionary. What lies between words (punctuation, spaces, Latin letters, characters it does not
+/// know) comes in runs of its own, so that the pieces put together are the text again.
+pub fn segment(text: &str) -> Vec<(String, bool)> {
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
+    let mut out: Vec<(String, bool)> = Vec::new();
+    let mut i = 0;
+    while i < chars.len() {
+        if let Some((n, _)) = longest(text, &chars, i) {
+            let end = chars.get(i + n).map_or(text.len(), |c| c.0);
+            out.push((text[chars[i].0..end].to_owned(), true));
+            i += n;
+            continue;
+        }
+        match out.last_mut() {
+            Some((run, false)) => run.push(chars[i].1),
+            _ => out.push((chars[i].1.to_string(), false)),
+        }
+        i += 1;
     }
     out
 }
@@ -512,6 +542,18 @@ mod tests {
         assert!(sentence.contains("xǐhuan") && sentence.ends_with("ne?") && !is_chinese(&sentence), "{sentence}");
         assert_eq!(syllables("學習女兒"), ["xue2", "xi2", "nv3", "er2"]);
         assert_eq!(syllables("hello"), Vec::<String>::new());
+    }
+
+    #[test]
+    fn chinese_is_cut_into_the_longest_words() {
+        let words = |text: &str| segment(text).into_iter().map(|(w, ok)| format!("{w}{}", if ok { "" } else { "?" })).collect::<Vec<_>>();
+        assert_eq!(words("我们学习中文。"), ["我们", "学习", "中文", "。?"]);
+        assert_eq!(words("學習"), ["學習"]);
+        assert_eq!(words("我用iPhone, 好吗？"), ["我", "用", "iPhone, ?", "好", "吗", "？?"]);
+        assert_eq!(words("hello"), ["hello?"]);
+        assert!(segment("").is_empty());
+        let text = "他说：“明天见！”\n2026年，北京。";
+        assert_eq!(segment(text).into_iter().map(|(w, _)| w).collect::<String>(), text, "the pieces make the text again");
     }
 
     #[test]

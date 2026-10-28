@@ -1,0 +1,37 @@
+  /* The reader: the colours of a word by where it stands in the list, the same in every palette. */
+  :root { --rd-unknown: #e5edff; --rd-learning: #ffe6a8; --rd-learning-line: #efc25a; --rd-known-line: #7ccb9c; }
+  :root[data-theme="dark"] { --rd-unknown: #1c2a4f; --rd-learning: #4a3713; --rd-learning-line: #8c6a1f; --rd-known-line: #2f8457; }
+  #page-reader #rd-input { min-height: 200px; }
+  .rd-bar { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+  .rd-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 6px; color: var(--muted); font-size: 12.5px; }
+  .rd-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+  .rd-legend b { color: var(--text-2); }
+  .rd-sw { padding: 0 5px; border-radius: 4px; color: var(--text); font-size: 12px; line-height: 18px; }
+  .rd-text { padding: 22px 26px; font-size: 17px; line-height: 1.95; white-space: pre-wrap; overflow-wrap: anywhere; }
+  :root[data-course="zh"] .rd-text { font-size: 20px; line-height: 2.1; }
+  .rd-text:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .rd-w { border-radius: 4px; cursor: pointer; -webkit-box-decoration-break: clone; box-decoration-break: clone; transition: background .12s, box-shadow .12s; }
+  /* Chinese has no spaces: a hair between the words shows where each ends. */
+  :root[data-course="zh"] .rd-w { margin: 0 1.5px; }
+  .rd-unknown { background: var(--rd-unknown); }
+  .rd-learning { background: var(--rd-learning); box-shadow: inset 0 -2px 0 var(--rd-learning-line); }
+  .rd-known { box-shadow: inset 0 -2px 0 var(--rd-known-line); }
+  .rd-skipped { color: var(--muted); }
+  /* Without a background of their own, the samples of the legend get a frame. */
+  .rd-sw.rd-known { box-shadow: inset 0 -2px 0 var(--rd-known-line), 0 0 0 1px var(--line); }
+  .rd-sw.rd-skipped { box-shadow: 0 0 0 1px var(--line); }
+  .rd-w:hover, .rd-w.on { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .rd-w:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .rd-pop { position: fixed; z-index: 65; width: min(360px, calc(100vw - 16px)); padding: 14px 16px 12px; border: 1px solid var(--line-strong);
+            border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--shadow-md); animation: rise .18s ease; }
+  .rd-pop-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+  .rd-pop-word { font-size: 22px; line-height: 1.25; letter-spacing: -.01em; overflow-wrap: anywhere; }
+  :root[data-course="zh"] .rd-pop-word { font-size: 28px; }
+  .rd-pop .ipa { margin-top: 2px; font-size: 15px; }
+  .rd-pop .ipa:empty { display: none; }
+  .rd-pop-mean { margin-top: 6px; font-size: 15px; font-weight: 600; }
+  .rd-pop-actions { margin-top: 12px; }
+  @media (max-width: 720px) {
+    .rd-text { padding: 16px; font-size: 16px; }
+    :root[data-course="zh"] .rd-text { font-size: 19px; }
+  }

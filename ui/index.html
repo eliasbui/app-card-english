@@ -3180,9 +3180,11 @@ $("btn-update").onclick = async () => {
   }
 };
 
-/// The shortcut brought copied text: a word or a short phrase is looked up, a longer passage gets its words picked.
+/// The shortcut brought copied text, or the browser extension a word with the sentence and the page it was on: a word
+/// or a short phrase is looked up, a longer passage gets its words picked.
 async function quickAdd(text) {
-  text = String(text || "").trim();
+  const found = text && typeof text === "object" ? text : null;
+  text = String((found ? found.text : text) || "").trim();
   if (text) {
     const course = hasHan(text) ? "zh" : "en";
     if (course !== courseOf()) await switchCourse(course);
@@ -3194,7 +3196,9 @@ async function quickAdd(text) {
   }
   if (text.length <= 60 && !text.includes("\n") && (hasHan(text) ? text.length <= 12 : text.split(/\s+/).length <= 4)) {
     $("new-word").value = text.replace(/^[^\p{L}]+|[^\p{L}]+$/gu, "");
-    addWord(true);
+    await addWord(true);
+    // The AI's explanation leaves the note alone, so the sentence stays with a new word.
+    if (found?.sentence && state.editing && !state.editing.id) $("f-note").value = `Gặp trong câu: ${found.sentence}${found.url ? `\nNguồn: ${found.url}` : ""}`;
   } else {
     openSuggest("text");
     $("passage").value = text.slice(0, 4000);
