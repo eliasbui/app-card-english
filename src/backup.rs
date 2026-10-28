@@ -1,7 +1,10 @@
 //! The word list in and out of the app: CSV for spreadsheets and Anki, a JSON copy of all that was learned (never
 //! the keys and tokens kept with the settings), and the copy made each day in the data folder.
 
-use crate::db::{self, Word};
+use crate::{
+    db::{self, Word},
+    roadmap,
+};
 use rusqlite::Connection;
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -205,7 +208,7 @@ pub fn import(db: &Connection, name: &str, text: &str, now: i64) -> Result<Impor
     let text = text.trim_start_matches('\u{feff}');
     if name.to_ascii_lowercase().ends_with(".json") || text.trim_start().starts_with('{') {
         let json: Value = serde_json::from_str(text).map_err(|_| "File JSON này không đọc được".to_owned())?;
-        return restore(db, &json);
+        return restore(db, &json, now);
     }
     let (head, body) = header(text);
     let first = body.lines().find(|l| !l.trim().is_empty()).unwrap_or_default();
@@ -277,7 +280,7 @@ fn add(db: &Connection, mut w: Word, now: i64, out: &mut Imported) -> Result<(),
     Ok(())
 }
 
-/// Everything learned: the words with their schedules, the days of study and the answers.
+/// Everything learned: the words with their schedules, the days of study, the answers, the topics and the roadmaps.
 pub fn backup(db: &Connection, now: i64) -> rusqlite::Result<String> {
     let words = db::list(db, "")?;
     let mut days = Vec::new();
@@ -287,13 +290,15 @@ pub fn backup(db: &Connection, now: i64) -> rusqlite::Result<String> {
         }
     }
     let reviews = db::review_log(db)?;
-    Ok(json!({ "app": "card-english", "version": 1, "exported_at": now, "words": words, "activity": days, "reviews": reviews })
+    let plans = roadmap::export(db)?;
+    Ok(json!({ "app": "card-english", "version": 1, "exported_at": now, "words": words, "activity": days, "reviews": reviews,
+               "topics": plans["topics"], "roadmaps": plans["roadmaps"] })
         .to_string())
 }
 
 /// Puts back what a copy has and the list lacks: new words with their schedules and answers, and the days of study
-/// not already recorded. Nothing already here is changed.
-fn restore(db: &Connection, json: &Value) -> Result<Imported, String> {
+/// not already recorded, the topics and roadmaps it lacks. Nothing already here is changed.
+fn restore(db: &Connection, json: &Value, now: i64) -> Result<Imported, String> {
     if json["app"] != "card-english" || !json["words"].is_array() {
         return Err("Đây không phải bản sao lưu của Card English".into());
     }
@@ -338,6 +343,7 @@ fn restore(db: &Connection, json: &Value) -> Result<Imported, String> {
                 .map_err(|e| e.to_string())?;
         }
     }
+    roadmap::restore(&tx, json, now).map_err(|e| e.to_string())?;
     tx.commit().map_err(|e| e.to_string())?;
     Ok(out)
 }

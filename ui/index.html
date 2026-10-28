@@ -705,6 +705,7 @@
   <button class="nav active" data-page="home" aria-current="page"><span class="st st-nav-home" aria-hidden="true"></span>Học hôm nay<span class="count" id="nc-home"></span></button>
   <button class="nav" data-page="words"><span class="st st-nav-words" aria-hidden="true"></span>Từ vựng<span class="count" id="nc-words"></span></button>
   <button class="nav" data-page="practice"><span class="st st-nav-practice" aria-hidden="true"></span>Bài tập</button>
+  <button class="nav" data-page="roadmap"><span class="st st-mode-choice" aria-hidden="true"></span>Lộ trình</button>
   <button class="nav" data-page="stats"><span class="st st-nav-stats" aria-hidden="true"></span>Thống kê</button>
   <button class="nav" data-page="settings"><span class="st st-nav-settings" aria-hidden="true"></span>Cài đặt</button>
   <div class="foot">
@@ -863,7 +864,7 @@
     </div>
     <div class="card list-card">
       <table>
-        <thead><tr><th class="col-word">Từ</th><th>Nghĩa</th><th class="col-status">Trạng thái</th><th class="col-act"></th></tr></thead>
+        <thead><tr><th class="col-word"><div class="pick-row"><label class="pick"><input type="checkbox" id="pick-all" aria-label="Chọn mọi từ đang hiện"></label>Từ</div></th><th>Nghĩa</th><th class="col-status">Trạng thái</th><th class="col-act"></th></tr></thead>
         <tbody id="word-rows"></tbody>
       </table>
     </div>
@@ -2010,7 +2011,7 @@ function status(w) {
   const days = Math.ceil((w.due - nowSec()) / 86400);
   return days <= 0 ? '<span class="tag due">Cần ôn</span>' : `<span class="tag">Ôn sau ${days} ngày</span>`;
 }
-const topicsOf = (words) => [...new Set(words.map((w) => w.topic).filter(Boolean))].sort((a, b) => a.localeCompare(b, "vi"));
+const topicsOf = (words, more = []) => [...new Set(words.map((w) => w.topic).concat(more).filter(Boolean))].sort((a, b) => a.localeCompare(b, "vi"));
 // `list` always answers with every word of both languages; the page keeps only the one being studied.
 async function listCourse(q = "") {
   const words = await app.call("list", { q });
@@ -2026,7 +2027,9 @@ async function loadWords() {
 }
 function renderWords() {
   const filter = document.querySelector('[name="word-filter"]:checked').value;
-  const topics = topicsOf(state.words), picked = $("topic-filter").value;
+  // The topics the learner made count even before any word has them.
+  const topics = topicsOf(state.words, (state.topics || []).map((t) => t.name)), picked = $("topic-filter").value;
+  const color = Object.fromEntries((state.topics || []).map((t) => [t.name, t.color]));
   $("topic-filter").innerHTML = `<option value="">Mọi chủ đề</option>` + topics.map((t) => `<option value="${esc(t)}">${esc(t)}</option>`).join("");
   $("topic-filter").value = topics.includes(picked) ? picked : "";
   $("topic-list").innerHTML = topics.map((t) => `<option value="${esc(t)}">`).join("");
@@ -2039,13 +2042,15 @@ function renderWords() {
   $("word-count").textContent = narrowed ? `Đang hiện ${shown.length} từ` : `${shown.length} từ trong danh sách của bạn`;
   $("word-rows").innerHTML = shown.map((w) => `
     <tr class="${freshIds.delete(w.id) ? "fresh" : ""}" data-id="${w.id}">
-      <td><button class="word-link" data-id="${w.id}">${esc(w.word)}</button><div class="sub">${esc(w.ipa)}${w.lang === "zh" && w.hanviet ? ` (${esc(w.hanviet)})` : ""}</div></td>
+      <td><div class="pick-row"><label class="pick"><input type="checkbox" data-pick="${w.id}" aria-label="Chọn ${esc(w.word)}"></label><div class="grow">
+        <button class="word-link" data-id="${w.id}">${esc(w.word)}</button><div class="sub">${esc(w.ipa)}${w.lang === "zh" && w.hanviet ? ` (${esc(w.hanviet)})` : ""}</div></div></div></td>
       <td><div>${w.meaning ? esc(w.meaning) : '<span class="muted">Chưa có nghĩa</span>'}</div>${w.example ? `<div class="sub">${esc(w.example)}</div>` : ""}</td>
-      <td>${status(w)}${w.score >= 0 ? `<div class="sub">Phát âm ${w.score}/100</div>` : w.topic ? `<div class="sub">${esc(w.topic)}</div>` : ""}</td>
+      <td>${status(w)}${w.score >= 0 ? `<div class="sub">Phát âm ${w.score}/100</div>` : w.topic ? `<div class="sub"><i class="tdot tc-${color[w.topic] || "none"}"></i>${esc(w.topic)}</div>` : ""}</td>
       <td class="acts"><button class="btn small" data-say="${esc(w.word)}">Nghe</button> <button class="btn small danger" data-del="${w.id}">Xóa</button></td>
     </tr>`).join("") || `<tr><td colspan="4" class="empty">${state.words.length
       ? `${st("mascot-sleep")}Không có từ nào ở mục này.`
       : `${st("mascot-empty")}Chưa có từ nào. Nhập một từ ở ô phía trên, hoặc bấm AI gợi ý từ mới.`}</td></tr>`;
+  hooks.words?.forEach((f) => f(shown));
 }
 let searchTimer;
 $("search").addEventListener("input", () => { clearTimeout(searchTimer); searchTimer = setTimeout(loadWords, 200); });
@@ -2055,7 +2060,7 @@ $("word-rows").addEventListener("click", (e) => {
   const del = e.target.closest("[data-del]");
   if (del) return deleteWord(state.words.find((w) => w.id === +del.dataset.del), del);
   const row = e.target.closest("tr[data-id]");
-  if (row && !e.target.closest("[data-say]")) openWord(+row.dataset.id);
+  if (row && !e.target.closest("[data-say], .pick")) openWord(+row.dataset.id);
 });
 /// The web view has no confirm(), so a delete asks with its own button: the first press arms it, the second deletes.
 function armed(button) {

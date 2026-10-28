@@ -1,7 +1,7 @@
 //! The words and the settings, in one SQLite file in the data folder, the FSRS schedule of review and the log of
 //! answers that undo and the statistics read.
 
-use crate::{fsrs, pron};
+use crate::{fsrs, pron, roadmap};
 use rusqlite::{Connection, OptionalExtension, Row, params};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -11,7 +11,7 @@ pub const DAY: i64 = 86_400;
 /// A forgotten word comes back within the same session.
 const RELEARN_SECONDS: i64 = 600;
 /// The version of the tables in `PRAGMA user_version`; `migrate` brings an older file up to it.
-const SCHEMA: i64 = 5;
+const SCHEMA: i64 = 6;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -179,6 +179,34 @@ const V5: &str = "
     );
     CREATE INDEX chat_thread ON chat (lang, thread, created);";
 
+/// Version 6: topics the learner makes, and goals with their roadmap (src/roadmap.rs). Rows carry the `uid`,
+/// `updated` and `deleted` that the sync merges by; a roadmap keeps its stages as JSON, edited as a whole.
+const V6: &str = "
+    CREATE TABLE topics (
+        id INTEGER PRIMARY KEY,
+        uid TEXT NOT NULL UNIQUE DEFAULT (lower(hex(randomblob(8)))),
+        lang TEXT NOT NULL,
+        name TEXT NOT NULL,
+        color TEXT NOT NULL DEFAULT '',
+        description TEXT NOT NULL DEFAULT '',
+        updated INTEGER NOT NULL,
+        deleted INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE roadmaps (
+        id INTEGER PRIMARY KEY,
+        uid TEXT NOT NULL UNIQUE DEFAULT (lower(hex(randomblob(8)))),
+        lang TEXT NOT NULL,
+        purpose TEXT NOT NULL DEFAULT '',
+        level TEXT NOT NULL DEFAULT '',
+        start TEXT NOT NULL DEFAULT '',
+        deadline TEXT NOT NULL DEFAULT '',
+        minutes INTEGER NOT NULL DEFAULT 20,
+        steps TEXT NOT NULL DEFAULT '[]',
+        active INTEGER NOT NULL DEFAULT 0,
+        updated INTEGER NOT NULL,
+        deleted INTEGER NOT NULL DEFAULT 0
+    );";
+
 /// The settings each course keeps for itself; the rest are shared.
 const SCOPED: [&str; 7] = ["palette", "new_per_day", "daily_goal", "voice", "achievements", "easy_days", "match_best"];
 
@@ -237,6 +265,9 @@ fn migrate(db: &mut Connection) -> rusqlite::Result<()> {
     }
     if user_version(&tx)? < 5 {
         tx.execute_batch(V5)?;
+    }
+    if user_version(&tx)? < 6 {
+        tx.execute_batch(V6)?;
     }
     tx.pragma_update(None, "user_version", SCHEMA)?;
     tx.commit()
@@ -367,6 +398,20 @@ pub fn delete(db: &Connection, id: i64) -> rusqlite::Result<()> {
     db.execute("DELETE FROM words WHERE id = ?1", [id]).map(|_| ())
 }
 
+/// Does `each` to every word of `ids` in one transaction, and counts them.
+pub fn many(db: &Connection, ids: &[i64], each: impl Fn(&Connection, i64) -> rusqlite::Result<()>) -> rusqlite::Result<usize> {
+    let tx = db.unchecked_transaction()?;
+    for &id in ids {
+        each(&tx, id)?;
+    }
+    tx.commit()?;
+    Ok(ids.len())
+}
+
+pub fn set_topic(db: &Connection, id: i64, topic: &str) -> rusqlite::Result<()> {
+    db.execute("UPDATE words SET topic = ?2 WHERE id = ?1", params![id, topic]).map(|_| ())
+}
+
 pub fn set_score(db: &Connection, id: i64, score: i64) -> rusqlite::Result<()> {
     db.execute("UPDATE words SET score = ?2 WHERE id = ?1", [id, score]).map(|_| ())
 }
@@ -378,11 +423,17 @@ pub fn set_skipped(db: &Connection, id: i64, on: bool) -> rusqlite::Result<Optio
 }
 
 /// What a session of a course ("en" or "zh") works through: the reviews that are due, then as many new words as
-/// today still allows.
+/// today still allows, those of the current stage of the roadmap first.
 pub fn session(db: &Connection, now: i64, day_start: i64, lang: &str) -> rusqlite::Result<Vec<Word>> {
     let mut words = select(db, "WHERE learned_at > 0 AND due <= ?1 AND lang = ?2 AND NOT skipped ORDER BY due", params![now, lang])?;
     let left = new_left(db, day_start, lang)?;
-    words.extend(select(db, "WHERE learned_at = 0 AND lang = ?2 AND NOT skipped ORDER BY created LIMIT ?1", params![left, lang])?);
+    let focus = json!(roadmap::focus_topics(db, lang)?).to_string();
+    words.extend(select(
+        db,
+        "WHERE learned_at = 0 AND lang = ?2 AND NOT skipped
+         ORDER BY lower(topic) IN (SELECT lower(value) FROM json_each(?3)) DESC, created LIMIT ?1",
+        params![left, lang, focus],
+    )?);
     Ok(words)
 }
 
