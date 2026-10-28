@@ -882,11 +882,18 @@
     <div id="practice-menu">
       <h3 class="group first">Ôn luyện</h3>
       <div class="modes">
+        <button class="mode" data-kind="smart"><span class="st st-nav-home" aria-hidden="true"></span><b>Học thông minh</b><span>Mỗi từ một bài vừa sức: từ mới thì chọn đáp án, từ đã quen thì điền, nghe chép, rồi nói hoặc đặt câu.</span><em>Bắt đầu</em></button>
         <button class="mode" data-kind="flash"><span class="st st-mode-flash" aria-hidden="true"></span><b>Flashcard</b><span>Lật thẻ, nghe phát âm và tự đánh giá đã thuộc hay chưa.</span><em>Bắt đầu</em></button>
         <button class="mode" data-kind="fill"><span class="st st-mode-fill" aria-hidden="true"></span><b>Điền từ</b><span>Điền từ còn thiếu vào câu ví dụ, hoặc viết từ theo nghĩa tiếng Việt.</span><em>Bắt đầu</em></button>
         <button class="mode" data-kind="choice"><span class="st st-mode-choice" aria-hidden="true"></span><b>Chọn đáp án</b><span>Chọn nghĩa đúng của từ, hoặc từ đúng với nghĩa, trong bốn lựa chọn.</span><em>Bắt đầu</em></button>
         <button class="mode" data-kind="dict"><span class="st st-mode-dict" aria-hidden="true"></span><b>Nghe chép</b><span>Nghe app đọc một từ hay cả câu rồi gõ lại cho đúng chính tả.</span><em>Bắt đầu</em></button>
         <button class="mode" data-kind="speak"><span class="st st-mode-speak" aria-hidden="true"></span><b>Luyện nói</b><span>Đọc to từng từ, máy chấm điểm phát âm ngay trên máy.</span><em>Bắt đầu</em></button>
+      </div>
+      <h3 class="group">Trò chơi</h3>
+      <div class="modes">
+        <button class="mode" data-kind="match"><span class="st st-clock" aria-hidden="true"></span><b>Nối từ</b><span>Nối 6 từ với nghĩa của chúng thật nhanh, phá kỷ lục của chính bạn.</span><em>Chơi ngay</em></button>
+        <button class="mode" data-kind="order"><span class="st st-nav-words" aria-hidden="true"></span><b>Sắp xếp câu</b><span>Xếp các mảnh thành câu ví dụ đúng thứ tự, rồi xem bản dịch.</span><em>Chơi ngay</em></button>
+        <button class="mode" data-kind="tone"><span class="st st-mascot-zh" aria-hidden="true"></span><b>Luyện thanh điệu</b><span>Nghe một từ và đoán thanh điệu từng chữ, rồi tự đọc to để máy chấm.</span><em>Bắt đầu</em></button>
       </div>
       <h3 class="group">Học cùng AI</h3>
       <div class="modes">
@@ -1430,7 +1437,7 @@ if (window.speechSynthesis) {
 }
 
 // Pronunciation practice, shared by the session, the word list and the exercises: the word, and its example
-// sentence when it has a short one. `onScore` hears of every score.
+// sentence when it has a short one. `onScore` hears of every score, with the button and what was heard.
 function pronWidget(container, word, { onScore } = {}) {
   const zh = (word.lang || "en") === "zh";
   const sentence = word.example && (zh ? word.example.length <= 30 : word.example.split(/\s+/).length <= 20) ? word.example : "";
@@ -1472,7 +1479,7 @@ function pronWidget(container, word, { onScore } = {}) {
       requestAnimationFrame(() => (result.querySelector(".meter div").style.width = s.score + "%"));
       if (s.score >= 90) { confetti(80, take.button.getBoundingClientRect().left + 40, take.button.getBoundingClientRect().top); gainXp(8, take.button); }
       else if (s.score >= 75) gainXp(5, take.button);
-      if (onScore) onScore(s.score, take.button);
+      if (onScore) onScore(s.score, take.button, s);
     } catch (e) {
       result.innerHTML = `<span class="error">${esc(e)}</span>`;
     }
@@ -2168,22 +2175,38 @@ function practicePool(all) {
   return all.slice().sort((a, b) => weight(a) - weight(b));
 }
 document.querySelectorAll("#practice-menu [data-kind]").forEach((b) => (b.onclick = () => startPractice(b.dataset.kind)));
+/// The exercises of a run, by kind; the parts of ui/parts add theirs. `show` puts one word on the card. `fits` keeps
+/// the words an exercise can use, `none` saying why there are none, and `min` is how many it needs; `prefer` puts the
+/// words it suits best first. A game of its own, `start`, takes its `size` words at once.
+const exercises = {
+  flash: { show: showFlash },
+  fill: { show: (w, card) => showTyping(w, card, false) },
+  dict: { show: (w, card) => showTyping(w, card, true) },
+  choice: { show: showChoice, min: 4, none: "Cần ít nhất 4 từ có nghĩa để làm bài chọn đáp án." },
+  speak: { show: (w, card) => showTask(w, card, true) },
+  write: { show: (w, card) => showTask(w, card, false) },
+};
 async function startPractice(kind) {
-  $("practice-error").textContent = "";
+  const fail = (text) => ($("practice-error").textContent = text);
+  fail("");
   if (kind === "story") return startStory([]);
+  const ex = exercises[kind];
+  if (!ex) return;
   const all = (await listCourse()).filter((w) => w.meaning && !w.skipped);
-  if (kind === "choice" && all.length < 4) return ($("practice-error").textContent = "Cần ít nhất 4 từ có nghĩa để làm bài chọn đáp án.");
-  if (!all.length) return ($("practice-error").textContent = "Chưa có từ nào có nghĩa để luyện tập.");
+  if (!all.length) return fail("Chưa có từ nào có nghĩa để luyện tập.");
+  const usable = ex.fits ? all.filter(ex.fits) : all;
+  if (usable.length < (ex.min || 1)) return fail(ex.none);
   const source = $("practice-source").value;
-  const pool = practicePool(all);
-  if (!pool.length) return ($("practice-error").textContent = SOURCE_EMPTY[source.split(":")[0]] || "Không có từ nào để luyện.");
-  const size = +document.querySelector('[name="practice-size"]:checked').value;
+  const pool = practicePool(usable);
+  if (!pool.length) return fail(SOURCE_EMPTY[source.split(":")[0]] || "Không có từ nào để luyện.");
+  if (ex.prefer) pool.sort((a, b) => ex.prefer(b) - ex.prefer(a));
+  const size = ex.size || +document.querySelector('[name="practice-size"]:checked').value;
   const picked = pool.slice(0, size);
   // The hardest words of a source, in no particular order.
   if (source !== "all") shuffle(picked);
   practice = { kind, all, items: picked, at: 0, right: 0, wrong: [], combo: 0, best: 0, xp: 0 };
   openPractice(false);
-  showPractice();
+  (ex.start || showPractice)();
 }
 function openPractice(story) {
   $("practice-menu").classList.add("hidden");
@@ -2200,8 +2223,9 @@ function quitPractice() {
 }
 $("btn-practice-quit").onclick = quitPractice;
 /// An answer: experience and the run of right answers. `grade` also brings a forgotten word back into review
-/// soon; `xp` is off where the answer already earned its experience.
-async function answered(w, ok, near, { grade = true, xp = true } = {}) {
+/// soon; `xp` is off where the answer already earned its experience; `still` keeps the card from moving, for games
+/// whose tiles move by themselves.
+async function answered(w, ok, near, { grade = true, xp = true, still = false } = {}) {
   const card = $("practice-card");
   // Kept so that skipping the word after answering takes the answer back out of the score.
   practice.last = { at: practice.at, ok };
@@ -2213,7 +2237,7 @@ async function answered(w, ok, near, { grade = true, xp = true } = {}) {
     const gain = xp ? 5 + (practice.combo >= 3 ? Math.min(10, practice.combo) : 0) : 0;
     practice.xp += gain;
     gainXp(gain, near || card, true);
-    card.classList.remove("pop"); void card.offsetWidth; card.classList.add("pop");
+    if (!still) { card.classList.remove("pop"); void card.offsetWidth; card.classList.add("pop"); }
     const combo = $("combo");
     combo.textContent = practice.combo >= 2 ? `Đúng liên tiếp x${practice.combo}` : "";
     combo.classList.remove("pop"); void combo.offsetWidth; combo.classList.add("pop");
@@ -2223,7 +2247,7 @@ async function answered(w, ok, near, { grade = true, xp = true } = {}) {
     $("combo").textContent = "";
     practice.wrong.push(w);
     gainXp(0, null, false);
-    card.classList.remove("shake"); void card.offsetWidth; card.classList.add("shake");
+    if (!still) { card.classList.remove("shake"); void card.offsetWidth; card.classList.add("shake"); }
     if (grade && w.learned_at) await app.call("grade", { id: w.id, q: 1 });
   }
 }
@@ -2244,6 +2268,27 @@ async function skipInPractice(w) {
 }
 const verdict = (ok, answer) => (ok ? `<div class="ok pop">${st("fb-right", "fb")}Chính xác!</div>`
   : `<div class="error">${st("fb-wrong", "fb")}<span>Chưa đúng. Đáp án: <b>${answer}</b></span></div>`);
+/// "Vì sao sai?" under a wrong answer: the AI says in Vietnamese why `given` is not `expected` and how to tell them
+/// apart. `context` tells it, in English, what the exercise asked.
+function whyWrong(box, w, expected, given, context) {
+  if (!String(given).trim()) return;
+  box.insertAdjacentHTML("beforeend", `<div class="why"><button class="btn ghost small">Vì sao sai?</button><div class="why-text"></div></div>`);
+  const button = box.querySelector(".why button"), out = box.querySelector(".why-text");
+  button.onclick = async () => {
+    button.disabled = true;
+    button.classList.add("loading");
+    out.innerHTML = "";
+    try {
+      const r = await app.call("explain_mistake", { word: w.word, meaning: w.meaning, expected, given, context, day: localDay() });
+      button.remove();
+      out.innerHTML = `<p>${esc(r.explain)}</p><div class="muted small">${byHtml(r)}</div>`;
+    } catch (e) {
+      out.innerHTML = `<p class="error">${esc(e)}</p>`;
+      button.disabled = false;
+      button.classList.remove("loading");
+    }
+  };
+}
 function showPractice() {
   const p = practice, w = p.items[p.at], card = $("practice-card");
   $("practice-bar").style.width = (100 * p.at) / p.items.length + "%";
@@ -2264,122 +2309,134 @@ function showPractice() {
     if (rate >= 0.8) confetti(rate === 1 ? 260 : 150);
     return;
   }
-  if (p.kind === "flash") {
-    card.innerHTML = `<div class="word">${esc(w.word)}</div>
-      <button class="btn small" data-say="${esc(w.word)}">Nghe</button>
-      <div id="pback" class="hidden">${wordDetail(w)}<div class="pron" id="practice-pron"></div></div>
-      <div class="grades" id="pflip"><button class="btn primary big" id="btn-pflip">Lật thẻ</button></div>
-      <div class="grades hidden" id="pjudge"><button class="btn g-again" id="btn-no">Chưa thuộc</button><button class="btn primary" id="btn-yes">Đã thuộc</button></div>`;
-    $("btn-pflip").onclick = () => flipCard(card, () => {
-      $("pback").classList.remove("hidden"); $("pflip").classList.add("hidden"); $("pjudge").classList.remove("hidden");
-      pronWidget($("practice-pron"), w);
-    });
-    $("btn-yes").onclick = async () => { await answered(w, true, $("btn-yes")); setTimeout(next, 250); };
-    $("btn-no").onclick = async () => { await answered(w, false); setTimeout(next, 400); };
-    speak(w.word);
-  } else if (p.kind === "fill" || p.kind === "dict") {
-    const dictation = p.kind === "dict";
-    const zh = (w.lang || "en") === "zh";
-    // Dictation of a whole sentence now and then, when the word has a short example.
-    const sentence = dictation && !!w.example && (zh ? w.example.length <= 16 : w.example.split(/\s+/).length <= 12) && Math.random() < 0.35;
-    const blank = dictation ? null : blankOf(w);
-    const answer = dictation ? (sentence ? w.example : w.word) : blank ? blank.answer : w.word;
-    const pinyinRef = sentence ? w.example_reading : w.ipa;
-    const zhPlaceholder = "Gõ chữ Hán hoặc pinyin";
-    card.innerHTML = dictation ? `
-      ${st("mode-dict", "mode-st")}
-      <div class="prompt-label">${sentence ? "Nghe và gõ lại cả câu" : "Nghe và gõ lại từ"}</div>
-      <div class="row center" style="margin-top:12px"><button class="btn primary" id="btn-play">Nghe</button><button class="btn" id="btn-play-slow">Nghe chậm</button></div>
-      <div class="fill-row ${sentence ? "wide" : ""}">
-        <input id="fill-input" placeholder="${zh ? zhPlaceholder : sentence ? "Gõ cả câu bạn nghe được" : "Gõ từ bạn nghe được"}" autocomplete="off" spellcheck="false" aria-label="Câu trả lời">
-        <button class="btn primary" id="btn-check">Kiểm tra</button>
-      </div>
-      <div id="fill-result"></div>` : `
-      <div class="prompt-label">Điền từ còn thiếu</div>
-      <div class="question">${blank ? esc(blank.text) : esc(w.meaning)}</div>
-      ${blank ? `<div class="muted">${esc(w.example_vi || w.meaning)}</div>` : `<div class="muted">Viết từ ${zh ? "tiếng Trung" : "tiếng Anh"} có nghĩa trên</div>`}
-      <div class="fill-row">
-        <input id="fill-input" placeholder="${zh ? zhPlaceholder : `Gợi ý: bắt đầu bằng ${esc(answer[0])}`}" autocomplete="off" spellcheck="false" aria-label="Câu trả lời">
-        <button class="btn primary" id="btn-check">Kiểm tra</button>
-      </div>
-      <div id="fill-result"></div>`;
-    if (dictation) {
-      $("btn-play").onclick = (e) => sayWith(e.currentTarget, answer);
-      $("btn-play-slow").onclick = (e) => sayWith(e.currentTarget, answer, true);
-      speak(answer);
-    }
-    const input = $("fill-input");
-    input.focus();
-    const check = async () => {
-      if (input.disabled) return next();
-      const ok = zh ? zhMatches(input.value, answer, pinyinRef) : normalize(input.value) === normalize(answer);
-      input.disabled = true;
-      // A slip in a whole sentence is spelling, not forgetting the word.
-      await answered(w, ok, input, { grade: !sentence });
-      $("fill-result").innerHTML = verdict(ok, sentence ? (zh ? diffHanzi(answer, input.value) : diffWords(answer, input.value)) : esc(answer))
-        + `<div class="muted">${esc(w.word)} ${esc(w.ipa)}: ${esc(w.meaning)}</div>`
-        + (zh && sentence && w.example_reading ? `<div class="muted">Pinyin câu: ${esc(w.example_reading)}</div>` : "");
-      $("btn-check").textContent = "Câu tiếp";
-      $("btn-check").focus();
-      if (!dictation) speak(answer);
-    };
-    $("btn-check").onclick = check;
-    input.addEventListener("keydown", (e) => { if (e.key === "Enter") check(); });
-  } else if (p.kind === "speak" || p.kind === "write") {
-    const speaking = p.kind === "speak";
-    card.innerHTML = `
-      ${st(speaking ? "mode-speak" : "mode-write", "mode-st")}
-      <div class="prompt-label">${speaking ? "Đọc to từ này rồi xem điểm" : `Đặt một câu tiếng ${courseOf() === "zh" ? "Trung" : "Anh"} có từ`}</div>
-      <div class="word">${esc(w.word)}</div>
-      ${speaking ? `<div class="ipa">${esc(w.ipa)}</div>` : ""}
-      <div class="meaning small">${esc(w.meaning)}</div>
-      <div class="pron" id="practice-task"></div>
-      <div class="grades"><button class="btn" id="btn-skip">Bỏ qua</button><button class="btn primary hidden" id="btn-next">Câu tiếp</button></div>`;
-    let first = true;
-    const done = async (ok, near) => {
-      // Only the first try counts; trying again is still good practice.
-      if (first) { first = false; await answered(w, ok, near, { grade: false, xp: !speaking }); }
-      $("btn-skip").classList.add("hidden");
-      $("btn-next").classList.remove("hidden");
-      $("btn-next").focus();
-    };
-    if (speaking) pronWidget($("practice-task"), w, { onScore: (score, near) => done(score >= 75, near) });
-    else sentenceWidget($("practice-task"), w, (r, near) => done(r.ok, near), { xp: false });
-    $("btn-skip").onclick = async () => { if (first) { first = false; await answered(w, false, null, { grade: false }); } next(); };
-    $("btn-next").onclick = next;
-  } else {
-    // Half the questions ask for the meaning, half for the word.
-    const toMeaning = Math.random() < 0.5;
-    const others = shuffle(p.all.filter((x) => x.id !== w.id && x.meaning !== w.meaning)).slice(0, 3);
-    const options = shuffle([w, ...others]);
-    const label = (x) => (toMeaning ? x.meaning : x.word);
-    card.innerHTML = `
-      <div class="prompt-label">${toMeaning ? "Chọn nghĩa đúng của từ" : `Chọn từ tiếng ${courseOf() === "zh" ? "Trung" : "Anh"} có nghĩa`}</div>
-      <div class="question">${esc(toMeaning ? w.word : w.meaning)}</div>
-      ${toMeaning ? `<div class="ipa">${esc(w.ipa)}</div>` : ""}
-      <div class="options">${options.map((x, i) => `<button class="btn" data-id="${x.id}"><span class="opt-n">${i + 1}</span>${esc(label(x))}</button>`).join("")}</div>
-      <div class="grades hidden" id="choice-next"><button class="btn primary" id="btn-next">Câu tiếp <kbd>Enter</kbd></button></div>`;
-    if (toMeaning) speak(w.word);
-    card.querySelectorAll(".options button").forEach((b) => (b.onclick = async () => {
-      if (b.disabled) return;
-      const ok = +b.dataset.id === w.id;
-      card.querySelectorAll(".options button").forEach((x) => {
-        x.disabled = true;
-        if (+x.dataset.id === w.id) x.classList.add("right");
-      });
-      if (!ok) b.classList.add("wrong");
-      await answered(w, ok, b);
-      if (!toMeaning) speak(w.word);
-      $("choice-next").classList.remove("hidden");
-      $("btn-next").onclick = next;
-      $("btn-next").focus();
-    }));
-  }
+  exercises[p.kind].show(w, card, p);
   card.insertAdjacentHTML("beforeend", `<div class="row center" style="margin-top:14px"><button class="btn ghost small" id="btn-practice-skip">Bỏ qua từ này, không học nữa</button></div>`);
   $("btn-practice-skip").onclick = () => skipInPractice(w);
 }
+function showFlash(w, card) {
+  card.innerHTML = `<div class="word">${esc(w.word)}</div>
+    <button class="btn small" data-say="${esc(w.word)}">Nghe</button>
+    <div id="pback" class="hidden">${wordDetail(w)}<div class="pron" id="practice-pron"></div></div>
+    <div class="grades" id="pflip"><button class="btn primary big" id="btn-pflip">Lật thẻ</button></div>
+    <div class="grades hidden" id="pjudge"><button class="btn g-again" id="btn-no">Chưa thuộc</button><button class="btn primary" id="btn-yes">Đã thuộc</button></div>`;
+  $("btn-pflip").onclick = () => flipCard(card, () => {
+    $("pback").classList.remove("hidden"); $("pflip").classList.add("hidden"); $("pjudge").classList.remove("hidden");
+    pronWidget($("practice-pron"), w);
+  });
+  $("btn-yes").onclick = async () => { await answered(w, true, $("btn-yes")); setTimeout(next, 250); };
+  $("btn-no").onclick = async () => { await answered(w, false); setTimeout(next, 400); };
+  speak(w.word);
+}
+/// Điền từ, or with `dictation` Nghe chép: the answer is typed.
+function showTyping(w, card, dictation) {
+  const zh = (w.lang || "en") === "zh";
+  // Dictation of a whole sentence now and then, when the word has a short example.
+  const sentence = dictation && !!w.example && (zh ? w.example.length <= 16 : w.example.split(/\s+/).length <= 12) && Math.random() < 0.35;
+  const blank = dictation ? null : blankOf(w);
+  const answer = dictation ? (sentence ? w.example : w.word) : blank ? blank.answer : w.word;
+  const pinyinRef = sentence ? w.example_reading : w.ipa;
+  const zhPlaceholder = "Gõ chữ Hán hoặc pinyin";
+  card.innerHTML = dictation ? `
+    ${st("mode-dict", "mode-st")}
+    <div class="prompt-label">${sentence ? "Nghe và gõ lại cả câu" : "Nghe và gõ lại từ"}</div>
+    <div class="row center" style="margin-top:12px"><button class="btn primary" id="btn-play">Nghe</button><button class="btn" id="btn-play-slow">Nghe chậm</button></div>
+    <div class="fill-row ${sentence ? "wide" : ""}">
+      <input id="fill-input" placeholder="${zh ? zhPlaceholder : sentence ? "Gõ cả câu bạn nghe được" : "Gõ từ bạn nghe được"}" autocomplete="off" spellcheck="false" aria-label="Câu trả lời">
+      <button class="btn primary" id="btn-check">Kiểm tra</button>
+    </div>
+    <div id="fill-result"></div>` : `
+    <div class="prompt-label">Điền từ còn thiếu</div>
+    <div class="question">${blank ? esc(blank.text) : esc(w.meaning)}</div>
+    ${blank ? `<div class="muted">${esc(w.example_vi || w.meaning)}</div>` : `<div class="muted">Viết từ ${zh ? "tiếng Trung" : "tiếng Anh"} có nghĩa trên</div>`}
+    <div class="fill-row">
+      <input id="fill-input" placeholder="${zh ? zhPlaceholder : `Gợi ý: bắt đầu bằng ${esc(answer[0])}`}" autocomplete="off" spellcheck="false" aria-label="Câu trả lời">
+      <button class="btn primary" id="btn-check">Kiểm tra</button>
+    </div>
+    <div id="fill-result"></div>`;
+  if (dictation) {
+    $("btn-play").onclick = (e) => sayWith(e.currentTarget, answer);
+    $("btn-play-slow").onclick = (e) => sayWith(e.currentTarget, answer, true);
+    speak(answer);
+  }
+  const input = $("fill-input");
+  input.focus();
+  const check = async () => {
+    if (input.disabled) return next();
+    const ok = zh ? zhMatches(input.value, answer, pinyinRef) : normalize(input.value) === normalize(answer);
+    input.disabled = true;
+    // A slip in a whole sentence is spelling, not forgetting the word.
+    await answered(w, ok, input, { grade: !sentence });
+    $("fill-result").innerHTML = verdict(ok, sentence ? (zh ? diffHanzi(answer, input.value) : diffWords(answer, input.value)) : esc(answer))
+      + `<div class="muted">${esc(w.word)} ${esc(w.ipa)}: ${esc(w.meaning)}</div>`
+      + (zh && sentence && w.example_reading ? `<div class="muted">Pinyin câu: ${esc(w.example_reading)}</div>` : "");
+    if (!ok) whyWrong($("fill-result"), w, answer, input.value, dictation ? `Listen and write the ${sentence ? "sentence" : "word"}`
+      : blank ? `Fill in the blank: ${blank.text}` : `Write the ${zh ? "Chinese" : "English"} word that means: ${w.meaning}`);
+    $("btn-check").textContent = "Câu tiếp";
+    $("btn-check").focus();
+    if (!dictation) speak(answer);
+  };
+  $("btn-check").onclick = check;
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter") check(); });
+}
+/// Luyện nói, or Đặt câu: the word said aloud, or used in a sentence the AI checks.
+function showTask(w, card, speaking) {
+  card.innerHTML = `
+    ${st(speaking ? "mode-speak" : "mode-write", "mode-st")}
+    <div class="prompt-label">${speaking ? "Đọc to từ này rồi xem điểm" : `Đặt một câu tiếng ${courseOf() === "zh" ? "Trung" : "Anh"} có từ`}</div>
+    <div class="word">${esc(w.word)}</div>
+    ${speaking ? `<div class="ipa">${esc(w.ipa)}</div>` : ""}
+    <div class="meaning small">${esc(w.meaning)}</div>
+    <div class="pron" id="practice-task"></div>
+    <div class="grades"><button class="btn" id="btn-skip">Bỏ qua</button><button class="btn primary hidden" id="btn-next">Câu tiếp</button></div>`;
+  let first = true;
+  const done = async (ok, near) => {
+    // Only the first try counts; trying again is still good practice.
+    if (first) { first = false; await answered(w, ok, near, { grade: false, xp: !speaking }); }
+    $("btn-skip").classList.add("hidden");
+    $("btn-next").classList.remove("hidden");
+    $("btn-next").focus();
+  };
+  if (speaking) pronWidget($("practice-task"), w, { onScore: (score, near) => done(score >= 75, near) });
+  else sentenceWidget($("practice-task"), w, (r, near) => done(r.ok, near), { xp: false });
+  $("btn-skip").onclick = async () => { if (first) { first = false; await answered(w, false, null, { grade: false }); } next(); };
+  $("btn-next").onclick = next;
+}
+/// Chọn đáp án: half the questions ask for the meaning, half for the word.
+function showChoice(w, card, p) {
+  const toMeaning = Math.random() < 0.5;
+  const others = shuffle(p.all.filter((x) => x.id !== w.id && x.meaning !== w.meaning)).slice(0, 3);
+  const options = shuffle([w, ...others]);
+  const label = (x) => (toMeaning ? x.meaning : x.word);
+  const zh = courseOf() === "zh";
+  card.innerHTML = `
+    <div class="prompt-label">${toMeaning ? "Chọn nghĩa đúng của từ" : `Chọn từ tiếng ${zh ? "Trung" : "Anh"} có nghĩa`}</div>
+    <div class="question">${esc(toMeaning ? w.word : w.meaning)}</div>
+    ${toMeaning ? `<div class="ipa">${esc(w.ipa)}</div>` : ""}
+    <div class="options">${options.map((x, i) => `<button class="btn" data-id="${x.id}"><span class="opt-n">${i + 1}</span>${esc(label(x))}</button>`).join("")}</div>
+    <div id="choice-why"></div>
+    <div class="grades hidden" id="choice-next"><button class="btn primary" id="btn-next">Câu tiếp <kbd>Enter</kbd></button></div>`;
+  if (toMeaning) speak(w.word);
+  card.querySelectorAll(".options button").forEach((b) => (b.onclick = async () => {
+    if (b.disabled) return;
+    const ok = +b.dataset.id === w.id;
+    card.querySelectorAll(".options button").forEach((x) => {
+      x.disabled = true;
+      if (+x.dataset.id === w.id) x.classList.add("right");
+    });
+    if (!ok) b.classList.add("wrong");
+    await answered(w, ok, b);
+    if (!toMeaning) speak(w.word);
+    const x = options.find((o) => o.id === +b.dataset.id);
+    if (!ok) whyWrong($("choice-why"), w, label(w), toMeaning ? `${x.meaning} (the meaning of "${x.word}")` : `${x.word} ${x.ipa} (which means "${x.meaning}")`,
+      toMeaning ? `Pick the Vietnamese meaning of "${w.word}"` : `Pick the ${zh ? "Chinese" : "English"} word that means "${w.meaning}"`);
+    $("choice-next").classList.remove("hidden");
+    $("btn-next").onclick = next;
+    $("btn-next").focus();
+  }));
+}
+// 1 to 4 pick an option, in every exercise that has them.
 document.addEventListener("keydown", (e) => {
-  if (!practice || practice.kind !== "choice" || !$("page-practice").classList.contains("active")) return;
+  if (!practice || !$("page-practice").classList.contains("active")) return;
   const n = { Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3 }[e.code];
   const buttons = $("practice-card").querySelectorAll(".options button");
   if (n !== undefined && buttons[n] && !buttons[n].disabled) buttons[n].click();

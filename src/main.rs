@@ -463,6 +463,17 @@ impl App {
                     result.map(|c| json!(c))
                 }));
             }
+            "explain_mistake" => {
+                let [word, meaning, expected, given, context] = ["word", "meaning", "expected", "given", "context"].map(text);
+                let zh = self.course() == "zh";
+                let settings = self.ai_settings();
+                background(Box::new(move || {
+                    let ai = ai::Ai::new(&settings, &dir);
+                    let result = ai.explain_mistake(&word, &meaning, &expected, &given, &context, zh);
+                    record_usage(&dir, &day, &ai.attempts.borrow());
+                    result.map(|m| json!(m))
+                }));
+            }
             "story" => {
                 let asked: Vec<String> = args["words"].as_array().into_iter().flatten().filter_map(|w| w.as_str().map(str::to_owned)).collect();
                 // Without a list, the words answered today, or else the last ones learned.
@@ -878,6 +889,7 @@ impl App {
             "hotkey_error": self.hotkey_error,
             // Kept apart from "none yet", so that the first ones reached are celebrated.
             "achievements": db::setting(&self.db, &db::scoped("achievements", &self.course())).ok().flatten(),
+            "match_best": number("match_best", 0),
         })
     }
 }
@@ -924,6 +936,8 @@ fn valid_setting(key: &str, value: &str) -> bool {
         "voice" => value.len() <= 100 && !value.chars().any(char::is_control),
         "hotkey" => value.is_empty() || HOTKEYS.contains(&value),
         "achievements" => value.len() <= 2000 && value.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b','),
+        // The best time of the matching game, in milliseconds.
+        "match_best" => value.parse::<u32>().is_ok_and(|ms| (1..=3_600_000).contains(&ms)),
         _ => false,
     }
 }
@@ -1176,6 +1190,7 @@ mod tests {
         assert!(valid_setting("accent", "en-GB") && !valid_setting("accent", "fr-FR"));
         assert!(valid_setting("achievements", "streak7,words50") && !valid_setting("achievements", "<b>"));
         assert!(valid_setting("speech_rate", "1.2") && !valid_setting("speech_rate", "3"));
+        assert!(valid_setting("match_best", "15400") && !valid_setting("match_best", "0") && !valid_setting("match_best", "1.5"));
         assert!(HOTKEYS.iter().all(|h| hotkey_of(h).is_some()));
         assert_eq!([" b2 ", "B3", "C1+", "hsk 3", "HSK0", "HSK10"].map(valid_level), ["B2", "", "", "HSK3", "", ""]);
         assert!(valid_setting("course", "zh") && !valid_setting("course", "fr"));
