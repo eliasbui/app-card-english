@@ -1,0 +1,20 @@
+  /* A word's picture on the back of a card and in its window; hidden until it has loaded. */
+  .word-img { display: block; max-width: min(100%, 320px); max-height: 220px; margin: 14px auto 10px; border-radius: var(--r-md);
+              object-fit: contain; box-shadow: var(--shadow); }
+  .word-img:not([src]) { display: none; }
+  .word-dialog .word-img { margin: 12px 0 10px; }
+  .sync-thumb { flex-shrink: 0; width: 44px; height: 44px; margin-top: -2px; border-radius: var(--r); object-fit: cover; background: var(--hover); }
+  .sync-thumb:not([src]) { visibility: hidden; }
+  .sync-img-tools { margin-top: 14px; }
+
+  /* The editor's picture: a box to paste into, drop onto or choose a file from. */
+  .sync-drop { display: flex; align-items: center; gap: 12px; padding: 10px; border: 1px dashed var(--line-strong); border-radius: var(--r-md);
+               background: var(--surface-2); transition: border-color .15s, background .15s; }
+  .sync-drop:focus-visible { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
+  .sync-drop img { flex-shrink: 0; width: 72px; height: 72px; border-radius: var(--r-sm); object-fit: cover; background: var(--hover); }
+  .sync-drop img:not([src]) { visibility: hidden; }
+  .sync-drop .row { margin-top: 6px; }
+  #editor.sync-over .sync-drop { border-color: var(--accent); border-style: solid; background: var(--accent-soft); }
+  .word-dialog.sync-over { outline: 2px dashed var(--accent); outline-offset: -8px; }
+  .word-dialog .word-img { max-height: 180px; }
+  @media (max-width: 640px) { .word-img { max-height: 160px; } }

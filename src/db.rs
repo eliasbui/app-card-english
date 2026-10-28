@@ -11,7 +11,7 @@ pub const DAY: i64 = 86_400;
 /// A forgotten word comes back within the same session.
 const RELEARN_SECONDS: i64 = 600;
 /// The version of the tables in `PRAGMA user_version`; `migrate` brings an older file up to it.
-const SCHEMA: i64 = 6;
+pub const SCHEMA: i64 = 7;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -54,6 +54,12 @@ pub struct Word {
     pub score: i64,
     /// Left out of reviews, exercises and the counts: the learner does not want to study it again.
     pub skipped: bool,
+    /// 16 hex digits, the same on every machine the word is synced to.
+    pub uid: String,
+    /// When the word last changed (unix seconds): the later copy wins a sync.
+    pub updated: i64,
+    /// The file of its picture in the images folder, or empty.
+    pub image: String,
 }
 
 pub fn open(path: &Path) -> rusqlite::Result<Connection> {
@@ -207,6 +213,41 @@ const V6: &str = "
         deleted INTEGER NOT NULL DEFAULT 0
     );";
 
+/// Version 7: what the Google Drive sync merges by, and pictures. Words and answers get an id that is the same
+/// on every machine, given by a trigger to any row inserted without one (a column added later cannot default to a
+/// random value); a word that was already there is dated by its last change. A deleted word or an undone answer
+/// leaves a tombstone, so that the other machines delete it too while the word queries stay as they were. The
+/// activity of each other machine is kept apart (`device`), so that a day studied on two machines adds up instead
+/// of counting twice; this machine's rows have an empty `device`.
+const V7: &str = "
+    ALTER TABLE words ADD COLUMN uid TEXT NOT NULL DEFAULT '';
+    ALTER TABLE words ADD COLUMN updated INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE words ADD COLUMN image TEXT NOT NULL DEFAULT '';
+    UPDATE words SET uid = lower(hex(randomblob(8))), updated = max(created, last_review);
+    CREATE UNIQUE INDEX words_uid ON words (uid);
+    CREATE TRIGGER words_uid AFTER INSERT ON words WHEN new.uid = ''
+        BEGIN UPDATE words SET uid = lower(hex(randomblob(8))) WHERE id = new.id; END;
+    ALTER TABLE reviews ADD COLUMN uid TEXT NOT NULL DEFAULT '';
+    UPDATE reviews SET uid = lower(hex(randomblob(8)));
+    CREATE UNIQUE INDEX reviews_uid ON reviews (uid);
+    CREATE TRIGGER reviews_uid AFTER INSERT ON reviews WHEN new.uid = ''
+        BEGIN UPDATE reviews SET uid = lower(hex(randomblob(8))) WHERE id = new.id; END;
+    CREATE TABLE tombstones (uid TEXT PRIMARY KEY, updated INTEGER NOT NULL);
+    CREATE TABLE activity_v7 (
+        device TEXT NOT NULL DEFAULT '',
+        day TEXT NOT NULL,
+        lang TEXT NOT NULL,
+        xp INTEGER NOT NULL DEFAULT 0,
+        answers INTEGER NOT NULL DEFAULT 0,
+        correct INTEGER NOT NULL DEFAULT 0,
+        updated INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (device, day, lang)
+    );
+    INSERT INTO activity_v7 (day, lang, xp, answers, correct) SELECT day, lang, xp, answers, correct FROM activity;
+    DROP TABLE activity;
+    ALTER TABLE activity_v7 RENAME TO activity;
+    ALTER TABLE settings ADD COLUMN updated INTEGER NOT NULL DEFAULT 0;";
+
 /// The settings each course keeps for itself; the rest are shared.
 const SCOPED: [&str; 7] = ["palette", "new_per_day", "daily_goal", "voice", "achievements", "easy_days", "match_best"];
 
@@ -269,13 +310,16 @@ fn migrate(db: &mut Connection) -> rusqlite::Result<()> {
     if user_version(&tx)? < 6 {
         tx.execute_batch(V6)?;
     }
+    if user_version(&tx)? < 7 {
+        tx.execute_batch(V7)?;
+    }
     tx.pragma_update(None, "user_version", SCHEMA)?;
     tx.commit()
 }
 
 const COLUMNS: &str = "id, word, ipa, pos, meaning, explain, example, example_vi, note, synonyms, antonyms, collocations, \
                        level, topic, created, due, interval, stability, difficulty, last_review, reps, lapses, learned_at, score, \
-                       lang, hanviet, example_reading, skipped";
+                       lang, hanviet, example_reading, skipped, uid, updated, image";
 
 fn row(r: &Row) -> rusqlite::Result<Word> {
     Ok(Word {
@@ -307,6 +351,9 @@ fn row(r: &Row) -> rusqlite::Result<Word> {
         hanviet: r.get(25)?,
         example_reading: r.get(26)?,
         skipped: r.get(27)?,
+        uid: r.get(28)?,
+        updated: r.get(29)?,
+        image: r.get(30)?,
     })
 }
 
@@ -357,8 +404,8 @@ pub fn save(db: &Connection, w: &Word, now: i64) -> rusqlite::Result<i64> {
     if w.id == 0 {
         db.execute(
             "INSERT INTO words (word, ipa, pos, meaning, explain, example, example_vi, note, synonyms, antonyms,
-                                collocations, level, topic, lang, hanviet, example_reading, created, due)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?17)",
+                                collocations, level, topic, lang, hanviet, example_reading, created, due, updated)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?17, ?17)",
             params![w.word, w.ipa, w.pos, w.meaning, w.explain, w.example, w.example_vi, w.note, w.synonyms, w.antonyms,
                     w.collocations, w.level, w.topic, w.lang, w.hanviet, w.example_reading, now],
         )?;
@@ -367,35 +414,47 @@ pub fn save(db: &Connection, w: &Word, now: i64) -> rusqlite::Result<i64> {
         db.execute(
             "UPDATE words SET word = ?2, ipa = ?3, pos = ?4, meaning = ?5, explain = ?6, example = ?7,
              example_vi = ?8, note = ?9, synonyms = ?10, antonyms = ?11, collocations = ?12, level = ?13, topic = ?14,
-             lang = ?15, hanviet = ?16, example_reading = ?17
+             lang = ?15, hanviet = ?16, example_reading = ?17, updated = ?18
              WHERE id = ?1",
             params![w.id, w.word, w.ipa, w.pos, w.meaning, w.explain, w.example, w.example_vi, w.note, w.synonyms,
-                    w.antonyms, w.collocations, w.level, w.topic, w.lang, w.hanviet, w.example_reading],
+                    w.antonyms, w.collocations, w.level, w.topic, w.lang, w.hanviet, w.example_reading, now],
         )?;
         Ok(w.id)
     }
 }
 
-/// Inserts a word with its schedule as it is, for a restored copy.
+/// Inserts a word with its schedule as it is, for a restored copy. Its `uid` is kept unless it is empty or another
+/// word has it, and `updated` unless it is 0, so that a sync later knows it for the same word and which copy is newer.
 pub fn insert(db: &Connection, w: &Word) -> rusqlite::Result<i64> {
     let mut w = w.clone();
     derive(&mut w);
+    if db.query_row("SELECT 1 FROM words WHERE uid = ?1", [&w.uid], |_| Ok(())).optional()?.is_some() {
+        w.uid.clear();
+    }
+    if w.updated <= 0 {
+        w.updated = w.created.max(w.last_review);
+    }
     db.execute(
         "INSERT INTO words (word, ipa, pos, meaning, explain, example, example_vi, note, synonyms, antonyms, collocations,
                             level, topic, created, due, interval, stability, difficulty, last_review, reps, lapses,
-                            learned_at, score, lang, hanviet, example_reading, skipped)
+                            learned_at, score, lang, hanviet, example_reading, skipped, uid, updated, image)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23,
-                 ?24, ?25, ?26, ?27)",
+                 ?24, ?25, ?26, ?27, ?28, ?29, ?30)",
         params![w.word, w.ipa, w.pos, w.meaning, w.explain, w.example, w.example_vi, w.note, w.synonyms,
                 w.antonyms, w.collocations, w.level, w.topic, w.created, w.due, w.interval, w.stability, w.difficulty,
-                w.last_review, w.reps, w.lapses, w.learned_at, w.score, w.lang, w.hanviet, w.example_reading, w.skipped],
+                w.last_review, w.reps, w.lapses, w.learned_at, w.score, w.lang, w.hanviet, w.example_reading, w.skipped,
+                w.uid, w.updated, w.image],
     )?;
     Ok(db.last_insert_rowid())
 }
 
+/// Deletes a word and its answers, and leaves a tombstone for the sync to tell the other machines.
 pub fn delete(db: &Connection, id: i64) -> rusqlite::Result<()> {
-    db.execute("DELETE FROM reviews WHERE word_id = ?1", [id])?;
-    db.execute("DELETE FROM words WHERE id = ?1", [id]).map(|_| ())
+    let tx = db.unchecked_transaction()?;
+    tx.execute("INSERT OR REPLACE INTO tombstones (uid, updated) SELECT uid, ?2 FROM words WHERE id = ?1", [id, stamp()])?;
+    tx.execute("DELETE FROM reviews WHERE word_id = ?1", [id])?;
+    tx.execute("DELETE FROM words WHERE id = ?1", [id])?;
+    tx.commit()
 }
 
 /// Does `each` to every word of `ids` in one transaction, and counts them.
@@ -413,13 +472,32 @@ pub fn set_topic(db: &Connection, id: i64, topic: &str) -> rusqlite::Result<()> 
 }
 
 pub fn set_score(db: &Connection, id: i64, score: i64) -> rusqlite::Result<()> {
-    db.execute("UPDATE words SET score = ?2 WHERE id = ?1", [id, score]).map(|_| ())
+    db.execute("UPDATE words SET score = ?2, updated = ?3 WHERE id = ?1", [id, score, stamp()]).map(|_| ())
 }
 
 /// Sets a word aside, or brings it back, and gives it as it is now.
 pub fn set_skipped(db: &Connection, id: i64, on: bool) -> rusqlite::Result<Option<Word>> {
-    db.execute("UPDATE words SET skipped = ?2 WHERE id = ?1", params![id, on])?;
+    db.execute("UPDATE words SET skipped = ?2, updated = ?3 WHERE id = ?1", params![id, on, stamp()])?;
     get(db, id)
+}
+
+/// Gives a word a picture, or none with an empty name, and answers the one it had (`None` without such a word)
+/// for the caller to let its file go.
+pub fn set_image(db: &Connection, id: i64, image: &str) -> rusqlite::Result<Option<String>> {
+    let old = db.query_row("SELECT image FROM words WHERE id = ?1", [id], |r| r.get(0)).optional()?;
+    db.execute("UPDATE words SET image = ?2, updated = ?3 WHERE id = ?1", params![id, image, stamp()])?;
+    Ok(old)
+}
+
+/// The time of the changes whose callers give none, which the sync compares.
+fn stamp() -> i64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs() as i64)
+}
+
+/// The id of this installation, made once: the sync keeps each machine's activity under its own.
+pub fn device(db: &Connection) -> rusqlite::Result<String> {
+    db.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('device_id', lower(hex(randomblob(8))))", [])?;
+    db.query_row("SELECT value FROM settings WHERE key = 'device_id'", [], |r| r.get(0))
 }
 
 /// What a session of a course ("en" or "zh") works through: the reviews that are due, then as many new words as
@@ -558,6 +636,7 @@ pub fn grade_on(db: &Connection, id: i64, rating: u8, now: i64, retention: f64, 
         "last_review": w.last_review, "reps": w.reps, "lapses": w.lapses, "learned_at": w.learned_at,
     });
     schedule(&mut w, rating, now, retention);
+    w.updated = now;
     if let Some(today) = today {
         balance(db, &mut w, now, today)?;
     }
@@ -573,12 +652,12 @@ pub fn grade_on(db: &Connection, id: i64, rating: u8, now: i64, retention: f64, 
 
 /// Puts a word back as it was before its last answer, and forgets that answer.
 pub fn undo(db: &Connection, id: i64) -> rusqlite::Result<Option<Word>> {
-    let last: Option<(i64, String)> = db
-        .query_row("SELECT id, prev FROM reviews WHERE word_id = ?1 ORDER BY id DESC LIMIT 1", [id], |r| {
-            Ok((r.get(0)?, r.get(1)?))
+    let last: Option<(i64, String, String)> = db
+        .query_row("SELECT id, prev, uid FROM reviews WHERE word_id = ?1 ORDER BY id DESC LIMIT 1", [id], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?))
         })
         .optional()?;
-    let (Some((review, prev)), Some(mut w)) = (last, get(db, id)?) else {
+    let (Some((review, prev, uid)), Some(mut w)) = (last, get(db, id)?) else {
         return Ok(None);
     };
     let p: serde_json::Value = serde_json::from_str(&prev).unwrap_or_default();
@@ -586,9 +665,11 @@ pub fn undo(db: &Connection, id: i64) -> rusqlite::Result<Option<Word>> {
     let real = |key: &str| p[key].as_f64().unwrap_or(0.0);
     (w.due, w.last_review, w.reps, w.lapses, w.learned_at) = (int("due"), int("last_review"), int("reps"), int("lapses"), int("learned_at"));
     (w.interval, w.stability, w.difficulty) = (real("interval"), real("stability"), real("difficulty"));
+    w.updated = stamp();
     let tx = db.unchecked_transaction()?;
     write_schedule(&tx, &w)?;
     tx.execute("DELETE FROM reviews WHERE id = ?1", [review])?;
+    tx.execute("INSERT OR REPLACE INTO tombstones (uid, updated) VALUES (?1, ?2)", params![uid, w.updated])?;
     tx.commit()?;
     Ok(Some(w))
 }
@@ -596,8 +677,8 @@ pub fn undo(db: &Connection, id: i64) -> rusqlite::Result<Option<Word>> {
 fn write_schedule(db: &Connection, w: &Word) -> rusqlite::Result<()> {
     db.execute(
         "UPDATE words SET due = ?2, interval = ?3, stability = ?4, difficulty = ?5, last_review = ?6, reps = ?7,
-         lapses = ?8, learned_at = ?9 WHERE id = ?1",
-        params![w.id, w.due, w.interval, w.stability, w.difficulty, w.last_review, w.reps, w.lapses, w.learned_at],
+         lapses = ?8, learned_at = ?9, updated = ?10 WHERE id = ?1",
+        params![w.id, w.due, w.interval, w.stability, w.difficulty, w.last_review, w.reps, w.lapses, w.learned_at, w.updated],
     )
     .map(|_| ())
 }
@@ -715,33 +796,45 @@ pub struct Day {
     pub correct: i64,
 }
 
-/// Adds experience to a day of a course, and an answer when `correct` says how it went.
+/// Adds experience to a day of a course on this machine, and an answer when `correct` says how it went.
 pub fn add_xp(db: &Connection, day: &str, lang: &str, xp: i64, correct: Option<bool>) -> rusqlite::Result<()> {
     let (answers, right) = match correct {
         Some(ok) => (1, i64::from(ok)),
         None => (0, 0),
     };
     db.execute(
-        "INSERT INTO activity (day, lang, xp, answers, correct) VALUES (?1, ?5, ?2, ?3, ?4)
-         ON CONFLICT(day, lang) DO UPDATE SET xp = xp + ?2, answers = answers + ?3, correct = correct + ?4",
-        params![day, xp, answers, right, lang],
+        &format!(
+            "INSERT INTO activity (day, lang, xp, answers, correct, updated) VALUES (?1, ?5, ?2, ?3, ?4, {ACTIVITY_STAMP})
+             ON CONFLICT(device, day, lang) DO UPDATE SET xp = xp + ?2, answers = answers + ?3, correct = correct + ?4,
+                 updated = excluded.updated"
+        ),
+        params![day, xp, answers, right, lang, stamp()],
     )
     .map(|_| ())
 }
+
+/// The date of a change to this machine's activity: the time `?6`, or later than the last change when that was
+/// within the same second, so that the other machines always see the newer days as newer.
+const ACTIVITY_STAMP: &str = "max(?6, (SELECT coalesce(max(updated), 0) + 1 FROM activity WHERE device = ''))";
 
 /// Takes back the experience and the answer of an undone review.
 pub fn take_back_xp(db: &Connection, day: &str, lang: &str, xp: i64, correct: bool) -> rusqlite::Result<()> {
     db.execute(
-        "UPDATE activity SET xp = max(0, xp - ?2), answers = max(0, answers - 1), correct = max(0, correct - ?3)
-         WHERE day = ?1 AND lang = ?4",
-        params![day, xp, i64::from(correct), lang],
+        &format!(
+            "UPDATE activity SET xp = max(0, xp - ?2), answers = max(0, answers - ?3), correct = max(0, correct - ?4),
+                 updated = {ACTIVITY_STAMP} WHERE device = '' AND day = ?1 AND lang = ?5"
+        ),
+        params![day, xp, 1, i64::from(correct), lang, stamp()],
     )
     .map(|_| ())
 }
 
-/// The last `days` days of a course that saw any study, newest first, and its experience of all time.
+/// The last `days` days of a course that saw any study, newest first, and its experience of all time; what every
+/// synced machine studied adds up.
 pub fn activity(db: &Connection, days: i64, lang: &str) -> rusqlite::Result<(Vec<Day>, i64)> {
-    let mut stmt = db.prepare("SELECT day, xp, answers, correct FROM activity WHERE lang = ?2 ORDER BY day DESC LIMIT ?1")?;
+    let mut stmt = db.prepare(
+        "SELECT day, sum(xp), sum(answers), sum(correct) FROM activity WHERE lang = ?2 GROUP BY day ORDER BY day DESC LIMIT ?1",
+    )?;
     let list = stmt
         .query_map(params![days, lang], |r| Ok(Day { day: r.get(0)?, xp: r.get(1)?, answers: r.get(2)?, correct: r.get(3)? }))?
         .collect::<rusqlite::Result<_>>()?;
@@ -812,11 +905,12 @@ pub fn setting(db: &Connection, key: &str) -> rusqlite::Result<Option<String>> {
         .optional()
 }
 
+/// Sets a setting and dates it, for the few that the sync carries.
 pub fn set_setting(db: &Connection, key: &str, value: &str) -> rusqlite::Result<()> {
     db.execute(
-        "INSERT INTO settings (key, value) VALUES (?1, ?2)
-         ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-        [key, value],
+        "INSERT INTO settings (key, value, updated) VALUES (?1, ?2, ?3)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated = excluded.updated",
+        params![key, value, stamp()],
     )
     .map(|_| ())
 }
@@ -957,14 +1051,50 @@ mod tests {
         grade(&db, id, 4, 100, 0.9).unwrap();
         let first = get(&db, id).unwrap().unwrap();
         grade(&db, id, 1, 100 + 9 * DAY, 0.9).unwrap();
-        assert_eq!(undo(&db, id).unwrap().unwrap(), first);
-        assert_eq!(get(&db, id).unwrap().unwrap(), first);
-        assert_eq!(undo(&db, id).unwrap().unwrap(), before);
+        // The schedule as it was; the word is dated by the undo, so that a sync carries it.
+        let undone = undo(&db, id).unwrap().unwrap();
+        assert!(undone.updated > 100 + 9 * DAY);
+        assert_eq!(Word { updated: first.updated, ..undone }, first);
+        assert_eq!(get(&db, id).unwrap().unwrap().reps, first.reps);
+        assert_eq!(Word { updated: before.updated, ..undo(&db, id).unwrap().unwrap() }, before);
         assert_eq!(undo(&db, id).unwrap(), None);
         assert_eq!(stats(&db, 0, 0, "").unwrap().reviews, 0);
+        let tombstones: i64 = db.query_row("SELECT count(*) FROM tombstones", [], |r| r.get(0)).unwrap();
+        assert_eq!(tombstones, 2, "each undone answer, for the other machines");
         grade(&db, id, 3, 200, 0.9).unwrap();
         delete(&db, id).unwrap();
         assert_eq!(stats(&db, 0, 0, "").unwrap().reviews, 0);
+        let uid: String = db.query_row("SELECT uid FROM tombstones ORDER BY updated DESC, rowid DESC LIMIT 1", [], |r| r.get(0)).unwrap();
+        assert_eq!(uid, before.uid, "and the deleted word");
+    }
+
+    #[test]
+    fn version_7_dates_and_names_what_was_there() {
+        let mut db = Connection::open_in_memory().unwrap();
+        init(&mut db).unwrap();
+        // Back to version 4, as a file of 0.4 had it.
+        db.execute_batch(
+            "DROP TRIGGER words_uid; DROP TRIGGER reviews_uid; DROP INDEX words_uid; ALTER TABLE words DROP COLUMN uid; ALTER TABLE words DROP COLUMN updated; ALTER TABLE words DROP COLUMN image;
+             DROP INDEX reviews_uid; ALTER TABLE reviews DROP COLUMN uid; DROP TABLE tombstones; ALTER TABLE settings DROP COLUMN updated;
+             DROP TABLE chat; DROP TABLE topics; DROP TABLE roadmaps;
+             DROP TABLE activity; CREATE TABLE activity (day TEXT NOT NULL, lang TEXT NOT NULL, xp INTEGER NOT NULL DEFAULT 0,
+                 answers INTEGER NOT NULL DEFAULT 0, correct INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (day, lang));
+             INSERT INTO words (word, created, due, last_review) VALUES ('old', 10, 10, 500), ('new', 20, 20, 0);
+             INSERT INTO reviews (word_id, at, rating, prev) VALUES (1, 500, 3, '{}');
+             INSERT INTO activity VALUES ('2026-10-27', 'en', 12, 2, 1);
+             PRAGMA user_version = 4;",
+        )
+        .unwrap();
+        init(&mut db).unwrap();
+        let (old, new) = (find(&db, "old").unwrap().unwrap(), find(&db, "new").unwrap().unwrap());
+        assert_eq!((old.updated, new.updated, old.uid.len(), old.image.as_str()), (500, 20, 16, ""));
+        assert_ne!(old.uid, new.uid);
+        let review: String = db.query_row("SELECT uid FROM reviews", [], |r| r.get(0)).unwrap();
+        assert_eq!(review.len(), 16);
+        assert_eq!(activity(&db, 10, "en").unwrap().1, 12);
+        add_xp(&db, "2026-10-27", "en", 3, Some(true)).unwrap();
+        assert_eq!(activity(&db, 10, "en").unwrap().0[0], Day { day: "2026-10-27".into(), xp: 15, answers: 3, correct: 2 });
+        assert_eq!(device(&db).unwrap(), device(&db).unwrap());
     }
 
     #[test]
@@ -991,6 +1121,8 @@ mod tests {
         let id = add(&db, "negotiate", 0);
         grade(&db, id, 3, 1_000, 0.9).unwrap();
         let before = get(&db, id).unwrap().unwrap();
+        // An undo is a change of its own for the sync, so only its date differs.
+        let undone = |w: Word| Word { updated: before.updated, ..w };
         // The next good answer, two days later, gets 11 days and may move to 10 or 12; those have 1, 2 and 2 reviews.
         let (at, today) = (1_000 + 2 * DAY, Today { start: 2 * DAY, weekday: 3 });
         for (i, day) in [11, 11, 12, 12, 10].into_iter().enumerate() {
@@ -1002,12 +1134,12 @@ mod tests {
         let w = grade_on(&db, id, 3, at, 0.9, Some(today)).unwrap().unwrap();
         assert_eq!((w.interval, w.due), (10.0, at + 10 * DAY));
         assert_eq!(get(&db, id).unwrap().unwrap(), w);
-        assert_eq!(undo(&db, id).unwrap().unwrap(), before);
-        assert_eq!(get(&db, id).unwrap().unwrap(), before);
+        assert_eq!(undone(undo(&db, id).unwrap().unwrap()), before);
+        assert_eq!(undone(get(&db, id).unwrap().unwrap()), before);
         // Ten days after a Wednesday is a Saturday: kept light, so the tie of 11 and 12 goes to the FSRS day.
         set_setting(&db, "easy_days", "6").unwrap();
         assert_eq!(grade_on(&db, id, 3, at, 0.9, Some(today)).unwrap().unwrap().interval, 11.0);
-        assert_eq!(undo(&db, id).unwrap().unwrap(), before);
+        assert_eq!(undone(undo(&db, id).unwrap().unwrap()), before);
         // A forgotten word still comes back in ten minutes.
         let w = grade_on(&db, id, 1, at, 0.9, Some(today)).unwrap().unwrap();
         assert_eq!(w.due, at + RELEARN_SECONDS);

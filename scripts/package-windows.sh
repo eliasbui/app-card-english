@@ -28,10 +28,12 @@ EOF
 # crt-static, because the sherpa-onnx libraries for Windows use the static C runtime and the C of sqlite has to agree
 # with them; it also leaves no Visual C++ redistributable to install. ponytail: 2 jobs fit the 3.5 GB that Docker
 # Desktop gives by default, four rustc processes at once are killed for memory; raise both when Docker has more.
+# The OAuth client of the Google Drive sync goes in from this shell's environment, when it is set there.
 docker run --rm \
     -v "$PWD":/src:ro -v "$PWD/dist":/out \
     -v cardenglish-win-target:/target -v cardenglish-win-cargo:/usr/local/cargo/registry \
     -e CARGO_TARGET_DIR=/target -e CARGO_BUILD_JOBS=2 -e RUSTFLAGS="-C target-feature=+crt-static" \
+    -e CARD_ENGLISH_GOOGLE_CLIENT_ID -e CARD_ENGLISH_GOOGLE_CLIENT_SECRET \
     -w /src cardenglish-win sh -euc '
         cargo xwin build --release --locked --target x86_64-pc-windows-msvc
         cp /target/x86_64-pc-windows-msvc/release/card-english.exe /tmp/CardEnglish.exe

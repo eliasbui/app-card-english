@@ -13,6 +13,10 @@ echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "a version is th
 git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null && { echo "v$VERSION is already tagged" >&2; exit 1; }
 gh auth status >/dev/null 2>&1 || { echo "sign in to GitHub first: gh auth login" >&2; exit 1; }
 docker info >/dev/null 2>&1 || { echo "start Docker first; it builds the Windows app" >&2; exit 1; }
+# The Google Drive sync signs in with the app's OAuth client, baked in at build time; without it the apps still
+# build, with no Google sign-in.
+[ -n "${CARD_ENGLISH_GOOGLE_CLIENT_ID:-}" ] && [ -n "${CARD_ENGLISH_GOOGLE_CLIENT_SECRET:-}" ] ||
+    echo "warning: CARD_ENGLISH_GOOGLE_CLIENT_ID or CARD_ENGLISH_GOOGLE_CLIENT_SECRET is not set; this release has no Google Drive sync" >&2
 
 sed -i.bak "1,/^version = /s/^version = \".*\"/version = \"$VERSION\"/" Cargo.toml && rm Cargo.toml.bak
 cargo update --workspace --offline -q
