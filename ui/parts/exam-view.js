@@ -39,7 +39,7 @@
   const count = (text) => zh() ? [...String(text || "")].filter((c) => hasHan(c)).length : String(text || "").trim().split(/\s+/).filter(Boolean).length;
   const unit = () => zh() ? "chữ" : "từ";
   const who = (w) => zh() ? (w === "M" ? "男：" : w === "W" ? "女：" : "") : (w === "M" ? "Nam: " : w === "W" ? "Nữ: " : "");
-  const whisperReady = () => !!state.models?.[zh() ? "sttzh" : "stt"]?.ready;
+  const whisperReady = () => hears();
   const section = () => ex.paper.sections[at];
   /// Asks for a second press within a few seconds before doing something that loses work.
   function twice(button, text) {

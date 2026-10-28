@@ -1,11 +1,18 @@
-//! Scoring how a word was said: the microphone through cpal, Whisper tiny.en to hear it, and the phonemes of
-//! what was heard against those of the word.
+//! Scoring how a word was said: the microphone through cpal, a recognizer to hear it (Parakeet for English and
+//! SenseVoice for Chinese through sherpa-onnx, or the Whisper tiny of the first versions), and the phonemes of what
+//! was heard against those of the word.
 
-use crate::{models, pron};
+use crate::{
+    db,
+    hardware::{self, Tier},
+    models, pron,
+};
 use candle_core::{D, Device, IndexOp, Tensor};
 use candle_transformers::models::whisper::{self as w, audio, quantized_model::Whisper};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use sherpa_onnx::{OfflineRecognizer, OfflineRecognizerConfig, OfflineSenseVoiceModelConfig, OfflineStream, OfflineTransducerModelConfig};
+use sherpa_onnx_sys as sys;
 use std::{
     path::Path,
     sync::{Arc, Mutex, atomic::{AtomicU32, Ordering}, mpsc},
@@ -19,6 +26,13 @@ const MAX_SECONDS: u64 = 16;
 /// Quieter than this (root mean square of the samples) is taken as no voice at all.
 const SILENCE_RMS: f32 = 0.008;
 const MAX_TOKENS: usize = 64;
+/// How sure a recognizer that gives no probabilities, such as SenseVoice, is taken to be of what it heard.
+const UNKNOWN_CONFIDENCE: f32 = 0.9;
+/// The silence put on both sides of a recording for sherpa-onnx: without it Parakeet misses sounds at the edges of a
+/// word cut close, and hears "sixth" as "six".
+const PADDING: usize = w::SAMPLE_RATE * 3 / 10;
+const MISSING: &str = "Chưa tải model chấm phát âm, vào Cài đặt, mục Model trên máy để tải";
+const MISSING_ZH: &str = "Chưa tải model chấm phát âm tiếng Trung, vào Cài đặt, mục Model trên máy để tải";
 
 type Take = Result<(Vec<f32>, u32), String>;
 
@@ -164,22 +178,22 @@ fn silent(pcm: &[f32]) -> bool {
     pcm.len() < w::SAMPLE_RATE / 4 || rms < SILENCE_RMS
 }
 
-/// What was said and how sure Whisper was of it, from 0 to 1, or nothing for a stretch of silence: a long answer is
-/// heard a piece at a time, and a pause between two pieces is no error. A microphone sending nothing at all is.
+/// What was said and how sure the recognizer was of it, from 0 to 1, or nothing for a stretch of silence: a long
+/// answer is heard a piece at a time, and a pause between two pieces is no error. A microphone sending nothing at all is.
 pub fn hear_scored(pcm: &[f32], lang: &str, dir: &Path) -> Result<(String, f32), String> {
     if silent(pcm) {
         return if !pcm.is_empty() && pcm.iter().all(|&s| s == 0.0) { Err(silence_message(pcm).into()) } else { Ok((String::new(), 0.0)) };
     }
-    let (text, confidence) = transcribe(pcm, dir, if lang == "zh" { &CHINESE } else { &ENGLISH })?;
+    let (text, confidence) = transcribe(pcm, dir, lang == "zh")?;
     Ok((text.trim().to_owned(), confidence))
 }
 
-/// What was said, in English or, for "zh", in Chinese, by the Whisper of that course.
+/// What was said, in English or, for "zh", in Chinese, by the recognizer of that course.
 pub fn hear(pcm: &[f32], lang: &str, dir: &Path) -> Result<String, String> {
     if silent(pcm) {
         return Err(silence_message(pcm).into());
     }
-    let (text, _) = transcribe(pcm, dir, if lang == "zh" { &CHINESE } else { &ENGLISH })?;
+    let (text, _) = transcribe(pcm, dir, lang == "zh")?;
     let text = text.trim();
     if text.is_empty() { Err("Chưa nghe rõ, hãy nói lại hoặc gõ câu trả lời".into()) } else { Ok(text.to_owned()) }
 }
@@ -197,10 +211,10 @@ pub fn assess(target: &str, pcm: &[f32], dir: &Path) -> Result<Score, String> {
         });
     }
     if pron::is_chinese(target) {
-        let (heard, confidence) = transcribe(pcm, dir, &CHINESE)?;
+        let (heard, confidence) = transcribe(pcm, dir, true)?;
         return Ok(score_chinese(target, &heard, confidence));
     }
-    let (heard, confidence) = transcribe(pcm, dir, &ENGLISH)?;
+    let (heard, confidence) = transcribe(pcm, dir, false)?;
     Ok(score(target, &heard, confidence))
 }
 
@@ -228,7 +242,7 @@ fn message_of(score: u8) -> &'static str {
     }
 }
 
-/// The score of what was heard: the word itself scores by how sure Whisper was, anything else by how close
+/// The score of what was heard: the word itself scores by how sure the recognizer was, anything else by how close
 /// its phonemes are to the word's.
 pub fn score(target: &str, heard: &str, confidence: f32) -> Score {
     let (want, got) = (pron::words(target), pron::words(heard));
@@ -255,8 +269,8 @@ pub fn score(target: &str, heard: &str, confidence: f32) -> Score {
 }
 
 /// Chinese scores by its syllables, which simplified and traditional characters share: the target itself by how
-/// sure Whisper was, anything else by how close the syllables are, half with their tones and half without, so that
-/// a wrong tone costs less than a wrong sound.
+/// sure the recognizer was, anything else by how close the syllables are, half with their tones and half without, so
+/// that a wrong tone costs less than a wrong sound.
 pub fn score_chinese(target: &str, heard: &str, confidence: f32) -> Score {
     let (want, got) = (pron::syllables(target), pron::syllables(heard));
     let hit = !want.is_empty() && got.windows(want.len()).any(|w| w == want.as_slice());
@@ -309,45 +323,214 @@ fn missed(want: &[String], got: &[String]) -> Vec<String> {
     out
 }
 
-/// A Whisper model: its files, and the language it is told to hear, for one that hears more than English.
+/// A course's recognizers, the one suggested for a machine of this tier first and the Whisper of the first versions
+/// last. Parakeet 0.6B hears English best but takes four times as long as the 110M, so it leads on strong machines only.
+fn recognizers(zh: bool, tier: Tier) -> &'static [&'static str] {
+    match (zh, tier) {
+        (true, _) => &["sttsv", "sttzh"],
+        (false, Tier::Strong) => &["stt06b", "stt110m", "stt"],
+        (false, _) => &["stt110m", "stt06b", "stt"],
+    }
+}
+
+/// Whether `group` is the recognizer the settings suggest for this machine.
+pub(crate) fn suggested(group: &str) -> bool {
+    let tier = hardware::machine().tier;
+    [false, true].into_iter().any(|zh| recognizers(zh, tier)[0] == group)
+}
+
+/// The group of the recognizer a course hears with: the learner's choice `wanted` once it is downloaded, else the
+/// first one downloaded of those the machine prefers, or none at all.
+pub fn chosen(dir: &Path, lang: &str, wanted: &str) -> Option<&'static str> {
+    pick(recognizers(lang == "zh", hardware::machine().tier), wanted, |group| models::ready(dir, group))
+}
+
+fn pick(list: &'static [&'static str], wanted: &str, ready: impl Fn(&str) -> bool) -> Option<&'static str> {
+    list.iter().find(|&&g| g == wanted && ready(g)).or_else(|| list.iter().find(|&&g| ready(g))).copied()
+}
+
+/// The recognizer the learner chose for a course, read from the database, which every thread can open.
+fn wanted(dir: &Path, lang: &str) -> String {
+    let db = db::open(&dir.join("words.db")).ok();
+    db.and_then(|db| db::setting(&db, &db::scoped("stt_model", lang)).ok().flatten()).unwrap_or_default()
+}
+
+/// What hears a course: a recognizer of sherpa-onnx, or a Whisper of the first versions.
+enum Recognizer {
+    Sherpa(OfflineRecognizer),
+    Whisper(Box<Stt>),
+}
+
+/// The recognizer of each course in memory, English then Chinese, with its group: loading one takes a second or more,
+/// and a lesson hears many words.
+static LOADED: [Mutex<Option<(&str, Recognizer)>>; 2] = [Mutex::new(None), Mutex::new(None)];
+
+/// Lets go of the recognizer of a group of models in memory, before its files are deleted.
+pub fn unload(group: &str) {
+    for slot in &LOADED {
+        let mut loaded = slot.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        if loaded.as_ref().is_some_and(|(g, _)| *g == group) {
+            *loaded = None;
+        }
+    }
+}
+
+/// Loads the English recognizer ahead of the first recording and runs it once, so that the first word is not the
+/// slow one; the Chinese one loads on first use.
+pub fn warm_up(dir: &Path) {
+    if let Some(group) = chosen(dir, "en", &wanted(dir, "en")) {
+        let hum: Vec<f32> = (0..w::SAMPLE_RATE).map(|i| (i as f32 * 0.05).sin() * 0.01).collect();
+        if let Err(e) = hear_with(group, &hum, dir, false) {
+            eprintln!("warm up: {e}");
+        }
+    }
+}
+
+/// The text the course's recognizer hears and how sure it was, from 0 to 1.
+fn transcribe(pcm: &[f32], dir: &Path, zh: bool) -> Result<(String, f32), String> {
+    let lang = if zh { "zh" } else { "en" };
+    let group = chosen(dir, lang, &wanted(dir, lang)).ok_or(if zh { MISSING_ZH } else { MISSING })?;
+    hear_with(group, pcm, dir, zh)
+}
+
+fn hear_with(group: &'static str, pcm: &[f32], dir: &Path, zh: bool) -> Result<(String, f32), String> {
+    let mut loaded = LOADED[usize::from(zh)].lock().map_err(|_| "model giọng nói đang lỗi")?;
+    if loaded.as_ref().is_none_or(|(g, _)| *g != group) {
+        // The old one goes first, so that both are never in memory together.
+        *loaded = None;
+        let recognizer = match group {
+            "stt" => Recognizer::Whisper(Box::new(load_whisper(dir, &WHISPER_EN)?)),
+            "sttzh" => Recognizer::Whisper(Box::new(load_whisper(dir, &WHISPER_ZH)?)),
+            _ => Recognizer::Sherpa(load_sherpa(dir, group)?),
+        };
+        *loaded = Some((group, recognizer));
+    }
+    match loaded.as_mut().map(|(_, r)| r) {
+        Some(Recognizer::Sherpa(recognizer)) => hear_sherpa(recognizer, pcm),
+        Some(Recognizer::Whisper(stt)) => whisper(stt, pcm),
+        None => Err("model chưa nạp".into()),
+    }
+}
+
+/// A recognizer of sherpa-onnx on the threads the machine gives its models: Parakeet's transducer, or SenseVoice told
+/// that it hears Mandarin, with the inverse text normalization it was measured with.
+fn load_sherpa(dir: &Path, group: &str) -> Result<OfflineRecognizer, String> {
+    let folder = models::folder(dir, group).ok_or("Không có model này")?;
+    let file = |name: &str| Some(narrow(&folder.join(name)));
+    let mut config = OfflineRecognizerConfig::default();
+    config.model_config.num_threads = hardware::model_threads();
+    config.model_config.tokens = file("tokens.txt");
+    if group == "sttsv" {
+        config.model_config.sense_voice = OfflineSenseVoiceModelConfig { model: file("model.int8.onnx"), language: Some("zh".into()), use_itn: true };
+    } else {
+        config.model_config.transducer = OfflineTransducerModelConfig {
+            encoder: file("encoder.int8.onnx"),
+            decoder: file("decoder.int8.onnx"),
+            joiner: file("joiner.int8.onnx"),
+        };
+        config.model_config.model_type = Some("nemo_transducer".into());
+    }
+    OfflineRecognizer::create(&config).ok_or_else(|| "Không mở được model chấm phát âm, hãy xóa rồi tải lại trong Cài đặt".into())
+}
+
+fn hear_sherpa(recognizer: &OfflineRecognizer, pcm: &[f32]) -> Result<(String, f32), String> {
+    let silence = vec![0.0; PADDING];
+    let stream = recognizer.create_stream();
+    stream.accept_waveform(w::SAMPLE_RATE as i32, &[silence.as_slice(), pcm, silence.as_slice()].concat());
+    recognizer.decode(&stream);
+    result_json(&stream).as_deref().and_then(heard).ok_or_else(|| "Không đọc được kết quả nhận giọng".into())
+}
+
+// ponytail: sherpa-onnx's OfflineStream keeps its C pointer to itself, and the safe wrapper drops the probabilities
+// of the result, so its JSON is read here through that pointer, the stream's only field in 2.0.1, to which both
+// crates are pinned. The build stops if its size changes, not if a later version puts something else of a pointer's
+// size there: build the recognizer through sherpa-onnx-sys before moving off 2.0.1.
+const _: () = assert!(std::mem::size_of::<OfflineStream>() == std::mem::size_of::<*const sys::OfflineStream>());
+
+/// The result of a decoded stream as sherpa-onnx writes it, with the log probability of each token.
+fn result_json(stream: &OfflineStream) -> Option<String> {
+    // SAFETY: the stream is its pointer to the C stream and nothing else, as checked above; the C string is copied
+    // before it is freed.
+    unsafe {
+        let ptr = *(stream as *const OfflineStream).cast::<*const sys::OfflineStream>();
+        let json = sys::SherpaOnnxGetOfflineStreamResultAsJson(ptr);
+        if json.is_null() {
+            return None;
+        }
+        let text = std::ffi::CStr::from_ptr(json).to_string_lossy().into_owned();
+        sys::SherpaOnnxDestroyOfflineStreamResultJson(json);
+        Some(text)
+    }
+}
+
+/// The text of a result and how sure the recognizer was of it, from 0 to 1: the mean probability of its tokens, or
+/// UNKNOWN_CONFIDENCE for a recognizer that gives none.
+fn heard(json: &str) -> Option<(String, f32)> {
+    #[derive(Deserialize)]
+    struct Heard {
+        text: String,
+        #[serde(default)]
+        ys_log_probs: Vec<f32>,
+    }
+    let Heard { text, ys_log_probs: p } = serde_json::from_str(json).ok()?;
+    let confidence = if text.trim().is_empty() {
+        0.0
+    } else if p.is_empty() {
+        UNKNOWN_CONFIDENCE
+    } else {
+        p.iter().map(|l| l.exp()).sum::<f32>() / p.len() as f32
+    };
+    Some((text, confidence))
+}
+
+/// A path sherpa-onnx can open, as voice.rs makes them: its C API takes narrow strings, which on Windows lose letters
+/// such as those of a Vietnamese user name, so there a path that is not ASCII goes in its short 8.3 form when the
+/// disk keeps one.
+#[cfg(windows)]
+fn narrow(path: &Path) -> String {
+    use std::os::windows::ffi::{OsStrExt, OsStringExt};
+    let text = path.to_string_lossy().into_owned();
+    if text.is_ascii() {
+        return text;
+    }
+    let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+    let mut short = vec![0u16; 1024];
+    // SAFETY: `wide` ends in a zero and `short` holds as many units as it is said to.
+    let n = unsafe {
+        windows_sys::Win32::Storage::FileSystem::GetShortPathNameW(wide.as_ptr(), short.as_mut_ptr(), short.len() as u32)
+    } as usize;
+    if n == 0 || n >= short.len() {
+        return text;
+    }
+    std::ffi::OsString::from_wide(&short[..n]).to_string_lossy().into_owned()
+}
+
+#[cfg(not(windows))]
+fn narrow(path: &Path) -> String {
+    path.to_string_lossy().into_owned()
+}
+
+/// A Whisper of the first versions: its files, and the language it is told to hear, for one that hears more than
+/// English.
 struct Model {
-    group: &'static str,
     weights: &'static str,
     config: &'static str,
     tokenizer: &'static str,
     language: Option<&'static str>,
-    missing: &'static str,
-    loaded: &'static Mutex<Option<Stt>>,
 }
 
-static STT: Mutex<Option<Stt>> = Mutex::new(None);
-static STT_ZH: Mutex<Option<Stt>> = Mutex::new(None);
-
-static ENGLISH: Model = Model {
-    group: "stt",
+static WHISPER_EN: Model = Model {
     weights: models::WHISPER,
     config: models::WHISPER_CONFIG,
     tokenizer: models::WHISPER_TOKENIZER,
     language: None,
-    missing: "Chưa tải model chấm phát âm, vào Cài đặt để tải (42 MB)",
-    loaded: &STT,
 };
-static CHINESE: Model = Model {
-    group: "sttzh",
+static WHISPER_ZH: Model = Model {
     weights: models::WHISPER_ZH,
     config: models::WHISPER_ZH_CONFIG,
     tokenizer: models::WHISPER_ZH_TOKENIZER,
     language: Some("<|zh|>"),
-    missing: "Chưa tải model chấm phát âm tiếng Trung, vào Cài đặt để tải (45 MB)",
-    loaded: &STT_ZH,
 };
-
-/// Lets go of the Whisper of a group of models in memory, before its files are deleted.
-pub fn unload(group: &str) {
-    for kind in [&ENGLISH, &CHINESE].into_iter().filter(|k| k.group == group) {
-        *kind.loaded.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = None;
-    }
-}
 
 // Always the CPU: tiny Whisper takes about a second there, and the Metal kernels return garbage on some Macs (macOS 27).
 struct Stt {
@@ -361,7 +544,7 @@ struct Stt {
     suppress: Tensor,
 }
 
-fn load(dir: &Path, kind: &Model) -> Result<Stt, String> {
+fn load_whisper(dir: &Path, kind: &Model) -> Result<Stt, String> {
     let err = |e: candle_core::Error| e.to_string();
     let config: w::Config = std::fs::read_to_string(models::path(dir, kind.config))
         .map_err(|e| e.to_string())
@@ -393,28 +576,9 @@ fn load(dir: &Path, kind: &Model) -> Result<Stt, String> {
     Ok(Stt { model, tokenizer, config, filters, prefix, eot, suppress })
 }
 
-/// Loads the English Whisper ahead of the first recording and runs it once, so that the GPU kernels are compiled by
-/// then; the Chinese one loads on first use.
-pub fn warm_up(dir: &Path) {
-    if models::ready(dir, ENGLISH.group) {
-        let hum: Vec<f32> = (0..w::SAMPLE_RATE).map(|i| (i as f32 * 0.05).sin() * 0.01).collect();
-        if let Err(e) = transcribe(&hum, dir, &ENGLISH) {
-            eprintln!("warm up: {e}");
-        }
-    }
-}
-
 /// The text Whisper hears and how sure it was, from 0 to 1 (the mean probability of its tokens).
-fn transcribe(pcm: &[f32], dir: &Path, kind: &Model) -> Result<(String, f32), String> {
+fn whisper(stt: &mut Stt, pcm: &[f32]) -> Result<(String, f32), String> {
     let err = |e: candle_core::Error| e.to_string();
-    let mut guard = kind.loaded.lock().map_err(|_| "model giọng nói đang lỗi")?;
-    if guard.is_none() {
-        if !models::ready(dir, kind.group) {
-            return Err(kind.missing.into());
-        }
-        *guard = Some(load(dir, kind)?);
-    }
-    let stt = guard.as_mut().ok_or("model chưa nạp")?;
     let pcm = &pcm[..pcm.len().min(w::N_SAMPLES)];
     let mel = audio::pcm_to_mel(&stt.config, pcm, &stt.filters);
     let bins = stt.config.num_mel_bins;
@@ -536,59 +700,101 @@ mod tests {
         assert_eq!(row.iter().position(|&v| v == peak), Some(43));
     }
 
+    #[test]
+    fn the_choice_once_downloaded_else_the_one_the_machine_prefers() {
+        let all = |_: &str| true;
+        assert_eq!(pick(recognizers(false, Tier::Strong), "", all), Some("stt06b"));
+        assert_eq!(pick(recognizers(false, Tier::Medium), "", all), Some("stt110m"));
+        assert_eq!(pick(recognizers(false, Tier::Weak), "stt", all), Some("stt"));
+        assert_eq!(pick(recognizers(true, Tier::Weak), "", all), Some("sttsv"));
+        // A choice that is not downloaded, or that hears the other course, is no choice.
+        assert_eq!(pick(recognizers(false, Tier::Weak), "stt06b", |g| g != "stt06b"), Some("stt110m"));
+        assert_eq!(pick(recognizers(false, Tier::Strong), "sttsv", all), Some("stt06b"));
+        // The old Whisper still hears for a learner who has only it.
+        assert_eq!(pick(recognizers(false, Tier::Strong), "", |g| g == "stt"), Some("stt"));
+        assert_eq!(pick(recognizers(true, Tier::Strong), "sttsv", |g| g == "sttzh"), Some("sttzh"));
+        assert_eq!(pick(recognizers(false, Tier::Weak), "", |_| false), None);
+        // Each course has one suggestion on any machine, and never the old Whisper.
+        assert!(suggested("sttsv") && suggested("stt110m") != suggested("stt06b"));
+        assert!(!suggested("stt") && !suggested("sttzh") && !suggested("llm"));
+    }
+
+    #[test]
+    fn confidence_is_the_mean_probability_of_the_tokens() {
+        // Cut from what Parakeet wrote for "beautiful"; exp(-0.105361) is 0.9.
+        let json = r#"{"lang": "", "emotion": "", "event": "", "text": " beautiful", "timestamps": [0.32, 0.48],
+            "durations": [], "tokens":[" beaut", "iful"], "ys_log_probs": [-0.105361, 0.000000], "words": []}"#;
+        let (text, confidence) = heard(json).unwrap();
+        assert_eq!(text, " beautiful");
+        assert!((confidence - 0.95).abs() < 1e-5, "{confidence}");
+        // SenseVoice gives no probabilities; nothing heard is no confidence.
+        assert_eq!(heard(r#"{"text": "学习。", "ys_log_probs": []}"#), Some(("学习。".into(), UNKNOWN_CONFIDENCE)));
+        assert_eq!(heard(r#"{"text": "学习。"}"#).unwrap().1, UNKNOWN_CONFIDENCE);
+        assert_eq!(heard(r#"{"text": " ", "ys_log_probs": []}"#).unwrap().1, 0.0);
+        assert!(heard("{\"text\": ").is_none());
+    }
+
     /// The 16-bit samples of a WAV file, as floats.
     fn read_wav(bytes: &[u8]) -> Vec<f32> {
         let at = bytes.windows(4).position(|w| w == b"data").expect("a data chunk") + 8;
         bytes[at..].chunks_exact(2).map(|c| f32::from(i16::from_le_bytes([c[0], c[1]])) / 32768.0).collect()
     }
 
+    /// What a voice of macOS says, at 16 kHz.
     #[cfg(target_os = "macos")]
-    #[test]
-    #[ignore = "needs the downloaded models: cargo test -- --ignored"]
-    fn whisper_hears_a_spoken_word() {
-        let wav = std::env::temp_dir().join("card-english-test.wav");
+    fn say(voice: &str, text: &str) -> Vec<f32> {
+        let wav = std::env::temp_dir().join(format!("card-english-test-{}-{voice}-{}.wav", std::process::id(), text.len()));
         let said = std::process::Command::new("/usr/bin/say")
-            .args(["--file-format=WAVE", "--data-format=LEI16@16000", "-o"])
+            .args(["-v", voice, "--file-format=WAVE", "--data-format=LEI16@16000", "-o"])
             .arg(&wav)
-            .arg("beautiful")
+            .arg(text)
             .status()
             .unwrap();
         assert!(said.success());
-        let pcm = read_wav(&std::fs::read(&wav).unwrap());
-        let start = std::time::Instant::now();
-        let right = assess("beautiful", &pcm, &crate::models_only()).unwrap();
-        println!("{right:?} in {:?}", start.elapsed());
-        assert!(right.score >= 80, "{right:?}");
-        let wrong = assess("computer", &pcm, &crate::models_only()).unwrap();
-        println!("{wrong:?}");
-        assert!(wrong.score < 50, "{wrong:?}");
-        assert_eq!(assess("beautiful", &vec![0.0; 16_000], &crate::models_only()).unwrap().score, 0);
-        assert!(hear(&pcm, "en", &crate::models_only()).unwrap().to_lowercase().contains("beautiful"));
+        read_wav(&std::fs::read(&wav).unwrap())
+    }
+
+    /// Both Parakeets, each chosen in turn. With the archives unpacked in a folder of their own rather than in the data
+    /// folder: `CARD_ENGLISH_MODELS=<folder> cargo test hears_a -- --ignored --nocapture`.
+    #[cfg(target_os = "macos")]
+    #[test]
+    #[ignore = "needs the downloaded models: cargo test -- --ignored"]
+    fn parakeet_hears_a_spoken_word() {
+        let dir = crate::models_only();
+        let db = db::open(&dir.join("words.db")).unwrap();
+        let pcm = say("Samantha", "beautiful");
+        for group in ["stt110m", "stt06b"] {
+            db::set_setting(&db, "stt_model", group).unwrap();
+            assert_eq!(chosen(&dir, "en", group), Some(group));
+            let start = std::time::Instant::now();
+            let right = assess("beautiful", &pcm, &dir).unwrap();
+            let loading = start.elapsed();
+            let start = std::time::Instant::now();
+            let wrong = assess("computer", &pcm, &dir).unwrap();
+            println!("{group}: {right:?} in {loading:?} with loading; {wrong:?} in {:?}", start.elapsed());
+            assert!(right.score >= 80, "{right:?}");
+            assert!(wrong.score < 50, "{wrong:?}");
+            assert!(hear(&pcm, "en", &dir).unwrap().to_lowercase().contains("beautiful"));
+        }
+        assert_eq!(assess("beautiful", &vec![0.0; 16_000], &dir).unwrap().score, 0);
     }
 
     #[cfg(target_os = "macos")]
     #[test]
     #[ignore = "needs the downloaded models: cargo test -- --ignored"]
-    fn whisper_hears_a_chinese_word() {
-        let say = |text: &str| {
-            let wav = std::env::temp_dir().join(format!("card-english-test-{}.wav", text.len()));
-            let said = std::process::Command::new("/usr/bin/say")
-                .args(["-v", "Tingting", "--file-format=WAVE", "--data-format=LEI16@16000", "-o"])
-                .arg(&wav)
-                .arg(text)
-                .status()
-                .unwrap();
-            assert!(said.success());
-            read_wav(&std::fs::read(&wav).unwrap())
-        };
-        let word = say("学习");
-        let right = assess("学习", &word, &crate::models_only()).unwrap();
-        println!("{right:?}");
+    fn sensevoice_hears_a_chinese_word() {
+        let dir = crate::models_only();
+        assert_eq!(chosen(&dir, "zh", ""), Some("sttsv"));
+        let word = say("Tingting", "学习");
+        let start = std::time::Instant::now();
+        let right = assess("学习", &word, &dir).unwrap();
+        println!("{right:?} in {:?} with loading", start.elapsed());
         assert!(right.score >= 80, "{right:?}");
-        let wrong = assess("电脑", &word, &crate::models_only()).unwrap();
-        println!("{wrong:?}");
+        let start = std::time::Instant::now();
+        let wrong = assess("电脑", &word, &dir).unwrap();
+        println!("{wrong:?} in {:?}", start.elapsed());
         assert!(wrong.score < 50, "{wrong:?}");
-        let sentence = assess("我们明天去北京。", &say("我们明天去北京。"), &crate::models_only()).unwrap();
+        let sentence = assess("我们明天去北京。", &say("Tingting", "我们明天去北京。"), &dir).unwrap();
         println!("{sentence:?}");
         assert!(sentence.score >= 75, "{sentence:?}");
     }
@@ -605,6 +811,7 @@ mod tests {
         assert!(hear(&quiet, "zh", dir).unwrap_err().starts_with("Không nghe thấy giọng"));
         let voice: Vec<f32> = (0..16_000).map(|i| (i as f32 * 0.05).sin() * 0.2).collect();
         assert!(hear(&voice, "zh", dir).unwrap_err().starts_with("Chưa tải model chấm phát âm tiếng Trung"));
+        assert_eq!(hear(&voice, "en", dir).unwrap_err(), MISSING);
     }
 
     #[test]

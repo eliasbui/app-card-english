@@ -36,8 +36,27 @@ const FILES: [(&str, &str, &str, u64); 10] = [
     ("sttzh", WHISPER_ZH_TOKENIZER, "https://huggingface.co/lmz/candle-whisper/resolve/main/tokenizer-tiny.json", 2_480_452),
 ];
 
+/// The recognizers of sherpa-onnx, each an archive that unpacks to a folder of its name: group, that name, the size
+/// and SHA-256 of the archive, and the files the recognizer reads. Parakeet hears English, SenseVoice Chinese.
+const ARCHIVES: [(&str, &str, u64, &str, &[&str]); 3] = [
+    ("stt110m", "sherpa-onnx-nemo-parakeet_tdt_transducer_110m-en-36000-int8", 108_035_095, "f628312e9fdf8686374cb01a69425c41732529d540860311f16f37cbc32cfe9b", &PARAKEET),
+    ("stt06b", "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8", 482_468_385, "157c157bc51155e03e37d2466522a3a737dd9c72bb25f36eb18912964161e1ad", &PARAKEET),
+    ("sttsv", "sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2025-09-09", 165_783_878, "7305f7905bfcf77fa0b39388a313f3da35c68d971661a65475b56fb2162c8e63", &["model.int8.onnx", "tokens.txt"]),
+];
+const PARAKEET: [&str; 4] = ["encoder.int8.onnx", "decoder.int8.onnx", "joiner.int8.onnx", "tokens.txt"];
+const ASR_RELEASE: &str = "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models";
+
+fn archive(group: &str) -> Option<(&'static str, u64, &'static str, &'static [&'static str])> {
+    ARCHIVES.iter().find(|a| a.0 == group).map(|a| (a.1, a.2, a.3, a.4))
+}
+
 pub fn path(dir: &Path, file: &str) -> PathBuf {
     dir.join("models").join(file)
+}
+
+/// The folder an archive group unpacks to, and none for another group.
+pub(crate) fn folder(dir: &Path, group: &str) -> Option<PathBuf> {
+    archive(group).map(|(name, ..)| path(dir, name))
 }
 
 /// The file is there and has the size of the source: a longer or shorter one is a broken download.
@@ -46,25 +65,43 @@ fn intact(dir: &Path, name: &str, size: u64) -> bool {
 }
 
 pub fn ready(dir: &Path, group: &str) -> bool {
+    // An archive is checked whole before it is unpacked, so its files only need to be there.
+    if let Some((name, .., files)) = archive(group) {
+        return files.iter().all(|f| path(dir, name).join(f).is_file());
+    }
     FILES
         .iter()
         .filter(|f| f.0 == group)
         .all(|f| intact(dir, f.1, f.3))
 }
 
+/// For the settings page: each group's size and whether it is there, and for a recognizer whether it is the one
+/// suggested for this machine.
 pub fn status(dir: &Path) -> Value {
     let size = |group: &str| FILES.iter().filter(|f| f.0 == group).map(|f| f.3).sum::<u64>();
-    json!({
+    let mut status = json!({
         "llm": { "ready": ready(dir, "llm"), "size": size("llm") },
         "llm15": { "ready": ready(dir, "llm15"), "size": size("llm15") },
         "stt": { "ready": ready(dir, "stt"), "size": size("stt") },
         "sttzh": { "ready": ready(dir, "sttzh"), "size": size("sttzh") },
-    })
+    });
+    for (group, _, size, ..) in ARCHIVES {
+        status[group] = json!({ "ready": ready(dir, group), "size": size, "suggested": crate::speech::suggested(group) });
+    }
+    status
 }
 
 /// Removes the files of a group, but not one that another downloaded group still reads. The models in memory are let
 /// go first: Windows does not delete a file that is open.
 pub fn delete(dir: &Path, group: &str) -> Result<(), String> {
+    if let Some((name, ..)) = archive(group) {
+        let _no_download = DOWNLOADING.try_lock().map_err(|_| "Đang tải model, hãy chờ tải xong rồi xóa")?;
+        crate::speech::unload(group);
+        return match std::fs::remove_dir_all(path(dir, name)) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(format!("Không xóa được model: {e}")),
+            _ => Ok(()),
+        };
+    }
     let files: Vec<_> = FILES.iter().filter(|f| f.0 == group).collect();
     if files.is_empty() {
         return Err("Không có model này".into());
@@ -90,6 +127,17 @@ pub fn delete(dir: &Path, group: &str) -> Result<(), String> {
 
 /// Downloads the missing files of a group, reporting the bytes done out of the total.
 pub fn download(dir: &Path, group: &str, progress: impl Fn(u64, u64)) -> Result<(), String> {
+    if let Some((name, size, sha256, _)) = archive(group) {
+        let _one_at_a_time = DOWNLOADING.lock().map_err(|_| "Đang tải model bị lỗi")?;
+        if !ready(dir, group) {
+            fetch_archive(dir, &format!("{ASR_RELEASE}/{name}.tar.bz2"), size, sha256, &progress)?;
+        }
+        if !ready(dir, group) {
+            return Err("Gói model tải về thiếu file, hãy thử lại".into());
+        }
+        progress(size, size);
+        return Ok(());
+    }
     std::fs::create_dir_all(dir.join("models")).map_err(|e| e.to_string())?;
     let files: Vec<_> = FILES.iter().filter(|f| f.0 == group).collect();
     if files.is_empty() {
@@ -176,6 +224,23 @@ mod tests {
         assert!(!path(&dir, QWEN_TOKENIZER).exists() && !path(&dir, QWEN).exists());
         delete(&dir, "llm").unwrap();
         assert!(delete(&dir, "nope").is_err());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_recognizer_is_there_with_all_its_files_and_goes_with_its_folder() {
+        let dir = std::env::temp_dir().join(format!("card-english-archive-test-{}", std::process::id()));
+        let unpacked = folder(&dir, "sttsv").unwrap();
+        assert!(folder(&dir, "stt").is_none());
+        std::fs::create_dir_all(&unpacked).unwrap();
+        std::fs::write(unpacked.join("tokens.txt"), "a").unwrap();
+        assert!(!ready(&dir, "sttsv"));
+        std::fs::write(unpacked.join("model.int8.onnx"), "a").unwrap();
+        assert!(ready(&dir, "sttsv") && !ready(&dir, "stt110m"));
+        assert_eq!(status(&dir)["sttsv"], json!({ "ready": true, "size": 165_783_878, "suggested": true }));
+        delete(&dir, "sttsv").unwrap();
+        assert!(!unpacked.exists() && !ready(&dir, "sttsv"));
+        delete(&dir, "sttsv").unwrap();
         let _ = std::fs::remove_dir_all(&dir);
     }
 }

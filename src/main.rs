@@ -127,11 +127,13 @@ fn day_start() -> i64 {
 /// The downloaded models seen from a folder of their own, for the tests that run them: an `Ai` opens the database of
 /// its folder, which in the real one is the learner's, and would bring it up to the version under test. Each model is
 /// a link of its own in a real `models` folder, so that a test deleting files there only ever deletes links.
+/// `CARD_ENGLISH_MODELS` names another folder of models to link instead of the data folder's.
 #[cfg(test)]
 fn models_only() -> PathBuf {
     let dir = std::env::temp_dir().join(format!("card-english-real-models-{}", std::process::id()));
     std::fs::create_dir_all(dir.join("models")).unwrap();
-    for entry in std::fs::read_dir(data_dir().join("models")).into_iter().flatten().flatten() {
+    let from = std::env::var_os("CARD_ENGLISH_MODELS").map_or_else(|| data_dir().join("models"), PathBuf::from);
+    for entry in std::fs::read_dir(from).into_iter().flatten().flatten() {
         #[cfg(unix)]
         let _ = std::os::unix::fs::symlink(entry.path(), dir.join("models").join(entry.file_name()));
     }
@@ -921,12 +923,14 @@ impl App {
             "delete_model" => {
                 let group = text("group");
                 // Deleting a model changes no setting, so they are read here, on the thread that holds them; only the
-                // local model in use is worked out again once the files are gone.
+                // models in use are worked out again once the files are gone.
                 let mut settings = self.settings();
                 let wanted = self.setting("local_model").unwrap_or_default();
+                let (course, hearing) = (self.course(), self.setting("stt_model").unwrap_or_default());
                 background(Box::new(move || {
                     models::delete(&dir, &group)?;
                     settings["local_model"] = json!(ai::local_group(&dir, &wanted));
+                    settings["stt_model"] = json!(speech::chosen(&dir, &course, &hearing).unwrap_or_default());
                     Ok(json!({ "models": models::status(&dir), "settings": settings }))
                 }));
             }
@@ -1456,6 +1460,8 @@ impl App {
             "ai_provider": self.provider(),
             // The one in use, which is the better one downloaded when the learner never chose.
             "local_model": ai::local_group(&self.dir, &text("local_model")),
+            // The course's recognizer in use, by the same rule; none until one is downloaded.
+            "stt_model": speech::chosen(&self.dir, &self.course(), &text("stt_model")).unwrap_or_default(),
             "tutor_ai": text("tutor_ai"),
             "has_gemini_key": self.setting("gemini_key").is_some(),
             "has_deepseek_key": self.setting("deepseek_key").is_some(),
@@ -1552,6 +1558,7 @@ fn valid_setting(key: &str, value: &str) -> bool {
         "new_per_day" | "remind_hours" | "daily_goal" => value.parse::<u32>().is_ok_and(|n| n <= 1000),
         "chatgpt_welcomed" => value == "1",
         "local_model" => matches!(value, "llm" | "llm15"),
+        "stt_model" => matches!(value, "stt110m" | "stt06b" | "stt" | "sttsv" | "sttzh"),
         "tutor_ai" => matches!(value, "" | "local:llm" | "local:llm15") || ai::PROVIDERS[1..].contains(&value),
         "desired_retention" => between(value, 0.7, 0.97),
         "speech_rate" => between(value, 0.5, 1.5),
@@ -1871,6 +1878,7 @@ mod tests {
         assert!(HOTKEYS.iter().all(|h| hotkey_of(h).is_some()));
         assert_eq!([" b2 ", "B3", "C1+", "hsk 3", "HSK0", "HSK10"].map(valid_level), ["B2", "", "", "HSK3", "", ""]);
         assert!(valid_setting("course", "zh") && !valid_setting("course", "fr"));
+        assert!(valid_setting("stt_model", "stt06b") && valid_setting("stt_model", "sttzh") && !valid_setting("stt_model", "llm") && !valid_setting("stt_model", ""));
         assert!(valid_setting("easy_days", "0,6") && valid_setting("easy_days", "") && !valid_setting("easy_days", "7") && !valid_setting("easy_days", "1,,2"));
         assert_eq!(copied("  take off\u{7}\r\n"), "take off");
     }
