@@ -429,7 +429,7 @@
     // A hard roadmap's stage whose words are learned waits for its test.
     if (s.test?.pending && window.openExam) return window.openExam(r.uid, r.current);
     // Today's session first; with nothing left in it, words for the stage, else its exercises.
-    if (state.stats && state.stats.due + state.stats.new_today > 0) return $("btn-start").click();
+    if (state.stats && state.stats.due + state.stats.new_today > 0) return startSession({ topic: "" });
     if (s.words < s.target) { pendingSuggest = r.current; return go("roadmap"); }
     practise(s.exercises[0] || "flash", s);
   });

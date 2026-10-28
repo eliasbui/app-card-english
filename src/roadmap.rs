@@ -722,7 +722,11 @@ mod tests {
         assert_eq!(topics(&db, "en").unwrap().iter().filter(|t| !t.uid.is_empty()).count(), 3);
         assert_eq!(focus_topics(&db, "en").unwrap(), ["Công việc"]);
         db::set_setting(&db, "new_per_day", "1").unwrap();
-        assert_eq!(db::session(&db, now, now, "en").unwrap().last().unwrap().word, "meeting", "not the older word");
+        assert_eq!(db::session(&db, now, now, "en", "").unwrap().last().unwrap().word, "meeting", "not the older word");
+        // A session on one topic: its reviews and its new words only, still within today's new words.
+        let travel: Vec<_> = db::session(&db, now, now, "en", "Du lịch").unwrap().into_iter().map(|w| w.word).collect();
+        assert!(!travel.is_empty() && travel.iter().all(|w| w.starts_with("trip")), "{travel:?}");
+        assert_eq!(db::session(&db, now, now, "en", "Họp").unwrap().len(), 0);
         // Marked done, the next stage is current; a second roadmap becomes the active one and the first is kept.
         r.steps[1].done = true;
         save_roadmap(&db, "en", &r, now).unwrap();

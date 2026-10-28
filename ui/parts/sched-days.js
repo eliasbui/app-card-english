@@ -97,7 +97,8 @@
   $("sched-ok").onclick = async () => {
     const { postpone, days } = dialog;
     close();
-    if (!postpone) return startSession({ ahead: days });
+    // The dialog counts every topic, so the session does too.
+    if (!postpone) return startSession({ ahead: days, topic: "" });
     try {
       const moved = await app.call("postpone", { days, day_start: dayStart() });
       toast(`Đã dời ${moved} từ sang ${days === 1 ? "ngày mai" : `${days} ngày tới`}`);

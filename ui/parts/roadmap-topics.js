@@ -21,9 +21,39 @@
     }
     renderChips();
     renderCard();
+    renderStudyTopics();
     if ($("page-words").classList.contains("active")) renderWords();
   }
   window.loadTopics = loadTopics;
+
+  // Home: today's session on the words of one topic only.
+  $("session-hint").insertAdjacentHTML("afterend", `
+    <div class="row study-topic hidden"><label for="study-topic">Học theo chủ đề</label>
+      <select id="study-topic"><option value="">Mọi chủ đề</option></select></div>`);
+  function renderStudyTopics() {
+    const select = $("study-topic"), keep = select.value;
+    const names = state.topics.filter((t) => t.words > 0).map((t) => t.name);
+    select.innerHTML = '<option value="">Mọi chủ đề</option>' + names.map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
+    select.value = names.includes(keep) ? keep : "";
+    select.parentElement.classList.toggle("hidden", !names.length);
+  }
+  $("study-topic").onchange = () => refreshHome();
+  // The numbers, the hint and the start button of Home then count only what a session on the topic would bring.
+  hooks.home.push(async () => {
+    const topic = $("study-topic").value;
+    if (!topic) return;
+    const words = await app.call("session", { day_start: dayStart(), topic });
+    if ($("study-topic").value !== topic) return;
+    const due = words.filter((w) => w.learned_at > 0).length, n = words.length;
+    const t = state.topics.find((x) => x.name === topic);
+    countUp($("st-due"), due);
+    countUp($("st-new"), n - due);
+    $("session-hint").textContent = n ? `Chỉ các từ của chủ đề "${topic}", khoảng ${Math.max(1, Math.round(n * 0.4))} phút là xong.`
+      : t && t.words > t.learned ? `Hôm nay bạn đã học đủ số từ mới. Luyện thêm chủ đề "${topic}" ở mục Bài tập, hoặc tăng số từ mới mỗi ngày trong Cài đặt.`
+      : `Chủ đề "${topic}" hôm nay không còn từ cần ôn. Luyện thêm ở mục Bài tập.`;
+    $("btn-start").disabled = n === 0;
+    $("btn-start").classList.toggle("pulse", n > 0);
+  });
 
   /// The chips of the AI suggestions: the learner's topics, then the usual ones of the course.
   function renderChips() {
@@ -62,7 +92,7 @@
           <i class="tdot tc-${t.color || "none"}"></i>
           <div class="grow"><b>${esc(t.name)}</b> <span class="muted small">${t.words ? `${t.words} từ, ${t.learned} đã thuộc` : "chưa có từ nào"}</span>
             ${t.description ? `<div class="muted small">${esc(t.description)}</div>` : ""}</div>
-          ${t.words ? '<button class="btn small ghost" data-t="filter">Xem từ</button>' : ""}
+          ${t.words ? '<button class="btn small" data-t="study">Học</button><button class="btn small ghost" data-t="filter">Xem từ</button>' : ""}
           <button class="btn small" data-t="edit">Sửa</button>
           <button class="btn small danger" data-t="del">Xóa</button>
         </div>`).join("") || '<p class="muted">Chưa có chủ đề nào. Đặt tên cho chủ đề đầu tiên ở trên.</p>';
@@ -116,6 +146,11 @@
       editingTopic = null;
       renderCard();
       renderWords();
+    }
+    if (b.dataset.t === "study") {
+      $("study-topic").value = t.name;
+      go("home");
+      return startSession();
     }
     if (b.dataset.t === "filter") {
       $("topic-filter").value = t.name;

@@ -1103,7 +1103,7 @@ impl App {
                 // and their schedule changes only when they are answered.
                 let ahead = args["ahead"].as_i64().unwrap_or(0).clamp(0, 3);
                 let until = if ahead > 0 { day_start + (ahead + 1) * db::DAY - 1 } else { now() };
-                db::session(db, until, day_start, &self.course()).map(|w| json!(w)).map_err(e)
+                db::session(db, until, day_start, &self.course(), args["topic"].as_str().unwrap_or_default()).map(|w| json!(w)).map_err(e)
             }
             "postpone" => {
                 let days = args["days"].as_i64().unwrap_or(0);

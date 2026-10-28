@@ -1650,9 +1650,10 @@ $("btn-go-suggest").onclick = () => { go("words"); openSuggest(); };
 
 let session = null;
 $("btn-start").onclick = () => startSession();
-/// Starts a session; `{ ahead: n }` also brings the reviews due in the next n days, soonest first.
+/// Starts a session, on the topic picked on Home if any; `{ ahead: n }` also brings the reviews due in the next
+/// n days, soonest first.
 async function startSession(args = {}) {
-  const words = await app.call("session", { day_start: dayStart(), ...args });
+  const words = await app.call("session", { day_start: dayStart(), topic: $("study-topic")?.value || "", ...args });
   if (!words.length) return refreshHome();
   session = { queue: words, done: 0, total: words.length, flipped: false, xp: 0, history: [], seen: [] };
   $("session-start").classList.add("hidden");

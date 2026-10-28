@@ -548,16 +548,20 @@ pub fn device(db: &Connection) -> rusqlite::Result<String> {
 }
 
 /// What a session of a course ("en" or "zh") works through: the reviews that are due, then as many new words as
-/// today still allows, those of the current stage of the roadmap first.
-pub fn session(db: &Connection, now: i64, day_start: i64, lang: &str) -> rusqlite::Result<Vec<Word>> {
-    let mut words = select(db, "WHERE learned_at > 0 AND due <= ?1 AND lang = ?2 AND NOT skipped ORDER BY due", params![now, lang])?;
+/// today still allows, those of the current stage of the roadmap first; only the words of `topic` unless it is empty.
+pub fn session(db: &Connection, now: i64, day_start: i64, lang: &str, topic: &str) -> rusqlite::Result<Vec<Word>> {
+    let mut words = select(
+        db,
+        "WHERE learned_at > 0 AND due <= ?1 AND lang = ?2 AND NOT skipped AND (?3 = '' OR topic = ?3) ORDER BY due",
+        params![now, lang, topic],
+    )?;
     let left = new_left(db, day_start, lang)?;
     let focus = json!(roadmap::focus_topics(db, lang)?).to_string();
     words.extend(select(
         db,
-        "WHERE learned_at = 0 AND lang = ?2 AND NOT skipped
+        "WHERE learned_at = 0 AND lang = ?2 AND NOT skipped AND (?4 = '' OR topic = ?4)
          ORDER BY lower(topic) IN (SELECT lower(value) FROM json_each(?3)) DESC, created LIMIT ?1",
-        params![left, lang, focus],
+        params![left, lang, focus, topic],
     )?);
     Ok(words)
 }
@@ -1308,7 +1312,7 @@ mod tests {
         let english = get(&db, en).unwrap().unwrap();
         assert_eq!((english.lang.as_str(), english.hanviet.as_str(), english.example_reading.as_str()), ("en", "", ""));
         // Each course has its own new word today.
-        let words = |lang| session(&db, 10, 0, lang).unwrap().into_iter().map(|w| w.word).collect::<Vec<_>>();
+        let words = |lang| session(&db, 10, 0, lang, "").unwrap().into_iter().map(|w| w.word).collect::<Vec<_>>();
         assert_eq!(words("en"), ["deadline"]);
         assert_eq!(words("zh"), ["学习"]);
         grade(&db, zh, 3, 10, 0.9).unwrap();
@@ -1327,7 +1331,7 @@ mod tests {
         let (a, b) = (add(&db, "alpha", 0), add(&db, "beta", 0));
         grade(&db, a, 3, 10, 0.9).unwrap();
         let due = 10 + 3 * DAY;
-        let words = || session(&db, due, due, "en").unwrap().into_iter().map(|w| w.word).collect::<Vec<_>>();
+        let words = || session(&db, due, due, "en", "").unwrap().into_iter().map(|w| w.word).collect::<Vec<_>>();
         assert_eq!(words(), ["alpha", "beta"]);
         assert!(set_skipped(&db, a, true).unwrap().unwrap().skipped);
         set_skipped(&db, b, true).unwrap();
@@ -1455,12 +1459,12 @@ mod tests {
         for word in ["one", "two", "three"] {
             add(&db, word, 10);
         }
-        let first = session(&db, 20, 0, "en").unwrap();
+        let first = session(&db, 20, 0, "en", "").unwrap();
         assert_eq!(first.iter().map(|w| w.word.as_str()).collect::<Vec<_>>(), ["one"]);
         grade(&db, first[0].id, 1, 20, 0.9).unwrap();
         // The forgotten word is due again in ten minutes, and today's one new word is used up.
-        assert!(session(&db, 21, 0, "en").unwrap().is_empty());
-        let later = session(&db, 20 + RELEARN_SECONDS, 0, "en").unwrap();
+        assert!(session(&db, 21, 0, "en", "").unwrap().is_empty());
+        let later = session(&db, 20 + RELEARN_SECONDS, 0, "en", "").unwrap();
         assert_eq!(later.iter().map(|w| w.word.as_str()).collect::<Vec<_>>(), ["one"]);
         let s = stats(&db, 20 + RELEARN_SECONDS, 0, "en").unwrap();
         assert_eq!((s.total, s.due, s.new_today, s.new_waiting, s.reviews, s.reviews_today), (3, 1, 0, 2, 1, 1));

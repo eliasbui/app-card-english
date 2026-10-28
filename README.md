@@ -28,6 +28,7 @@ Lịch ôn tập:
 - Chọn tỉ lệ nhớ mong muốn 80-95%.
 - Hoàn tác câu trả lời vừa rồi (phím Z).
 - Phím tắt khi ôn: Space, 1-4.
+- Học theo chủ đề: chọn chủ đề ngay dưới số từ cần ôn ở trang Học hôm nay, hoặc bấm Học ở một chủ đề trong Từ vựng, Chủ đề; buổi học chỉ gồm từ cần ôn và từ mới của chủ đề đó, vẫn trong giới hạn số từ mới mỗi ngày.
 
 Bài tập:
 
