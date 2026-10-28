@@ -1138,7 +1138,7 @@ impl App {
                 match cmd {
                     "delete_many" => db::many(db, &ids, db::delete),
                     "skip_many" => db::many(db, &ids, |db, id| db::set_skipped(db, id, on).map(drop)),
-                    _ => db::many(db, &ids, |db, id| db::set_topic(db, id, &topic)),
+                    _ => db::many(db, &ids, |db, id| db::set_topic(db, id, &topic, now())),
                 }
                 .map(|n| json!(n))
                 .map_err(e)

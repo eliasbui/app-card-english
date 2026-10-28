@@ -22,7 +22,11 @@ pub const DOC: &str = "card-english-sync.json.gz";
 /// Tables of user data that follow the sync convention of the database (`uid`, `updated`, `deleted`), each with
 /// the columns that travel, never `id`. A row is merged by its `uid`, the later `updated` winning; a deletion is
 /// `deleted = 1` with a later `updated`, so it travels like any change.
-pub const TABLES: &[(&str, &[&str])] = &[];
+pub const TABLES: &[(&str, &[&str])] = &[
+    ("chat", &["uid", "updated", "deleted", "lang", "thread", "role", "text", "vi", "reading", "source", "created"]),
+    ("topics", &["uid", "updated", "deleted", "lang", "name", "color", "description"]),
+    ("roadmaps", &["uid", "updated", "deleted", "lang", "purpose", "level", "start", "deadline", "minutes", "steps", "active"]),
+];
 
 /// The words' columns that travel; `id` stays on each machine and `ease` belongs to the old SM-2 schedule.
 const WORD_COLUMNS: &[&str] = &[
@@ -545,6 +549,25 @@ mod tests {
 
     fn meaning(db: &Connection, word: &str) -> Option<String> {
         db::find(db, word).unwrap().map(|w| w.meaning)
+    }
+
+    #[test]
+    fn the_chat_topics_and_roadmaps_travel_and_so_do_their_deletions() {
+        let (a, b) = (memory(), memory());
+        a.execute_batch(
+            "INSERT INTO chat (uid, lang, thread, role, text, created, updated) VALUES ('c1', 'en', 'tutor', 'user', 'hi', 5, 5);
+             INSERT INTO topics (uid, lang, name, updated) VALUES ('t1', 'en', 'Du lịch', 5);
+             INSERT INTO roadmaps (uid, lang, purpose, steps, active, updated) VALUES ('r1', 'zh', 'HSK 4', '[]', 1, 5);",
+        )
+        .unwrap();
+        assert_eq!(pass(&a, "A", &b, "B").changed, 3);
+        let count = |db: &Connection, table: &str| -> i64 {
+            db.query_row(&format!("SELECT count(*) FROM {table} WHERE deleted = 0"), [], |r| r.get(0)).unwrap()
+        };
+        assert_eq!((count(&b, "chat"), count(&b, "topics"), count(&b, "roadmaps")), (1, 1, 1));
+        a.execute("UPDATE topics SET deleted = 1, updated = 9 WHERE uid = 't1'", []).unwrap();
+        pass(&a, "A", &b, "B");
+        assert_eq!(count(&b, "topics"), 0);
     }
 
     #[test]

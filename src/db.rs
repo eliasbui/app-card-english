@@ -467,8 +467,8 @@ pub fn many(db: &Connection, ids: &[i64], each: impl Fn(&Connection, i64) -> rus
     Ok(ids.len())
 }
 
-pub fn set_topic(db: &Connection, id: i64, topic: &str) -> rusqlite::Result<()> {
-    db.execute("UPDATE words SET topic = ?2 WHERE id = ?1", params![id, topic]).map(|_| ())
+pub fn set_topic(db: &Connection, id: i64, topic: &str, now: i64) -> rusqlite::Result<()> {
+    db.execute("UPDATE words SET topic = ?2, updated = ?3 WHERE id = ?1", params![id, topic, now]).map(|_| ())
 }
 
 pub fn set_score(db: &Connection, id: i64, score: i64) -> rusqlite::Result<()> {

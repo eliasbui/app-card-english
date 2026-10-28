@@ -222,7 +222,7 @@ fn topic_rows(db: &Connection, lang: &str) -> rusqlite::Result<Vec<(String, Stri
 
 /// A topic's new name on its words and in the stages of the roadmaps; an empty name takes it away.
 fn rename(db: &Connection, lang: &str, old: &str, new: &str, now: i64) -> rusqlite::Result<()> {
-    db.execute("UPDATE words SET topic = ?3 WHERE lang = ?1 AND topic = ?2", params![lang, old, new])?;
+    db.execute("UPDATE words SET topic = ?3, updated = ?4 WHERE lang = ?1 AND topic = ?2", params![lang, old, new, now])?;
     for mut r in roadmaps(db, lang)? {
         let before = r.steps.clone();
         for s in &mut r.steps {
