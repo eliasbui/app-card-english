@@ -84,6 +84,8 @@ const MAX_COPIED: usize = 4000;
 const INBOX_EVERY: Duration = Duration::from_secs(2);
 /// The longest text the reader keeps for a course, in bytes, and cuts into words at a time.
 const MAX_READER: usize = 256 * 1024;
+/// The thread of the chat with the tutor; each course has its own.
+const TUTOR: &str = "tutor";
 
 enum UserEvent {
     Ipc(String),
@@ -606,6 +608,92 @@ impl App {
                     })
                 }));
             }
+            "tutor" => {
+                let question = text("text");
+                let settings = self.ai_settings();
+                let course = self.course();
+                let words = self.course_words(&course);
+                let history = db::messages(&self.db, &course, TUTOR, 8).unwrap_or_default();
+                let asked = now();
+                background(Box::new(move || {
+                    let ai = ai::Ai::new(&settings, &dir);
+                    let result = ai.tutor(&question, &words, &history, course == "zh", asked);
+                    record_usage(&dir, &day, &ai.attempts.borrow());
+                    let answer = result?;
+                    // Both lines are kept once there is an answer; a failed question stays in the box to ask again.
+                    let db = db::open(&dir.join("words.db")).map_err(|e| e.to_string())?;
+                    let line = |role: &str, text: &str, source: String| db::Message { thread: TUTOR.into(), role: role.into(), text: text.into(), source, ..db::Message::default() };
+                    let user = db::add_message(&db, &course, &line("user", question.trim(), String::new()), asked).map_err(|e| e.to_string())?;
+                    let reply = db::add_message(&db, &course, &line("ai", &answer.text, answer.by.name()), now()).map_err(|e| e.to_string())?;
+                    Ok(json!({ "user": user, "reply": reply, "answer": answer }))
+                }));
+            }
+            "roleplay" => {
+                // A new role-play of a scenario, or the learner's line and the next one of a role-play under way.
+                let course = self.course();
+                let thread = match text("thread") {
+                    t if t.is_empty() => format!("roleplay:{}:{}", text("scenario"), db::new_uid(&self.db).unwrap_or_default()),
+                    t => t,
+                };
+                let said = text("text").trim().to_owned();
+                let Some(scene) = scene_of(&thread) else { return self.post(&reply(Err("Không có tình huống này".into()))) };
+                let mut history = db::messages(&self.db, &course, &thread, 60).unwrap_or_default();
+                if !history.is_empty() && (said.is_empty() || said.chars().count() > 500) {
+                    return self.post(&reply(Err("Hãy nói hoặc gõ một câu trả lời, ngắn hơn 500 ký tự".into())));
+                }
+                let settings = self.ai_settings();
+                let words = self.course_words(&course);
+                let at = now();
+                background(Box::new(move || {
+                    let mine = db::Message { thread: thread.clone(), role: "user".into(), text: said.clone(), ..db::Message::default() };
+                    if !said.is_empty() {
+                        history.push(mine.clone());
+                    }
+                    let ai = ai::Ai::new(&settings, &dir);
+                    let result = ai.roleplay(scene, &words, &history, course == "zh");
+                    record_usage(&dir, &day, &ai.attempts.borrow());
+                    let line = result?;
+                    let db = db::open(&dir.join("words.db")).map_err(|e| e.to_string())?;
+                    let user = if said.is_empty() { Value::Null } else { json!(db::add_message(&db, &course, &mine, at).map_err(|e| e.to_string())?) };
+                    let partner = db::Message {
+                        thread,
+                        role: "ai".into(),
+                        text: line.text.clone(),
+                        vi: line.vi.clone(),
+                        reading: line.reading.clone(),
+                        source: line.by.name(),
+                        ..db::Message::default()
+                    };
+                    let reply = db::add_message(&db, &course, &partner, now()).map_err(|e| e.to_string())?;
+                    Ok(json!({ "user": user, "reply": reply, "by": line.by }))
+                }));
+            }
+            "roleplay_end" => {
+                let course = self.course();
+                let thread = text("thread");
+                let Some(scene) = scene_of(&thread) else { return self.post(&reply(Err("Không có tình huống này".into()))) };
+                let history = db::messages(&self.db, &course, &thread, 60).unwrap_or_default();
+                let settings = self.ai_settings();
+                let words = self.course_words(&course);
+                background(Box::new(move || {
+                    let ai = ai::Ai::new(&settings, &dir);
+                    let result = ai.roleplay_feedback(scene, &words, &history, course == "zh");
+                    record_usage(&dir, &day, &ai.attempts.borrow());
+                    let notes = result?;
+                    let text = json!({ "good": notes.good, "mistakes": notes.mistakes, "used": notes.used, "tips": notes.tips }).to_string();
+                    let db = db::open(&dir.join("words.db")).map_err(|e| e.to_string())?;
+                    let line = db::Message { thread, role: "feedback".into(), text, source: notes.by.name(), ..db::Message::default() };
+                    let reply = db::add_message(&db, &course, &line, now()).map_err(|e| e.to_string())?;
+                    Ok(json!({ "reply": reply, "by": notes.by }))
+                }));
+            }
+            "transcribe" => {
+                let course = self.course();
+                background(Box::new(move || {
+                    let pcm = speech::stop()?;
+                    speech::hear(&pcm, &course, &dir).map(|t| json!(t))
+                }));
+            }
             "ai_models" => {
                 let provider = text("provider");
                 let settings = self.ai_settings();
@@ -1008,6 +1096,17 @@ impl App {
                 estimate.moves.retain(|m| packs::find(m.pack).is_some_and(|p| m.to > packs::position(db, p)));
                 Ok(json!(estimate))
             }
+            "chat_history" | "chat_clear" => {
+                let thread = args["thread"].as_str().unwrap_or_default();
+                if !(thread == TUTOR || scene_of(thread).is_some()) {
+                    return Err("Không tìm thấy cuộc trò chuyện này".into());
+                }
+                if cmd == "chat_clear" {
+                    return db::clear_thread(db, &self.course(), thread, now()).map(|_| Value::Null).map_err(e);
+                }
+                db::messages(db, &self.course(), thread, 60).map(|m| json!(m)).map_err(e)
+            }
+            "roleplay_sessions" => db::threads(db, &self.course(), "roleplay:", 6).map(|t| json!(t)).map_err(e),
             "open_url" => {
                 let url = args["url"].as_str().unwrap_or_default();
                 if !(update::is_release_url(url) || OPEN_URLS.contains(&url)) {
@@ -1038,6 +1137,11 @@ impl App {
             deepseek_key: text("deepseek_key"),
             deepseek_model: text("deepseek_model"),
         }
+    }
+
+    /// The words of a course the AI may draw on: all but the ones set aside.
+    fn course_words(&self, course: &str) -> Vec<db::Word> {
+        db::list(&self.db, "").unwrap_or_default().into_iter().filter(|w| w.lang == course && !w.skipped).collect()
     }
 
     /// The course being studied: "en" or "zh".
@@ -1108,6 +1212,12 @@ impl App {
             "match_best": number("match_best", 0),
         })
     }
+}
+
+/// The scenario of a role-play's thread, named as `roleplay` names them: "roleplay:<scenario>:<uid>".
+fn scene_of(thread: &str) -> Option<&'static ai::Scene> {
+    let (key, uid) = thread.strip_prefix("roleplay:")?.split_once(':')?;
+    (uid.len() == 16 && uid.bytes().all(|b| b.is_ascii_hexdigit())).then(|| ai::scene(key)).flatten()
 }
 
 /// A level such as `B2` or `HSK3` from what the page or a model wrote, or nothing.
@@ -1414,6 +1524,14 @@ mod tests {
         assert!(valid_setting("course", "zh") && !valid_setting("course", "fr"));
         assert!(valid_setting("easy_days", "0,6") && valid_setting("easy_days", "") && !valid_setting("easy_days", "7") && !valid_setting("easy_days", "1,,2"));
         assert_eq!(copied("  take off\u{7}\r\n"), "take off");
+    }
+
+    #[test]
+    fn a_roleplay_thread_names_a_known_scenario_and_a_uid() {
+        assert_eq!(scene_of("roleplay:airport:0123456789abcdef").map(|s| s.key), Some("airport"));
+        for wrong in ["roleplay:moon:0123456789abcdef", "roleplay:airport:0123", "roleplay:airport:0123456789abcdeg", "roleplay:airport", TUTOR] {
+            assert!(scene_of(wrong).is_none(), "{wrong}");
+        }
     }
 
     #[test]

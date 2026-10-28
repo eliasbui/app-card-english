@@ -11,7 +11,7 @@ pub const DAY: i64 = 86_400;
 /// A forgotten word comes back within the same session.
 const RELEARN_SECONDS: i64 = 600;
 /// The version of the tables in `PRAGMA user_version`; `migrate` brings an older file up to it.
-const SCHEMA: i64 = 4;
+const SCHEMA: i64 = 5;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
@@ -160,6 +160,25 @@ const V3: &str = "
 /// Version 4: words the learner set aside.
 const V4: &str = "ALTER TABLE words ADD COLUMN skipped INTEGER NOT NULL DEFAULT 0;";
 
+/// Version 5: the talks with the AI, the tutor's and each role-play's. Rows carry a uid, the time of their last
+/// change and a deleted mark instead of being deleted, so that a sync can merge them row by row.
+const V5: &str = "
+    CREATE TABLE chat (
+        id INTEGER PRIMARY KEY,
+        uid TEXT NOT NULL UNIQUE,
+        lang TEXT NOT NULL,
+        thread TEXT NOT NULL,
+        role TEXT NOT NULL,
+        text TEXT NOT NULL,
+        vi TEXT NOT NULL DEFAULT '',
+        reading TEXT NOT NULL DEFAULT '',
+        source TEXT NOT NULL DEFAULT '',
+        created INTEGER NOT NULL,
+        updated INTEGER NOT NULL,
+        deleted INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX chat_thread ON chat (lang, thread, created);";
+
 /// The settings each course keeps for itself; the rest are shared.
 const SCOPED: [&str; 7] = ["palette", "new_per_day", "daily_goal", "voice", "achievements", "easy_days", "match_best"];
 
@@ -215,6 +234,9 @@ fn migrate(db: &mut Connection) -> rusqlite::Result<()> {
     }
     if user_version(&tx)? < 4 {
         tx.execute_batch(V4)?;
+    }
+    if user_version(&tx)? < 5 {
+        tx.execute_batch(V5)?;
     }
     tx.pragma_update(None, "user_version", SCHEMA)?;
     tx.commit()
@@ -748,6 +770,95 @@ pub fn set_setting(db: &Connection, key: &str, value: &str) -> rusqlite::Result<
     .map(|_| ())
 }
 
+/// One line of a talk with the AI.
+#[derive(Debug, Clone, Default, Serialize, PartialEq)]
+pub struct Message {
+    pub uid: String,
+    /// "tutor", or "roleplay:<scenario>:<uid>" for one role-play.
+    pub thread: String,
+    /// "user", "ai", or "feedback" for the notes that end a role-play.
+    pub role: String,
+    pub text: String,
+    /// A role-play line in Vietnamese.
+    pub vi: String,
+    /// Chinese: the pinyin of a role-play line.
+    pub reading: String,
+    /// Who answered, as the page names it.
+    pub source: String,
+    pub created: i64,
+}
+
+const CHAT_COLUMNS: &str = "uid, thread, role, text, vi, reading, source, created";
+
+fn message(r: &Row) -> rusqlite::Result<Message> {
+    Ok(Message {
+        uid: r.get(0)?,
+        thread: r.get(1)?,
+        role: r.get(2)?,
+        text: r.get(3)?,
+        vi: r.get(4)?,
+        reading: r.get(5)?,
+        source: r.get(6)?,
+        created: r.get(7)?,
+    })
+}
+
+/// 16 random hex digits, the uid a row of user data is known by in every copy.
+pub fn new_uid(db: &Connection) -> rusqlite::Result<String> {
+    db.query_row("SELECT lower(hex(randomblob(8)))", [], |r| r.get(0))
+}
+
+/// Adds a line to a thread of a course ("en" or "zh") and gives it back with its uid.
+pub fn add_message(db: &Connection, lang: &str, m: &Message, now: i64) -> rusqlite::Result<Message> {
+    db.execute(
+        "INSERT INTO chat (uid, lang, thread, role, text, vi, reading, source, created, updated)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?9)",
+        params![new_uid(db)?, lang, m.thread, m.role, m.text, m.vi, m.reading, m.source, now],
+    )?;
+    db.query_row(&format!("SELECT {CHAT_COLUMNS} FROM chat WHERE id = ?1"), [db.last_insert_rowid()], message)
+}
+
+/// The last `limit` lines of a thread of a course, oldest first.
+pub fn messages(db: &Connection, lang: &str, thread: &str, limit: i64) -> rusqlite::Result<Vec<Message>> {
+    let mut stmt = db.prepare(&format!(
+        "SELECT * FROM (SELECT {CHAT_COLUMNS}, id FROM chat WHERE lang = ?1 AND thread = ?2 AND deleted = 0
+                        ORDER BY created DESC, id DESC LIMIT ?3)
+         ORDER BY created, id"
+    ))?;
+    stmt.query_map(params![lang, thread, limit], message)?.collect()
+}
+
+/// Deletes the lines of a thread of a course by marking them, so that a sync takes the deletion to other copies.
+pub fn clear_thread(db: &Connection, lang: &str, thread: &str, now: i64) -> rusqlite::Result<()> {
+    db.execute(
+        "UPDATE chat SET deleted = 1, updated = ?3 WHERE lang = ?1 AND thread = ?2 AND deleted = 0",
+        params![lang, thread, now],
+    )
+    .map(|_| ())
+}
+
+/// A thread as the list of past role-plays shows it.
+#[derive(Debug, Serialize, PartialEq)]
+pub struct Thread {
+    pub thread: String,
+    pub started: i64,
+    /// The lines the learner wrote or said.
+    pub turns: i64,
+    /// Whether it ended with notes.
+    pub ended: bool,
+}
+
+/// The `limit` threads of a course whose names start with `prefix`, the one talked in last first.
+pub fn threads(db: &Connection, lang: &str, prefix: &str, limit: i64) -> rusqlite::Result<Vec<Thread>> {
+    let mut stmt = db.prepare(
+        "SELECT thread, min(created), sum(role = 'user'), max(role = 'feedback') FROM chat
+         WHERE lang = ?1 AND deleted = 0 AND substr(thread, 1, length(?2)) = ?2
+         GROUP BY thread ORDER BY max(created) DESC, max(id) DESC LIMIT ?3",
+    )?;
+    stmt.query_map(params![lang, prefix, limit], |r| Ok(Thread { thread: r.get(0)?, started: r.get(1)?, turns: r.get(2)?, ended: r.get(3)? }))?
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1022,6 +1133,41 @@ mod tests {
         // The day in September is outside the thirty days.
         assert_eq!(u["gemini"]["month"], serde_json::json!({ "requests": 4, "tokens": 57, "peak": 3, "active_days": 2 }));
         assert_eq!(u["chatgpt"]["today"]["failures"], 1);
+    }
+
+    #[test]
+    fn chat_threads_keep_their_lines_per_course_and_delete_by_marking() {
+        let db = memory();
+        let line = |thread: &str, role: &str, text: &str| Message { thread: thread.into(), role: role.into(), text: text.into(), ..Message::default() };
+        let first = add_message(&db, "en", &line("tutor", "user", "What does deadline mean?"), 100).unwrap();
+        assert_eq!((first.uid.len(), first.created), (16, 100));
+        assert!(first.uid.bytes().all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase()));
+        // The same second keeps the order the lines were added in.
+        add_message(&db, "en", &line("tutor", "ai", "Hạn chót."), 100).unwrap();
+        add_message(&db, "en", &line("tutor", "user", "Thanks"), 101).unwrap();
+        add_message(&db, "zh", &line("tutor", "user", "学习"), 102).unwrap();
+        let texts = |lang, limit| messages(&db, lang, "tutor", limit).unwrap().into_iter().map(|m| m.text).collect::<Vec<_>>();
+        assert_eq!(texts("en", 10), ["What does deadline mean?", "Hạn chót.", "Thanks"]);
+        assert_eq!(texts("en", 2), ["Hạn chót.", "Thanks"], "the last ones, oldest first");
+        assert_eq!(texts("zh", 10), ["学习"]);
+        clear_thread(&db, "en", "tutor", 200).unwrap();
+        assert!(texts("en", 10).is_empty());
+        assert_eq!(texts("zh", 10), ["学习"]);
+        let marked: (i64, i64) = db.query_row("SELECT count(*), min(updated) FROM chat WHERE deleted = 1", [], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+        assert_eq!(marked, (3, 200));
+
+        add_message(&db, "en", &line("roleplay:airport:a1", "ai", "Hello"), 300).unwrap();
+        add_message(&db, "en", &line("roleplay:airport:a1", "user", "Hi"), 301).unwrap();
+        add_message(&db, "en", &line("roleplay:hotel:b2", "ai", "Welcome"), 310).unwrap();
+        add_message(&db, "en", &line("roleplay:airport:a1", "feedback", "{}"), 320).unwrap();
+        let list = threads(&db, "en", "roleplay:", 5).unwrap();
+        assert_eq!(list, [
+            Thread { thread: "roleplay:airport:a1".into(), started: 300, turns: 1, ended: true },
+            Thread { thread: "roleplay:hotel:b2".into(), started: 310, turns: 0, ended: false },
+        ]);
+        assert_eq!(threads(&db, "en", "roleplay:", 1).unwrap().len(), 1);
+        assert!(threads(&db, "zh", "roleplay:", 5).unwrap().is_empty());
+        assert_ne!(new_uid(&db).unwrap(), new_uid(&db).unwrap());
     }
 
     #[test]
