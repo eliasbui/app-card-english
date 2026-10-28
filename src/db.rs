@@ -161,7 +161,7 @@ const V3: &str = "
 const V4: &str = "ALTER TABLE words ADD COLUMN skipped INTEGER NOT NULL DEFAULT 0;";
 
 /// The settings each course keeps for itself; the rest are shared.
-const SCOPED: [&str; 5] = ["palette", "new_per_day", "daily_goal", "voice", "achievements"];
+const SCOPED: [&str; 6] = ["palette", "new_per_day", "daily_goal", "voice", "achievements", "easy_days"];
 
 /// The key a setting is stored under for a course: English keeps the plain key it always had.
 pub fn scoped(key: &str, lang: &str) -> String {
@@ -461,8 +461,22 @@ pub fn review_log(db: &Connection) -> rusqlite::Result<Vec<serde_json::Value>> {
         .collect()
 }
 
-/// Records an answer, 1 forgot to 4 easy, and keeps the schedule it replaces so that the answer can be undone.
+/// `grade_on` without the learner's calendar: the next review on the very day FSRS gives.
+#[cfg(test)]
 pub fn grade(db: &Connection, id: i64, rating: u8, now: i64, retention: f64) -> rusqlite::Result<Option<Word>> {
+    grade_on(db, id, rating, now, retention, None)
+}
+
+/// The learner's day, which reviews are spread from: its local midnight and its weekday, 0 for Sunday.
+#[derive(Debug, Clone, Copy)]
+pub struct Today {
+    pub start: i64,
+    pub weekday: u32,
+}
+
+/// Records an answer, 1 forgot to 4 easy, and keeps the schedule it replaces so that the answer can be undone. With
+/// `today`, the next review moves to the lightest day near the one FSRS gives (see `balance`).
+pub fn grade_on(db: &Connection, id: i64, rating: u8, now: i64, retention: f64, today: Option<Today>) -> rusqlite::Result<Option<Word>> {
     let Some(mut w) = get(db, id)? else {
         return Ok(None);
     };
@@ -471,6 +485,9 @@ pub fn grade(db: &Connection, id: i64, rating: u8, now: i64, retention: f64) -> 
         "last_review": w.last_review, "reps": w.reps, "lapses": w.lapses, "learned_at": w.learned_at,
     });
     schedule(&mut w, rating, now, retention);
+    if let Some(today) = today {
+        balance(db, &mut w, now, today)?;
+    }
     let tx = db.unchecked_transaction()?;
     write_schedule(&tx, &w)?;
     tx.execute(
@@ -536,6 +553,84 @@ pub fn schedule(w: &mut Word, rating: u8, now: i64, retention: f64) {
         w.interval = fsrs::interval(m.stability, retention);
         w.due = now + (w.interval * DAY as f64) as i64;
     }
+}
+
+/// The days a review may move to around an FSRS interval: 5% either way and at least one, from 3 days on; a shorter
+/// interval, and a forgotten word coming back within the session, stay as they are.
+fn fuzz(interval: f64) -> (i64, i64) {
+    let days = interval.round() as i64;
+    if days < 3 {
+        return (days, days);
+    }
+    let d = ((interval * 0.05).round() as i64).max(1);
+    (days - d, days + d)
+}
+
+/// The day, `lo` to `lo + load.len() - 1` days from today, for a review FSRS puts `target` days away: the one with the
+/// fewest reviews already due (`load`, one count per day), leaving out the easy weekdays unless the window holds only
+/// those. A tie goes to the day nearest the target, then to the earlier. `weekday` is today's, 0 for Sunday.
+pub fn pick_day(lo: i64, target: i64, load: &[i64], weekday: u32, easy: [bool; 7]) -> i64 {
+    let is_easy = |d: i64| easy[(i64::from(weekday) + d).rem_euclid(7) as usize];
+    let days = lo..lo + load.len() as i64;
+    let only_easy = days.clone().all(is_easy);
+    days.filter(|&d| only_easy || !is_easy(d)).min_by_key(|&d| (load[(d - lo) as usize], (d - target).abs(), d)).unwrap_or(target)
+}
+
+/// The weekdays of an `easy_days` setting such as `0,6`, Sunday first.
+fn easy_days(text: &str) -> [bool; 7] {
+    let mut easy = [false; 7];
+    for d in text.split(',').filter_map(|d| d.trim().parse::<usize>().ok()).filter(|&d| d < 7) {
+        easy[d] = true;
+    }
+    easy
+}
+
+/// Moves the next review of a word just answered, within the fuzz of its interval, to the day of its course with the
+/// fewest reviews and away from the learner's easy days (see `pick_day`).
+fn balance(db: &Connection, w: &mut Word, now: i64, today: Today) -> rusqlite::Result<()> {
+    let (lo, hi) = fuzz(w.interval);
+    if lo == hi {
+        return Ok(());
+    }
+    let mut load = vec![0; (hi - lo + 1) as usize];
+    let mut stmt = db.prepare("SELECT due FROM words WHERE learned_at > 0 AND NOT skipped AND lang = ?1 AND id != ?2 AND due >= ?3 AND due < ?4")?;
+    for due in stmt.query_map(params![w.lang, w.id, today.start + lo * DAY, today.start + (hi + 1) * DAY], |r| r.get::<_, i64>(0))? {
+        load[((due? - today.start) / DAY - lo) as usize] += 1;
+    }
+    let easy = easy_days(&setting(db, &scoped("easy_days", &w.lang))?.unwrap_or_default());
+    let days = pick_day(lo, w.interval.round() as i64, &load, today.weekday, easy);
+    w.interval = days as f64;
+    w.due = now + days * DAY;
+    Ok(())
+}
+
+/// The day, 1 to `days` from today, that each of the words with these chances of recall is put off to: spread evenly,
+/// the one most at risk of being forgotten soonest.
+pub fn postpone_days(recall: &[f64], days: i64) -> Vec<i64> {
+    let mut order: Vec<usize> = (0..recall.len()).collect();
+    order.sort_by(|&a, &b| recall[a].total_cmp(&recall[b]));
+    let mut out = vec![0; recall.len()];
+    for (rank, &i) in order.iter().enumerate() {
+        out[i] = 1 + rank as i64 * days / recall.len() as i64;
+    }
+    out
+}
+
+/// Puts off the reviews of a course due now over the next `days` days, in one go (see `postpone_days`); each comes
+/// due at the start of its day. Answers how many moved.
+pub fn postpone(db: &Connection, now: i64, day_start: i64, lang: &str, days: i64) -> rusqlite::Result<usize> {
+    let due = select(db, "WHERE learned_at > 0 AND due <= ?1 AND lang = ?2 AND NOT skipped", params![now, lang])?;
+    // A word forgotten and not learned again yet is the most at risk, whatever the curve says right after its answer.
+    let recall: Vec<f64> = due
+        .iter()
+        .map(|w| if w.interval < 1.0 { 0.0 } else { fsrs::retrievability((now - w.last_review).max(0) as f64 / DAY as f64, w.stability) })
+        .collect();
+    let tx = db.unchecked_transaction()?;
+    for (w, day) in due.iter().zip(postpone_days(&recall, days)) {
+        tx.execute("UPDATE words SET due = ?2 WHERE id = ?1", [w.id, day_start + day * DAY])?;
+    }
+    tx.commit()?;
+    Ok(due.len())
 }
 
 /// One day of study, by the local date of the learner (`2026-10-26`).
@@ -708,6 +803,86 @@ mod tests {
         grade(&db, id, 3, 200, 0.9).unwrap();
         delete(&db, id).unwrap();
         assert_eq!(stats(&db, 0, 0, "").unwrap().reviews, 0);
+    }
+
+    #[test]
+    fn the_review_goes_to_the_lightest_day_away_from_easy_days() {
+        assert_eq!([0.0, 2.0, 3.0, 10.0, 30.0, 100.0].map(fuzz), [(0, 0), (2, 2), (2, 4), (9, 11), (28, 32), (95, 105)]);
+        let none = [false; 7];
+        // Days 9, 10, 11 from a Wednesday (3): Friday, Saturday, Sunday.
+        assert_eq!(pick_day(9, 10, &[5, 2, 7], 3, none), 10);
+        assert_eq!(pick_day(9, 10, &[1, 2, 0], 3, none), 11);
+        assert_eq!(pick_day(9, 10, &[3, 3, 3], 3, none), 10, "a tie goes to the FSRS day");
+        assert_eq!(pick_day(9, 10, &[2, 3, 2], 3, none), 9, "then to the earlier");
+        let weekend = easy_days("0,6");
+        assert_eq!(weekend, [true, false, false, false, false, false, true]);
+        assert_eq!(pick_day(9, 10, &[5, 0, 0], 3, weekend), 9, "Saturday and Sunday are left out even when lighter");
+        assert_eq!(pick_day(10, 10, &[4, 1], 3, weekend), 11, "only easy days: the lightest of them");
+        assert_eq!(pick_day(2, 2, &[9], 3, weekend), 2);
+        assert_eq!(easy_days(""), none);
+        assert_eq!(easy_days("1, 9,x,3"), [false, true, false, true, false, false, false]);
+    }
+
+    #[test]
+    fn grading_on_the_calendar_spreads_the_load_and_undo_still_restores() {
+        let db = memory();
+        let id = add(&db, "negotiate", 0);
+        grade(&db, id, 3, 1_000, 0.9).unwrap();
+        let before = get(&db, id).unwrap().unwrap();
+        // The next good answer, two days later, gets 11 days and may move to 10 or 12; those have 1, 2 and 2 reviews.
+        let (at, today) = (1_000 + 2 * DAY, Today { start: 2 * DAY, weekday: 3 });
+        for (i, day) in [11, 11, 12, 12, 10].into_iter().enumerate() {
+            let other = add(&db, &format!("w{i}"), 0);
+            db.execute("UPDATE words SET learned_at = 1, due = ?2 WHERE id = ?1", [other, today.start + day * DAY + 5]).unwrap();
+        }
+        // The easy days of the Chinese course are its own.
+        set_setting(&db, &scoped("easy_days", "zh"), "6").unwrap();
+        let w = grade_on(&db, id, 3, at, 0.9, Some(today)).unwrap().unwrap();
+        assert_eq!((w.interval, w.due), (10.0, at + 10 * DAY));
+        assert_eq!(get(&db, id).unwrap().unwrap(), w);
+        assert_eq!(undo(&db, id).unwrap().unwrap(), before);
+        assert_eq!(get(&db, id).unwrap().unwrap(), before);
+        // Ten days after a Wednesday is a Saturday: kept light, so the tie of 11 and 12 goes to the FSRS day.
+        set_setting(&db, "easy_days", "6").unwrap();
+        assert_eq!(grade_on(&db, id, 3, at, 0.9, Some(today)).unwrap().unwrap().interval, 11.0);
+        assert_eq!(undo(&db, id).unwrap().unwrap(), before);
+        // A forgotten word still comes back in ten minutes.
+        let w = grade_on(&db, id, 1, at, 0.9, Some(today)).unwrap().unwrap();
+        assert_eq!(w.due, at + RELEARN_SECONDS);
+    }
+
+    #[test]
+    fn postponing_spreads_the_due_words_the_safest_furthest() {
+        assert_eq!(postpone_days(&[0.9, 0.5, 0.7, 0.95], 2), [2, 1, 1, 2]);
+        assert_eq!(postpone_days(&[0.8, 0.6, 0.7], 7), [5, 1, 3]);
+        assert_eq!(postpone_days(&[0.5; 6], 3), [1, 1, 2, 2, 3, 3]);
+        assert!(postpone_days(&[], 3).is_empty());
+        let db = memory();
+        let now = 100 * DAY + 50;
+        let mut ids = vec![];
+        // Reviewed 1, 5 and 9 days ago with the same stability: the one seen last is the safest. The fourth was
+        // forgotten a minute ago, which makes it the least safe of all.
+        for (word, ago, interval) in [("alpha", DAY, 3), ("beta", 5 * DAY, 3), ("gamma", 9 * DAY, 3), ("delta", 60, 0)] {
+            let id = add(&db, word, 0);
+            db.execute(
+                "UPDATE words SET learned_at = 1, stability = 3, interval = ?4, last_review = ?2, due = ?3 WHERE id = ?1",
+                [id, now - ago, now - 10, interval],
+            )
+            .unwrap();
+            ids.push(id);
+        }
+        let later = add(&db, "later", 0);
+        db.execute("UPDATE words SET learned_at = 1, due = ?2 WHERE id = ?1", [later, now + DAY]).unwrap();
+        let skipped = add(&db, "skipped", 0);
+        db.execute("UPDATE words SET learned_at = 1, due = 0, skipped = 1 WHERE id = ?1", [skipped]).unwrap();
+        save(&db, &Word { word: "学习".into(), ..Word::default() }, 0).unwrap();
+        db.execute("UPDATE words SET learned_at = 1, due = 0 WHERE lang = 'zh'", []).unwrap();
+        assert_eq!(postpone(&db, now, 100 * DAY, "en", 3).unwrap(), 4);
+        let due = |id| get(&db, id).unwrap().unwrap().due;
+        assert_eq!(ids.iter().map(|&id| due(id)).collect::<Vec<_>>(), [103 * DAY, 102 * DAY, 101 * DAY, 101 * DAY]);
+        assert_eq!((due(later), due(skipped)), (now + DAY, 0));
+        assert_eq!(stats(&db, now, 100 * DAY, "zh").unwrap().due, 1, "the other course is left alone");
+        assert_eq!(postpone(&db, now, 100 * DAY, "en", 3).unwrap(), 0);
     }
 
     #[test]

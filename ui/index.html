@@ -46,6 +46,8 @@
   .error:empty { display: none; }
   .ok { color: var(--green); }
   .hidden { display: none !important; }
+  /* The small window of the quick quiz (window.MINI) shows only what ui/parts/sched-mini.js builds. */
+  .mini-window body > nav, .mini-window body > main { display: none !important; }
   /* Elements that only make sense for one course; the other course's rule stays unmatched so the browser's own display for the tag applies. */
   .only-zh, .only-en { display: none; }
   :root[data-course="zh"] .only-zh { display: revert; }
@@ -1098,8 +1100,9 @@ const app = {
 };
 window.app = app;
 /// Where the parts in ui/parts hook in: `init` runs with the answer of init once the page is set up, `page` with
-/// the name of every page shown, `course` with the course after it changes.
-const hooks = { init: [], page: [], course: [] };
+/// the name of every page shown, `course` with the course after it changes, `home` with the counts each time the home
+/// page has drawn them, `event` with the name and data of every event from the app.
+const hooks = { init: [], page: [], course: [], home: [], event: [] };
 
 let state = { settings: {}, models: {}, words: [], editing: null, xpToday: 0, totalXp: 0, days: [], celebrated: "", stats: null, forecast: [],
               platform: "", hotkeys: [] };
@@ -1117,6 +1120,7 @@ function onEvent(name, data) {
     if (t) t.textContent = `${(data.done / 1e6).toFixed(0)} / ${(data.total / 1e6).toFixed(0)} MB`;
   }
   if (name === "quick_add") quickAdd(data);
+  hooks.event.forEach((f) => f(name, data));
 }
 
 // Motion: confetti, floating experience, toasts and counters.
@@ -1627,19 +1631,22 @@ async function refreshHome() {
   $("btn-start").disabled = n === 0;
   $("btn-start").classList.toggle("pulse", n > 0);
   checkAchievements();
+  hooks.home.forEach((f) => f(r));
 }
 $("btn-go-suggest").onclick = () => { go("words"); openSuggest(); };
 
 let session = null;
-$("btn-start").onclick = async () => {
-  const words = await app.call("session", { day_start: dayStart() });
+$("btn-start").onclick = () => startSession();
+/// Starts a session; `{ ahead: n }` also brings the reviews due in the next n days, soonest first.
+async function startSession(args = {}) {
+  const words = await app.call("session", { day_start: dayStart(), ...args });
   if (!words.length) return refreshHome();
   session = { queue: words, done: 0, total: words.length, flipped: false, xp: 0, history: [], seen: [] };
   $("session-start").classList.add("hidden");
   $("session").classList.remove("hidden");
   $("page-home").classList.add("studying");
   showSessionCard();
-};
+}
 $("btn-session-quit").onclick = () => endSession();
 $("btn-undo").onclick = () => undoGrade();
 

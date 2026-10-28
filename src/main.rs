@@ -32,7 +32,7 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 use tao::{
-    dpi::LogicalSize,
+    dpi::{LogicalPosition, LogicalSize},
     event::{Event, WindowEvent},
     event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy, EventLoopWindowTarget},
     window::{Icon, Theme, Window, WindowBuilder},
@@ -79,6 +79,8 @@ const MAX_COPIED: usize = 4000;
 
 enum UserEvent {
     Ipc(String),
+    /// A request from the page in the window of the quick quiz.
+    MiniIpc(String),
     /// A message for the page: a reply to a request or something it did not ask for.
     Post(Value),
     Update(Value),
@@ -190,8 +192,10 @@ fn main() {
         db,
         proxy,
         window: None,
+        mini: None,
         tray: None,
         open_id: None,
+        quiz_id: None,
         quit_id: None,
         update: None,
         hotkeys,
@@ -213,12 +217,17 @@ fn main() {
             }
             #[cfg(target_os = "macos")]
             Event::Reopen { .. } => app.show(target),
-            Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
-                // The app stays in the tray so that the reminders keep coming.
-                app.window = None;
-                app.page_ready = false;
+            Event::WindowEvent { window_id, event: WindowEvent::CloseRequested, .. } => {
+                if app.mini.as_ref().is_some_and(|(w, _)| w.id() == window_id) {
+                    app.mini = None;
+                } else {
+                    // The app stays in the tray so that the reminders keep coming.
+                    app.window = None;
+                    app.page_ready = false;
+                }
             }
             Event::UserEvent(UserEvent::Ipc(body)) => app.ipc(&body),
+            Event::UserEvent(UserEvent::MiniIpc(body)) => app.mini_ipc(&body),
             Event::UserEvent(UserEvent::Post(message)) => app.post(&message),
             Event::UserEvent(UserEvent::Update(check)) => {
                 app.post(&json!({ "event": "update", "data": check }));
@@ -230,6 +239,8 @@ fn main() {
                     *flow = ControlFlow::Exit;
                 } else if app.open_id.as_ref() == Some(&id) {
                     app.show(target);
+                } else if app.quiz_id.as_ref() == Some(&id) {
+                    app.quiz(target);
                 }
             }
             Event::UserEvent(UserEvent::Count) => app.update_count(),
@@ -255,8 +266,11 @@ struct App {
     db: Connection,
     proxy: EventLoopProxy<UserEvent>,
     window: Option<(Window, WebView)>,
+    /// The small window of the quick quiz, opened from the tray, above the other apps.
+    mini: Option<(Window, WebView)>,
     tray: Option<TrayIcon>,
     open_id: Option<MenuId>,
+    quiz_id: Option<MenuId>,
     quit_id: Option<MenuId>,
     /// The last update check that found something, for a window opened later.
     update: Option<Value>,
@@ -273,9 +287,10 @@ struct App {
 impl App {
     fn make_tray(&mut self) {
         let open = MenuItem::new(format!("Mở {APP_NAME}"), true, None);
+        let quiz = MenuItem::new("Đố nhanh", true, None);
         let quit = MenuItem::new("Thoát", true, None);
         let menu = Menu::new();
-        if menu.append_items(&[&open, &quit]).is_err() {
+        if menu.append_items(&[&open, &quiz, &quit]).is_err() {
             return;
         }
         let icon = decode_png(TRAY_ICON).and_then(|(rgba, w, h)| tray_icon::Icon::from_rgba(rgba, w, h).ok());
@@ -298,6 +313,7 @@ impl App {
             Err(e) => eprintln!("tray: {e}"),
         }
         self.open_id = Some(open.id().clone());
+        self.quiz_id = Some(quiz.id().clone());
         self.quit_id = Some(quit.id().clone());
     }
 
@@ -349,29 +365,60 @@ impl App {
             window.set_focus();
             return;
         }
-        match self.open_window(target) {
+        match self.open_window(target, false) {
             Ok(pair) => self.window = Some(pair),
             Err(e) => eprintln!("window: {e}"),
         }
     }
 
-    fn open_window(&self, target: &EventLoopWindowTarget<UserEvent>) -> Result<(Window, WebView), String> {
+    /// The quick quiz: one window, brought to the front again if it is already open.
+    fn quiz(&mut self, target: &EventLoopWindowTarget<UserEvent>) {
+        if let Some((window, _)) = &self.mini {
+            window.set_visible(true);
+            window.set_minimized(false);
+            window.set_focus();
+            return;
+        }
+        match self.open_window(target, true) {
+            Ok(pair) => self.mini = Some(pair),
+            Err(e) => eprintln!("quiz window: {e}"),
+        }
+    }
+
+    /// The main window, or with `mini` the small one of the quick quiz near the top right of the screen; both load the
+    /// same page, which shows only the quiz when `window.MINI` is set.
+    fn open_window(&self, target: &EventLoopWindowTarget<UserEvent>, mini: bool) -> Result<(Window, WebView), String> {
         let icon = decode_png(WINDOW_ICON).and_then(|(rgba, w, h)| Icon::from_rgba(rgba, w, h).ok());
-        let window = WindowBuilder::new()
-            .with_title(APP_NAME)
-            .with_inner_size(LogicalSize::new(1000.0, 700.0))
-            .with_min_inner_size(LogicalSize::new(440.0, 560.0))
-            .with_window_icon(icon)
-            .with_theme(self.theme())
-            .build(target)
-            .map_err(|e| e.to_string())?;
+        let builder = if mini {
+            let size = LogicalSize::new(360.0, 460.0);
+            let mut builder =
+                WindowBuilder::new().with_title("Đố nhanh").with_inner_size(size).with_resizable(false).with_always_on_top(true);
+            if let Some(screen) = target.primary_monitor() {
+                let (origin, area) = (screen.position().to_logical::<f64>(screen.scale_factor()), screen.size().to_logical::<f64>(screen.scale_factor()));
+                // Clear of the menu bar of macOS and of the window's own frame.
+                builder = builder.with_position(LogicalPosition::new(origin.x + area.width - size.width - 24.0, origin.y + 48.0));
+            }
+            builder
+        } else {
+            WindowBuilder::new()
+                .with_title(APP_NAME)
+                .with_inner_size(LogicalSize::new(1000.0, 700.0))
+                .with_min_inner_size(LogicalSize::new(440.0, 560.0))
+        };
+        let window = builder.with_window_icon(icon).with_theme(self.theme()).build(target).map_err(|e| e.to_string())?;
         let proxy = self.proxy.clone();
         use base64::Engine;
         let sheet = format!("data:image/webp;base64,{}", base64::engine::general_purpose::STANDARD.encode(STICKERS));
+        let mut html = INDEX_HTML.replacen("__STICKERS__", &sheet, 1).replacen("<!--PARTS-->", PARTS, 1);
+        if mini {
+            // Before any of the page's scripts and styles, so that the main layout never shows.
+            html = html.replacen("<head>", "<head><script>window.MINI = true; document.documentElement.classList.add(\"mini-window\");</script>", 1);
+        }
         let builder = WebViewBuilder::new()
-            .with_html(INDEX_HTML.replacen("__STICKERS__", &sheet, 1).replacen("<!--PARTS-->", PARTS, 1))
+            .with_html(html)
             .with_ipc_handler(move |request: Request<String>| {
-                let _ = proxy.send_event(UserEvent::Ipc(request.into_body()));
+                let body = request.into_body();
+                let _ = proxy.send_event(if mini { UserEvent::MiniIpc(body) } else { UserEvent::Ipc(body) });
             })
             .with_devtools(cfg!(debug_assertions));
         #[cfg(not(target_os = "linux"))]
@@ -385,9 +432,42 @@ impl App {
         Ok((window, webview.map_err(|e| e.to_string())?))
     }
 
+    /// Sends a message to the main page; a reply to the quick quiz, whose request id `mini_ipc` wrapped, goes back to
+    /// that page with the id it asked with.
     fn post(&self, message: &Value) {
-        if let Some((_, webview)) = &self.window {
-            let _ = webview.evaluate_script(&format!("window.app && app.receive({message})"));
+        let send = |view: &Option<(Window, WebView)>, message: &Value| {
+            if let Some((_, webview)) = view {
+                let _ = webview.evaluate_script(&format!("window.app && app.receive({message})"));
+            }
+        };
+        match message["id"].get("mini") {
+            Some(id) => {
+                let mut reply = message.clone();
+                reply["id"] = id.clone();
+                send(&self.mini, &reply);
+            }
+            None => send(&self.window, message),
+        }
+    }
+
+    /// A request of the quick quiz, answered like one of the main page. Its id is wrapped so that the reply, even one
+    /// from a background thread, finds its way back here rather than to the main page.
+    fn mini_ipc(&mut self, body: &str) {
+        let Ok(mut request) = serde_json::from_str::<Value>(body) else { return };
+        let cmd = request["cmd"].as_str().unwrap_or_default().to_owned();
+        if cmd == "close_mini" {
+            self.mini = None;
+            return;
+        }
+        request["id"] = json!({ "mini": request["id"] });
+        if !request["args"].is_object() {
+            request["args"] = json!({});
+        }
+        request["args"]["mini"] = json!(true);
+        self.ipc(&request.to_string());
+        // The main page counts again what is left to study, and its experience, after an answer given here.
+        if matches!(cmd.as_str(), "grade" | "xp" | "undo" | "skip") {
+            self.post(&json!({ "event": "mini_answered" }));
         }
     }
 
@@ -650,20 +730,22 @@ impl App {
         match cmd {
             "restart" => update::relaunch(),
             "init" => {
-                self.page_ready = true;
+                // The quick quiz loads the same page, but neither copied text nor the update dialog is for it.
+                let main = !args["mini"].as_bool().unwrap_or(false);
+                self.page_ready |= main;
                 Ok(json!({
                     "version": update::CURRENT,
                     "settings": self.settings(),
                     "models": models::status(&self.dir),
                     "voices": voice::status(&self.dir),
                     "kokoro_voices": voice::VOICES.iter().map(|(lang, sid, name)| json!({ "lang": lang, "sid": sid, "name": name })).collect::<Vec<_>>(),
-                    "update": self.update,
+                    "update": self.update.as_ref().filter(|_| main),
                     "data_dir": self.dir,
                     "platform": std::env::consts::OS,
                     "hotkeys": HOTKEYS,
                     "brew": installed_by_brew(),
                     "script": installed_by_script(),
-                    "quick_add": self.pending_add.take(),
+                    "quick_add": if main { self.pending_add.take() } else { None },
                 }))
             }
             "stats" => {
@@ -684,7 +766,22 @@ impl App {
                 db::add_xp(db, day, &self.course(), xp, args["correct"].as_bool()).map(|_| Value::Null).map_err(e)
             }
             "list" => db::list(db, args["q"].as_str().unwrap_or_default()).map(|w| json!(w)).map_err(e),
-            "session" => db::session(db, now(), day_start, &self.course()).map(|w| json!(w)).map_err(e),
+            "session" => {
+                // Reviewing ahead, for today only: the words due in the next 1 to 3 days come too, the soonest first,
+                // and their schedule changes only when they are answered.
+                let ahead = args["ahead"].as_i64().unwrap_or(0).clamp(0, 3);
+                let until = if ahead > 0 { day_start + (ahead + 1) * db::DAY - 1 } else { now() };
+                db::session(db, until, day_start, &self.course()).map(|w| json!(w)).map_err(e)
+            }
+            "postpone" => {
+                let days = args["days"].as_i64().unwrap_or(0);
+                if !(1..=7).contains(&days) {
+                    return Err("Hãy chọn hoãn từ 1 đến 7 ngày".into());
+                }
+                let moved = db::postpone(db, now(), day_start, &self.course(), days).map_err(e)?;
+                self.update_count();
+                Ok(json!(moved))
+            }
             "ipa" => Ok(json!(pron::ipa(args["word"].as_str().unwrap_or_default()))),
             "save" => {
                 let mut word: db::Word = serde_json::from_value(args["word"].clone()).map_err(|e| e.to_string())?;
@@ -705,7 +802,10 @@ impl App {
             "delete" => db::delete(db, args["id"].as_i64().unwrap_or(0)).map(|_| Value::Null).map_err(e),
             "grade" => {
                 let rating = args["q"].as_u64().unwrap_or(0).clamp(1, 4) as u8;
-                db::grade(db, args["id"].as_i64().unwrap_or(0), rating, now(), self.retention()).map(|w| json!(w)).map_err(e)
+                // The next review goes to the lightest day near the one FSRS gives, on the learner's own calendar.
+                let t = now();
+                let today = clock::now().map(|l| db::Today { start: t - l.seconds(), weekday: l.weekday() });
+                db::grade_on(db, args["id"].as_i64().unwrap_or(0), rating, t, self.retention(), today).map(|w| json!(w)).map_err(e)
             }
             "undo" => {
                 let day = args["day"].as_str().unwrap_or_default();
@@ -726,7 +826,7 @@ impl App {
                 db::set_setting(db, &db::scoped(key, &self.course()), value).map_err(e)?;
                 match key {
                     "theme" => {
-                        if let Some((window, _)) = &self.window {
+                        for (window, _) in self.window.iter().chain(&self.mini) {
                             window.set_theme(self.theme());
                         }
                     }
@@ -866,6 +966,7 @@ impl App {
             "daily_goal": number("daily_goal", 50),
             "desired_retention": self.retention(),
             "streak_freeze": on("streak_freeze"),
+            "easy_days": text("easy_days"),
             "remind_at": text("remind_at"),
             "quiet_from": text("quiet_from"),
             "quiet_to": text("quiet_to"),
@@ -923,6 +1024,8 @@ fn valid_setting(key: &str, value: &str) -> bool {
         "accent" => matches!(value, "en-US" | "en-GB"),
         "voice" => value.len() <= 100 && !value.chars().any(char::is_control),
         "hotkey" => value.is_empty() || HOTKEYS.contains(&value),
+        // Weekdays, 0 for Sunday, such as `0,6`.
+        "easy_days" => value.len() <= 13 && (value.is_empty() || value.split(',').all(|d| matches!(d.as_bytes(), [b'0'..=b'6']))),
         "achievements" => value.len() <= 2000 && value.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b','),
         _ => false,
     }
@@ -1179,6 +1282,7 @@ mod tests {
         assert!(HOTKEYS.iter().all(|h| hotkey_of(h).is_some()));
         assert_eq!([" b2 ", "B3", "C1+", "hsk 3", "HSK0", "HSK10"].map(valid_level), ["B2", "", "", "HSK3", "", ""]);
         assert!(valid_setting("course", "zh") && !valid_setting("course", "fr"));
+        assert!(valid_setting("easy_days", "0,6") && valid_setting("easy_days", "") && !valid_setting("easy_days", "7") && !valid_setting("easy_days", "1,,2"));
         assert_eq!(copied("  take off\u{7}\r\n"), "take off");
     }
 
