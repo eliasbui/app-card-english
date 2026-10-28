@@ -19,6 +19,23 @@
   .chat-head .st { width: 40px; height: 40px; }
   .chat-head b { display: block; font-size: 15.5px; }
   .chat-head .grow span { display: block; overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+  .chat-tabs { padding: 8px 16px; border-bottom: 1px solid var(--line); }
+  .chat-tabs .seg { display: flex; }
+  .chat-tabs .seg label { flex: 1; justify-content: center; }
+  .chat-view { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+  .chat-view[hidden] { display: none; }
+  /* The past talks: the first question, when, how long; the open one marked. */
+  .chat-history { gap: 8px; padding: 14px 16px; overflow-y: auto; background: var(--surface-2); }
+  .chat-talk { display: flex; align-items: center; gap: 8px; padding: 4px 6px 4px 4px; border: 1px solid var(--line); border-radius: var(--r);
+               background: var(--surface); }
+  .chat-talk.current { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .chat-pick { flex: 1; min-width: 0; padding: 8px 10px; border: 0; border-radius: var(--r-sm); background: none; color: var(--text);
+               text-align: left; cursor: pointer; font: inherit; }
+  .chat-pick:hover { background: var(--accent-soft); }
+  .chat-pick b { display: block; overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+  .chat-pick span { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; }
+  .chat-talk .btn { flex: none; }
+  .chat-none { margin: auto 0; padding: 0 8px; font-size: 13px; text-align: center; }
   .chat-log { flex: 1; display: flex; flex-direction: column; gap: 12px; padding: 16px; overflow-y: auto; background: var(--surface-2); }
   .chat-empty { margin: auto 0; padding: 8px 10px; color: var(--muted); text-align: center; }
   .chat-empty .st { display: block; width: 96px; height: 96px; margin: 0 auto 6px; }
@@ -37,9 +54,8 @@
   .chat-msg .thinking { padding: 2px 4px; font-size: 13px; }
   .chat-msg .thinking .st { width: 36px; height: 36px; }
 
-  .chat-starters { flex-wrap: nowrap; margin: 0; padding: 10px 16px 0; overflow-x: auto; scrollbar-width: none; }
-  .chat-starters::-webkit-scrollbar { display: none; }
-  .chat-starters button { flex: none; min-height: 28px; font-size: 12.5px; }
+  .chat-starters { gap: 6px; margin: 0; padding: 10px 16px 0; }
+  .chat-starters button { min-height: 28px; padding: 0 11px; font-size: 12.5px; }
   .chat-compose { display: flex; align-items: flex-end; gap: 8px; padding: 10px 16px 14px; }
   .chat-compose textarea { flex: 1; min-height: var(--h); max-height: 140px; padding-top: 7px; padding-bottom: 7px; resize: none; }
 

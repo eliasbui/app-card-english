@@ -614,10 +614,17 @@ impl App {
             }
             "tutor" => {
                 let question = text("text");
+                let thread = match text("thread") {
+                    t if t.is_empty() => TUTOR.to_owned(),
+                    t => t,
+                };
+                if !is_tutor(&thread) {
+                    return self.post(&reply(Err("Không tìm thấy cuộc trò chuyện này".into())));
+                }
                 let settings = self.ai_settings();
                 let course = self.course();
                 let words = self.course_words(&course);
-                let history = db::messages(&self.db, &course, TUTOR, 8).unwrap_or_default();
+                let history = db::messages(&self.db, &course, &thread, 8).unwrap_or_default();
                 let asked = now();
                 background(Box::new(move || {
                     let ai = ai::Ai::new(&settings, &dir);
@@ -626,7 +633,7 @@ impl App {
                     let answer = result?;
                     // Both lines are kept once there is an answer; a failed question stays in the box to ask again.
                     let db = db::open(&dir.join("words.db")).map_err(|e| e.to_string())?;
-                    let line = |role: &str, text: &str, source: String| db::Message { thread: TUTOR.into(), role: role.into(), text: text.into(), source, ..db::Message::default() };
+                    let line = |role: &str, text: &str, source: String| db::Message { thread: thread.clone(), role: role.into(), text: text.into(), source, ..db::Message::default() };
                     let user = db::add_message(&db, &course, &line("user", question.trim(), String::new()), asked).map_err(|e| e.to_string())?;
                     let reply = db::add_message(&db, &course, &line("ai", &answer.text, answer.by.name()), now()).map_err(|e| e.to_string())?;
                     Ok(json!({ "user": user, "reply": reply, "answer": answer }))
@@ -1203,7 +1210,7 @@ impl App {
             }
             "chat_history" | "chat_clear" => {
                 let thread = args["thread"].as_str().unwrap_or_default();
-                if !(thread == TUTOR || scene_of(thread).is_some()) {
+                if !(is_tutor(thread) || scene_of(thread).is_some()) {
                     return Err("Không tìm thấy cuộc trò chuyện này".into());
                 }
                 if cmd == "chat_clear" {
@@ -1211,6 +1218,7 @@ impl App {
                 }
                 db::messages(db, &self.course(), thread, 60).map(|m| json!(m)).map_err(e)
             }
+            "chat_threads" => db::threads(db, &self.course(), TUTOR, 50).map(|t| json!(t)).map_err(e),
             "roleplay_sessions" => db::threads(db, &self.course(), "roleplay:", 6).map(|t| json!(t)).map_err(e),
             "open_url" => {
                 let url = args["url"].as_str().unwrap_or_default();
@@ -1317,6 +1325,11 @@ impl App {
             "match_best": number("match_best", 0),
         })
     }
+}
+
+/// A talk with the tutor: "tutor", the first one, or "tutor:<uid>" for each one started after it.
+fn is_tutor(thread: &str) -> bool {
+    thread == TUTOR || thread.strip_prefix("tutor:").is_some_and(|uid| uid.len() == 16 && uid.bytes().all(|b| b.is_ascii_hexdigit()))
 }
 
 /// The scenario of a role-play's thread, named as `roleplay` names them: "roleplay:<scenario>:<uid>".
@@ -1642,6 +1655,14 @@ mod tests {
         assert!(valid_setting("course", "zh") && !valid_setting("course", "fr"));
         assert!(valid_setting("easy_days", "0,6") && valid_setting("easy_days", "") && !valid_setting("easy_days", "7") && !valid_setting("easy_days", "1,,2"));
         assert_eq!(copied("  take off\u{7}\r\n"), "take off");
+    }
+
+    #[test]
+    fn a_talk_with_the_tutor_is_the_first_or_one_with_a_uid() {
+        assert!(is_tutor(TUTOR) && is_tutor("tutor:0123456789abcdef"));
+        for wrong in ["tutor:0123", "tutor:0123456789abcdeg", "tutors", "roleplay:airport:0123456789abcdef", ""] {
+            assert!(!is_tutor(wrong), "{wrong}");
+        }
     }
 
     #[test]

@@ -987,6 +987,10 @@ pub fn clear_thread(db: &Connection, lang: &str, thread: &str, now: i64) -> rusq
 pub struct Thread {
     pub thread: String,
     pub started: i64,
+    /// When the last line was written.
+    pub last: i64,
+    /// The learner's first line, which names the talk in the history.
+    pub title: String,
     /// The lines the learner wrote or said.
     pub turns: i64,
     /// Whether it ended with notes.
@@ -996,12 +1000,17 @@ pub struct Thread {
 /// The `limit` threads of a course whose names start with `prefix`, the one talked in last first.
 pub fn threads(db: &Connection, lang: &str, prefix: &str, limit: i64) -> rusqlite::Result<Vec<Thread>> {
     let mut stmt = db.prepare(
-        "SELECT thread, min(created), sum(role = 'user'), max(role = 'feedback') FROM chat
-         WHERE lang = ?1 AND deleted = 0 AND substr(thread, 1, length(?2)) = ?2
+        "SELECT thread, min(created), sum(role = 'user'), max(role = 'feedback'), max(created),
+                (SELECT text FROM chat AS first WHERE first.lang = ?1 AND first.thread = chat.thread AND first.role = 'user'
+                 AND first.deleted = 0 ORDER BY first.created, first.id LIMIT 1)
+         FROM chat WHERE lang = ?1 AND deleted = 0 AND substr(thread, 1, length(?2)) = ?2
          GROUP BY thread ORDER BY max(created) DESC, max(id) DESC LIMIT ?3",
     )?;
-    stmt.query_map(params![lang, prefix, limit], |r| Ok(Thread { thread: r.get(0)?, started: r.get(1)?, turns: r.get(2)?, ended: r.get(3)? }))?
-        .collect()
+    let thread = |r: &Row| {
+        let title: Option<String> = r.get(5)?;
+        Ok(Thread { thread: r.get(0)?, started: r.get(1)?, turns: r.get(2)?, ended: r.get(3)?, last: r.get(4)?, title: title.unwrap_or_default() })
+    };
+    stmt.query_map(params![lang, prefix, limit], thread)?.collect()
 }
 
 #[cfg(test)]
@@ -1345,9 +1354,15 @@ mod tests {
         add_message(&db, "en", &line("roleplay:airport:a1", "feedback", "{}"), 320).unwrap();
         let list = threads(&db, "en", "roleplay:", 5).unwrap();
         assert_eq!(list, [
-            Thread { thread: "roleplay:airport:a1".into(), started: 300, turns: 1, ended: true },
-            Thread { thread: "roleplay:hotel:b2".into(), started: 310, turns: 0, ended: false },
+            Thread { thread: "roleplay:airport:a1".into(), started: 300, last: 320, title: "Hi".into(), turns: 1, ended: true },
+            Thread { thread: "roleplay:hotel:b2".into(), started: 310, last: 310, title: String::new(), turns: 0, ended: false },
         ]);
+        // The talks with the tutor, the first and the ones started after it, each named by its first question.
+        add_message(&db, "en", &line("tutor:00000000000000aa", "user", "Affect or effect?"), 400).unwrap();
+        add_message(&db, "en", &line("tutor:00000000000000aa", "user", "And in a sentence?"), 401).unwrap();
+        add_message(&db, "en", &line("tutor", "user", "Quiz me"), 390).unwrap();
+        let talks = threads(&db, "en", "tutor", 5).unwrap().into_iter().map(|t| (t.thread, t.title, t.turns)).collect::<Vec<_>>();
+        assert_eq!(talks, [("tutor:00000000000000aa".into(), "Affect or effect?".into(), 2), ("tutor".into(), "Quiz me".into(), 1)]);
         assert_eq!(threads(&db, "en", "roleplay:", 1).unwrap().len(), 1);
         assert!(threads(&db, "zh", "roleplay:", 5).unwrap().is_empty());
         assert_ne!(new_uid(&db).unwrap(), new_uid(&db).unwrap());

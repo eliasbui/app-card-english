@@ -1,8 +1,9 @@
-// The tutor: a chat with the AI about the learner's own words of the course, kept per course in the database.
+// The tutor: a chat with the AI about the learner's own words of the course, kept per course in the database. Each
+// talk is a thread of its own, "tutor" for the first one and "tutor:<uid>" for each new one, listed in the history.
 (() => {
   "use strict";
   if (window.MINI) return;
-  const THREAD = "tutor";
+  const FIRST = "tutor";
   /// Sent as they are, but the last, whose blanks the learner fills in.
   const STARTERS = ["Đố tôi 5 từ đã học", "Giải thích từ tôi hay quên", "Đặt câu với từ mới học", "Khác nhau giữa ... và ..."];
   /// The most messages kept on screen; older ones stay in the database.
@@ -14,19 +15,29 @@
       <header class="chat-head">
         ${st("ai")}
         <div class="grow"><b id="chat-title">Trợ lý học</b><span id="chat-sub"></span></div>
-        <button class="btn small ghost" id="chat-clear">Xóa lịch sử</button>
+        <button class="btn small ghost" id="chat-new">Cuộc mới</button>
         <button class="btn small" id="chat-close">Đóng</button>
       </header>
-      <div class="chat-log" id="chat-log" role="log" aria-live="polite"></div>
-      <div class="chips chat-starters" id="chat-starters">${STARTERS.map((s) => `<button type="button">${esc(s)}</button>`).join("")}</div>
-      <form class="chat-compose" id="chat-form">
-        <textarea id="chat-input" rows="1" maxlength="1000" aria-label="Câu hỏi cho trợ lý"></textarea>
-        <button class="btn primary" type="submit" id="chat-send">Gửi</button>
-      </form>
+      <div class="chat-tabs"><div class="seg" role="radiogroup" aria-label="Trợ lý học">
+        <input type="radio" name="chat-tab" id="chat-tab-talk" value="talk" checked><label for="chat-tab-talk">Trò chuyện</label>
+        <input type="radio" name="chat-tab" id="chat-tab-history" value="history"><label for="chat-tab-history">Lịch sử</label>
+      </div></div>
+      <div class="chat-view" id="chat-talk">
+        <div class="chat-log" id="chat-log" role="log" aria-live="polite"></div>
+        <div class="chips chat-starters" id="chat-starters">${STARTERS.map((s) => `<button type="button">${esc(s)}</button>`).join("")}</div>
+        <form class="chat-compose" id="chat-form">
+          <textarea id="chat-input" rows="1" maxlength="1000" aria-label="Câu hỏi cho trợ lý"></textarea>
+          <button class="btn primary" type="submit" id="chat-send">Gửi</button>
+        </form>
+      </div>
+      <div class="chat-view chat-history" id="chat-history" hidden></div>
     </aside>`);
   const fab = $("chat-fab"), panel = $("chat-panel"), log = $("chat-log"), input = $("chat-input"), send = $("chat-send");
-  /// The course whose history is on screen, and whether a question is on its way.
-  let shown = "", busy = false;
+  const history = $("chat-history");
+  /// The course whose talk is on screen, the talk, and whether a question is on its way.
+  let shown = "", thread = FIRST, busy = false;
+  const fresh = () => "tutor:" + [...crypto.getRandomValues(new Uint8Array(8))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const when = (sec) => new Date(sec * 1000).toLocaleString("vi-VN", { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" });
 
   const zh = () => courseOf() === "zh";
   function labels() {
@@ -53,13 +64,19 @@
     return log.lastElementChild;
   }
 
+  /// The talk of the course talked in last, when the course is not the one on screen.
   async function load() {
-    shown = courseOf();
+    if (shown !== courseOf()) {
+      shown = courseOf();
+      const talks = await app.call("chat_threads").catch(() => []);
+      thread = talks[0]?.thread || FIRST;
+    }
     labels();
     log.innerHTML = `<div class="skeleton"></div>`;
+    const course = courseOf(), asked = thread;
     try {
-      const messages = await app.call("chat_history", { thread: THREAD });
-      if (shown !== courseOf()) return;
+      const messages = await app.call("chat_history", { thread });
+      if (course !== courseOf() || asked !== thread) return;
       if (!messages.length) return empty();
       log.innerHTML = messages.slice(-SHOWN).map((m) => bubble(m)).join("");
       log.scrollTop = log.scrollHeight;
@@ -99,7 +116,7 @@
     input.value = "";
     fit();
     try {
-      const r = await app.call("tutor", { text, day: localDay() });
+      const r = await app.call("tutor", { text, thread, day: localDay() });
       if (course !== courseOf()) return;
       wait.remove();
       add(bubble(r.reply, r.answer.source ? byHtml(r.answer) : ""));
@@ -135,13 +152,57 @@
     const at = text.indexOf("...");
     input.setSelectionRange(at, at + 3);
   };
-  $("chat-clear").onclick = async (e) => {
-    const b = e.currentTarget;
-    if (!armed(b)) return;
+  function tab(name) {
+    $("chat-tab-" + name).checked = true;
+    $("chat-talk").hidden = name !== "talk";
+    history.hidden = name !== "history";
+    if (name === "history") listTalks();
+    else input.focus({ preventScroll: true });
+  }
+  document.querySelectorAll('[name="chat-tab"]').forEach((r) => (r.onchange = () => tab(r.value)));
+  $("chat-new").onclick = () => {
+    if (busy) return;
+    thread = fresh();
+    empty();
+    tab("talk");
+  };
+
+  /// The past talks of the course, the one talked in last first, each named by its first question.
+  async function listTalks() {
+    history.innerHTML = `<div class="skeleton"></div>`;
+    let talks;
     try {
-      await app.call("chat_clear", { thread: THREAD });
-      empty();
-      toast("Đã xóa lịch sử trò chuyện");
+      talks = await app.call("chat_threads");
+    } catch (e) {
+      history.innerHTML = `<p class="error">${esc(e)}</p>`;
+      return;
+    }
+    if (!talks.length) {
+      history.innerHTML = `<p class="muted chat-none">Chưa có cuộc trò chuyện nào. Hỏi trợ lý một câu, cuộc trò chuyện sẽ được lưu ở đây.</p>`;
+      return;
+    }
+    history.innerHTML = talks.map((t) => `<div class="chat-talk${t.thread === thread ? " current" : ""}">
+        <button class="chat-pick" data-t="${esc(t.thread)}"><b>${esc(t.title || "Cuộc trò chuyện")}</b>
+          <span>${when(t.last)}, ${t.turns} câu hỏi${t.thread === thread ? ", đang mở" : ""}</span></button>
+        <button class="btn small ghost danger" data-del="${esc(t.thread)}">Xóa</button>
+      </div>`).join("");
+  }
+  history.onclick = async (e) => {
+    const open = e.target.closest("[data-t]"), del = e.target.closest("[data-del]");
+    if (open && !busy) {
+      thread = open.dataset.t;
+      tab("talk");
+      return load();
+    }
+    if (!del || !armed(del)) return;
+    try {
+      await app.call("chat_clear", { thread: del.dataset.del });
+      if (del.dataset.del === thread) {
+        thread = fresh();
+        empty();
+      }
+      toast("Đã xóa cuộc trò chuyện");
+      listTalks();
     } catch (err) {
       toast(String(err));
     }
@@ -152,6 +213,8 @@
   });
   hooks.course.push(() => {
     labels();
-    if (!panel.hidden) load(); else shown = "";
+    if (panel.hidden) return void (shown = "");
+    load();
+    if (!history.hidden) listTalks();
   });
 })();
