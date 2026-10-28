@@ -323,12 +323,16 @@ pub fn speak(dir: &Path, voice: &Voice, text: &str, speed: f32) -> Result<(Vec<f
 
 /// The speech of `text` in the voice a setting names for `lang` ("en", "zh" or "vi"), else in the best one
 /// downloaded, without playing it.
+// For the voice tutor (src/talk.rs), which streams speech through play_stream.
+#[allow(dead_code)]
 pub fn render(dir: &Path, voice: &str, lang: &str, text: &str, speed: f32) -> Result<(Vec<f32>, u32), String> {
     let voice = for_lang(dir, voice, lang).ok_or("Chưa tải giọng đọc nào, vào Cài đặt để tải")?;
     synth(dir, &voice, text, speed).map(|(samples, rate)| (samples.to_vec(), rate))
 }
 
 /// The speech of `text` in speaker `sid` of the course's Kokoro, as samples and their rate.
+// For the voice tutor (src/talk.rs), which streams speech through play_stream.
+#[allow(dead_code)]
 pub(crate) fn generate(dir: &Path, course: &str, sid: i32, text: &str, speed: f32) -> Result<(Vec<f32>, u32), String> {
     let lang = lang_of(course);
     let pack = PACKS.iter().find(|p| p.family == "kokoro" && p.langs.contains(&lang)).ok_or("Không có giọng cho khóa này")?;
