@@ -761,7 +761,7 @@ impl<'a> Ai<'a> {
         }
         let zh = pron::is_chinese(word);
         let (system, example) = if zh { (EXPLAIN_ZH_SYSTEM, EXPLAIN_ZH_SHOT) } else { (EXPLAIN_SYSTEM, EXPLAIN_SHOT) };
-        let question = explain_question(word);
+        let question = explain_question(word, self.tiny());
         let prompt = Prompt { system, example, question: &question, max_tokens: 380, cjk: zh };
         let (text, by) = self.chat(&prompt)?;
         let mut out = parse_explain(&text);
@@ -937,6 +937,11 @@ impl<'a> Ai<'a> {
     /// Whether the model on this machine is asked first: it reads slowly and loses its way in a long prompt.
     fn small(&self) -> bool {
         !PROVIDERS[1..].contains(&self.settings.provider.as_str())
+    }
+
+    /// Whether the model asked first is Qwen 0.5B, the smallest, which some prompts are worded for.
+    fn tiny(&self) -> bool {
+        self.small() && local_group(self.dir, &self.settings.local_model) == "llm"
     }
 
     /// The tutor's answer to `question`, from the learner's `words` of the course and the last lines of `history`;
@@ -1358,9 +1363,12 @@ fn level_of(text: &str) -> String {
 
 /// The word to explain; a Chinese one comes with its English gloss from CC-CEDICT, which keeps the Vietnamese meaning
 /// of a small model on the right sense.
-fn explain_question(word: &str) -> String {
+/// With `tiny`, for Qwen 0.5B, the hint alone: asked to write the meaning in Vietnamese too, it writes the examples in
+/// Vietnamese as well, while Qwen 1.5B, without that line, often copies the word or the English.
+fn explain_question(word: &str, tiny: bool) -> String {
     match pron::gloss(word).filter(|_| pron::is_chinese(word)) {
-        Some(gloss) => format!("{word}\nCC-CEDICT: {gloss}"),
+        Some(gloss) if tiny => format!("{word}\nCC-CEDICT: {gloss}"),
+        Some(gloss) => format!("{word}\nCC-CEDICT: {gloss}\nWrite NGHIA in Vietnamese."),
         None => word.to_owned(),
     }
 }
@@ -1703,8 +1711,7 @@ mod tests {
     #[test]
     #[ignore = "needs the downloaded models: cargo test -- --ignored"]
     fn qwen_explains_chinese() {
-        // A folder of its own with only `models` in it keeps the test away from the learner's words.
-        let dir = std::env::var_os("CARD_ENGLISH_DIR").map_or_else(crate::data_dir, std::path::PathBuf::from);
+        let dir = crate::models_only();
         let mut failed = Vec::new();
         for local_model in ["llm", "llm15"] {
             let settings = Settings { provider: "local".into(), local_model: local_model.into(), ..Settings::default() };
@@ -2073,11 +2080,12 @@ mod tests {
         assert_eq!(e.example, "我每天早上吃一个苹果。");
         assert!(e.example_reading.starts_with("Wǒ měitiān"), "{}", e.example_reading);
         // The model is told what CC-CEDICT says the word means, when it knows the word.
-        assert_eq!(explain_question("银行"), "银行\nCC-CEDICT: bank");
-        assert_eq!(explain_question("学习"), "学习\nCC-CEDICT: to learn; to study");
-        assert_eq!(explain_question("我们学习中文"), "我们学习中文");
+        assert_eq!(explain_question("银行", true), "银行\nCC-CEDICT: bank");
+        assert_eq!(explain_question("学习", true), "学习\nCC-CEDICT: to learn; to study");
+        assert_eq!(explain_question("学习", false), "学习\nCC-CEDICT: to learn; to study\nWrite NGHIA in Vietnamese.");
+        assert_eq!(explain_question("我们学习中文", false), "我们学习中文");
         assert!(pron::gloss("IP").is_some());
-        assert_eq!(explain_question("IP"), "IP", "an English word has no hint, even one CC-CEDICT lists");
+        assert_eq!(explain_question("IP", false), "IP", "an English word has no hint, even one CC-CEDICT lists");
         assert_eq!([level_of("hsk 4"), level_of("B2"), level_of("HSK"), level_of("")], ["HSK4", "B2", "", ""]);
         // Full-width bars and colons, as Chinese answers have them; a word is one script or the other.
         let s = parse_suggestions("1. 机场｜sân bay\n护照：hộ chiếu\nhotel | khách sạn\n飞机 plane | máy bay", &["护照".into()]);
