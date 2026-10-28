@@ -3,10 +3,8 @@
 (() => {
   "use strict";
   // The mode rides on the practice runner: startPractice sets up a run of this kind like any other, and showPractice
-  // hands its cards here while keeping the results screen, the retry and the skipping of words.
-  const base = window.showPractice;
-  if (typeof base !== "function") return;
-  window.showPractice = () => (practice && practice.kind === "shadow" && practice.items[practice.at] ? show() : base());
+  // puts its cards here while keeping the progress, the results screen, the retry and the skipping of words.
+  exercises.shadow = { show };
 
   // ponytail: fixed levels; measure the room's noise first if a loud fan keeps takes from ending.
   /// Louder than this (root mean square) is the learner speaking; a take ends QUIET_MS after they stop, or after
@@ -15,11 +13,8 @@
   /// The stop of the last recording, which the next take waits for, since the microphone opens once at a time.
   let stopped = Promise.resolve();
 
-  function show() {
-    const p = practice, w = p.items[p.at], card = $("practice-card"), zh = (w.lang || "en") === "zh";
-    $("practice-bar").style.width = (100 * p.at) / p.items.length + "%";
-    $("practice-count").textContent = `${p.at}/${p.items.length}`;
-    slideIn(card);
+  function show(w, card, p) {
+    const zh = (w.lang || "en") === "zh";
     const short = w.example && (zh ? w.example.length <= 30 : w.example.split(/\s+/).length <= 20);
     const sentence = short ? w.example : w.word;
     const reading = short ? (zh ? w.example_reading : w.example_vi) : w.ipa;
@@ -35,8 +30,7 @@
         <button class="btn hidden" data-a="listen">Nghe lại</button>
         <button class="btn" data-a="skip">Bỏ qua</button>
         <button class="btn primary hidden" data-a="next">Câu tiếp</button>
-      </div>
-      <div class="row center" style="margin-top:14px"><button class="btn ghost small" id="btn-practice-skip">Bỏ qua từ này, không học nữa</button></div>`;
+      </div>`;
     const box = card.querySelector(".shadow-box"), line = card.querySelector(".shadow-line");
     const button = (a) => card.querySelector(`[data-a="${a}"]`);
     const alive = () => practice === p && box.isConnected;
@@ -116,7 +110,6 @@
       next();
     };
     button("next").onclick = next;
-    $("btn-practice-skip").onclick = () => skipInPractice(w);
     take();
   }
 
