@@ -18,7 +18,7 @@ Khóa tiếng Trung:
 - Khóa thứ hai, đổi khóa ở thanh bên. Mỗi khóa là một không gian riêng: lịch ôn, XP, cấp độ, chuỗi ngày học, thành tích, thống kê, màu giao diện, mục tiêu, số từ mới mỗi ngày và giọng đọc đều tách riêng. Nhắc nhở và số trên thanh menu theo khóa đang chọn. Từ có chữ Hán tự vào khóa tiếng Trung, kể cả khi nhập từ file.
 - Pinyin có dấu thanh lấy từ CC-CEDICT, âm Hán Việt của từng từ lấy từ tự điển Thiều Chửu, câu ví dụ kèm pinyin, trình độ HSK.
 - Nghe đọc bằng giọng Kokoro tiếng Trung (tự nhiên nhất, cho máy mạnh) hoặc Piper Xiao Ya (rất nhẹ, cho máy yếu và trung bình) tải về, chạy offline, hoặc giọng phổ thông của hệ điều hành.
-- Chấm phát âm bằng Whisper tiny đa ngôn ngữ (tải thêm 45 MB trong Cài đặt), phân biệt được lỗi sai thanh điệu với lỗi sai âm.
+- Chấm phát âm bằng SenseVoice chạy trên máy (tải 166 MB trong Cài đặt), phân biệt được lỗi sai thanh điệu với lỗi sai âm.
 - Bài điền từ và nghe viết nhận cả chữ Hán lẫn pinyin không dấu.
 - AI gợi ý từ, chữa câu, viết truyện ngắn và chọn từ trong đoạn văn tiếng Trung dán vào.
 
@@ -38,7 +38,7 @@ Bài tập:
 Phát âm:
 
 - Ghi âm và chấm điểm một từ hoặc cả câu ví dụ, chỉ ra những từ chưa nghe rõ.
-- Chấm điểm bằng Whisper chạy trên máy.
+- Chấm điểm bằng model nhận giọng chạy trên máy (Parakeet).
 
 AI gợi ý từ mới: theo chủ đề, theo các từ đã học, hoặc chọn ra từ một đoạn văn dán vào.
 
@@ -91,7 +91,7 @@ Mới trong 0.5.4:
 
 Mới trong 0.5.3:
 
-- Bài thi thử: với lộ trình khó (mục tiêu ghi IELTS, TOEIC, VSTEP, HSK, hoặc trình độ từ B2 trở lên), mỗi chặng kết thúc bằng một bài kiểm tra chặng và chặng cuối là một đề thi thử đủ bốn kỹ năng Nghe, Đọc, Viết, Nói, theo dạng câu hỏi, thứ tự phần thi, thời gian và thang điểm của đề thật (IELTS band 0-9, TOEIC 10-990, VSTEP bậc 3-5, HSK 3.0 kèm HSKK). AI viết đề từ chủ đề của chặng và các từ bạn đã học; đề được lưu lại nên mở lại không phải viết lại. Bài nghe đọc bằng giọng của app đã tải (giọng nam và nữ cho hội thoại), bài nói ghi âm và nhận giọng bằng Whisper trên máy, bài viết và bài nói được AI chấm theo tiêu chí của đề kèm lỗi, cách sửa và bản viết tốt hơn. Chặng chỉ xong khi đủ từ và qua bài kiểm tra, trừ khi bạn tự đánh dấu xong; lộ trình thường vẫn có nút Thi thử. Cần Qwen 1.5B hoặc một nguồn AI trên mạng.
+- Bài thi thử: với lộ trình khó (mục tiêu ghi IELTS, TOEIC, VSTEP, HSK, hoặc trình độ từ B2 trở lên), mỗi chặng kết thúc bằng một bài kiểm tra chặng và chặng cuối là một đề thi thử đủ bốn kỹ năng Nghe, Đọc, Viết, Nói, theo dạng câu hỏi, thứ tự phần thi, thời gian và thang điểm của đề thật (IELTS band 0-9, TOEIC 10-990, VSTEP bậc 3-5, HSK 3.0 kèm HSKK). AI viết đề từ chủ đề của chặng và các từ bạn đã học; đề được lưu lại nên mở lại không phải viết lại. Bài nghe đọc bằng giọng của app đã tải (giọng nam và nữ cho hội thoại), bài nói ghi âm và nhận giọng bằng model trên máy, bài viết và bài nói được AI chấm theo tiêu chí của đề kèm lỗi, cách sửa và bản viết tốt hơn. Chặng chỉ xong khi đủ từ và qua bài kiểm tra, trừ khi bạn tự đánh dấu xong; lộ trình thường vẫn có nút Thi thử. Cần Qwen 1.5B hoặc một nguồn AI trên mạng.
 - Trợ lý học: chọn model ngay trong khung chat (áp dụng cho cả Hội thoại nhập vai), tab Lịch sử để mở lại hay xóa các cuộc trò chuyện, nút Cuộc mới, và bấm vào từ tiếng Anh hoặc tiếng Trung in đậm trong câu trả lời để nghe.
 - Bấm vào thông báo nhắc học là mở ngay cửa sổ Đố nhanh để ôn các từ đến hạn; chưa có từ nào cần ôn thì app mở cửa sổ chính. Trên macOS thông báo có thêm nút Học ngay, và lời nhắc mới thay cho lời nhắc cũ.
 - Khi bạn chưa chọn model trên máy, app tự dùng Qwen 1.5B nếu đã tải, chưa có thì Qwen 0.5B; tải xong Qwen 1.5B là dùng ngay, không cần mở lại app.
@@ -112,7 +112,7 @@ Mới trong 0.5.0:
 - Chủ đề: tự tạo chủ đề với màu và mô tả; đổi tên thì mọi từ đổi theo, xóa chủ đề thì từ vẫn còn.
 - Lộ trình: đặt mục tiêu (IELTS, TOEIC, HSK, du lịch...), trình độ, hạn chót hoặc ngày thi và số phút mỗi ngày; AI chia thành 4 đến 12 chặng (chủ đề, số từ, kỹ năng, bài tập nên làm), hoặc tự lập và sửa mọi thứ. App theo dõi tiến độ từng chặng, cho biết bạn đang nhanh hay chậm so với hạn chót, gợi ý số từ mới mỗi ngày, và hiện chặng đang học trên trang chính với nút Học tiếp.
 - Trợ lý học: nút tròn ở góc dưới bên phải mở khung trò chuyện với AI ở mọi trang. Trợ lý giúp mọi việc học và dùng ngôn ngữ của khóa đang chọn: giải thích từ, ngữ pháp, thành ngữ, dịch câu hay đoạn văn, viết và sửa email, tin nhắn, văn hóa giao tiếp, ôn thi; đố từ và ôn tập thì dùng chính các từ bạn đã học. Câu hỏi không liên quan tới ngôn ngữ (lập trình, toán, tin tức, sức khỏe, chính trị) được từ chối lịch sự. Lịch sử lưu riêng cho từng khóa và xóa được.
-- Hội thoại nhập vai (Bài tập, Học cùng AI): chọn tình huống như phỏng vấn, sân bay, gọi món, khách sạn, hỏi đường, mua sắm, họp; AI đóng vai người đối diện vừa sức bạn, đọc to từng câu, có bản dịch. Trả lời bằng giọng nói (Whisper trên máy) hoặc gõ phím; Kết thúc để nhận nhận xét lỗi và cách sửa. Qwen 0.5B còn yếu cho hội thoại, nên dùng Qwen 1.5B hoặc nguồn AI trên mạng.
+- Hội thoại nhập vai (Bài tập, Học cùng AI): chọn tình huống như phỏng vấn, sân bay, gọi món, khách sạn, hỏi đường, mua sắm, họp; AI đóng vai người đối diện vừa sức bạn, đọc to từng câu, có bản dịch. Trả lời bằng giọng nói (nhận giọng trên máy) hoặc gõ phím; Kết thúc để nhận nhận xét lỗi và cách sửa. Qwen 0.5B còn yếu cho hội thoại, nên dùng Qwen 1.5B hoặc nguồn AI trên mạng.
 - Chữ Hán: cửa sổ của mỗi từ tiếng Trung có Thứ tự nét (từng chữ tự viết lại, bộ thủ tô màu riêng) và bộ thủ, thành phần với pinyin và âm Hán Việt (ví dụ 好 = 女 (nữ) + 子 (tử)); mặt sau thẻ cũng có một dòng như vậy. Bài Viết chữ Hán: xem nghĩa và pinyin rồi viết từng nét bằng chuột hoặc cảm ứng. Nét chữ tải một lần cho mỗi chữ rồi dùng được khi không có mạng.
 - Luyện thanh điệu (khóa tiếng Trung): nghe một từ và chọn thanh điệu của từng chữ, rồi tự đọc để máy chỉ ra chữ nào sai thanh.
 - Hình ảnh cho thẻ từ: dán ảnh, kéo thả hoặc chọn file trong ô sửa từ hay cửa sổ của từ; app tự thu nhỏ và hiện ở mặt sau thẻ, đáp án khi ôn và cửa sổ của từ.
@@ -130,7 +130,16 @@ Chọn nguồn AI trong Cài đặt. Khi nguồn đang chọn lỗi hoặc hết
 | Gemini | API key miễn phí từ Google AI Studio | Lấy từ `models.list`, mặc định là bản flash mới nhất |
 | DeepSeek | API key, trả phí theo lượt | Lấy từ `GET /models` |
 
-Chấm phát âm luôn chạy trên máy bằng Whisper: tiếng Anh dùng tiny.en Q8_0 (44 MB), tiếng Trung dùng bản tiny đa ngôn ngữ (tải thêm 45 MB). Trên Mac model chạy bằng GPU (Metal); `CARD_ENGLISH_CPU=1` ép dùng CPU. Mọi model đã tải đều xóa được trong Cài đặt; hai bản Qwen dùng chung một file tokenizer, file này chỉ bị xóa khi không còn bản nào cần.
+Chấm phát âm luôn chạy trên máy, qua sherpa-onnx, bằng model hợp với máy (đo trên Mac M4 với giọng đọc của macOS, từ đơn):
+
+| Model | Dung lượng | Đúng | Một từ | Gợi ý cho |
+| --- | --- | --- | --- | --- |
+| Parakeet TDT 110M, tiếng Anh | 108 MB | 66,8% | 41 ms | Máy yếu và trung bình |
+| Parakeet TDT 0.6B v2, tiếng Anh | 482 MB | 74,5% | 182 ms | Máy mạnh |
+| SenseVoice, tiếng Trung | 166 MB | 86,7% | 93 ms | Mọi máy |
+| Whisper tiny của các bản trước | 42 MB | 62,9% | 1,2 giây | Chỉ hiện khi đã tải |
+
+Mỗi khóa dùng model bạn chọn (Dùng model này), chưa chọn thì dùng model đã tải hợp với máy nhất; tải về là chọn luôn. Whisper luôn xử lý cả khung 30 giây nên chậm, còn các model mới chỉ nghe đúng đoạn bạn nói. Điểm của từ nói đúng tính theo độ chắc chắn của Parakeet ở từng phần của từ; SenseVoice không cho số này nên từ đúng được 97 điểm. Trên Mac, Qwen chạy bằng GPU (Metal); `CARD_ENGLISH_CPU=1` ép dùng CPU. Mọi model đã tải đều xóa được trong Cài đặt; hai bản Qwen dùng chung một file tokenizer, file này chỉ bị xóa khi không còn bản nào cần.
 
 ChatGPT dùng luồng chính thức "Sign in with ChatGPT" cho app mã nguồn mở chạy trên máy người dùng
 (https://developers.openai.com/siwc/token-sharing-open-source, đang ở giai đoạn preview). App đóng mã hoặc thu phí
@@ -215,7 +224,7 @@ Cấu trúc:
 - `src/chatgpt.rs`: Sign in with ChatGPT (PKCE, làm mới token, đăng xuất), Responses API.
 - `src/codex.rs`: ChatGPT qua Codex (đăng nhập, model, hạn mức).
 - `src/cloud.rs`: Gemini và DeepSeek.
-- `src/speech.rs`: ghi âm (cpal), Whisper, chấm điểm.
+- `src/speech.rs`: ghi âm (cpal), nhận giọng (Parakeet, SenseVoice, Whisper cũ), chấm điểm.
 - `src/pron.rs`: IPA và so khớp âm vị từ CMUdict, pinyin và âm Hán Việt.
 - `src/voice.rs`: các gói giọng Kokoro, Supertonic và Piper (tải, xóa, chọn theo máy, chuẩn bị chữ cho từng giọng, giữ đoạn vừa đọc, đọc sẵn, phát qua cpal).
 - `src/hardware.rs`: bộ xử lý, RAM, xếp loại máy yếu, trung bình, mạnh và số luồng của model.
@@ -276,6 +285,7 @@ README của tap là `packaging/homebrew/README.md`, được script chép sang 
 
 - CMU Pronouncing Dictionary: xem `assets/cmudict-LICENSE`.
 - Giọng Kokoro-82M (Apache 2.0), Supertonic 3 (model OpenRAIL-M, mã MIT, Supertone Inc.) và Piper zh_CN xiao_ya (dữ liệu Biaobei, chỉ dùng phi thương mại) đóng gói bởi sherpa-onnx (Apache 2.0), tải từ github.com/k2-fsa/sherpa-onnx/releases, kiểm tra bằng SHA-256.
+- Model nhận giọng Parakeet TDT 110M và 0.6B v2 (CC-BY-4.0, NVIDIA) và SenseVoice Small (giấy phép model của FunASR) đóng gói bởi sherpa-onnx, tải từ github.com/k2-fsa/sherpa-onnx/releases, kiểm tra bằng SHA-256.
 - Model Qwen2.5 (Apache 2.0) và Whisper (MIT, cả tiny.en lẫn bản tiny đa ngôn ngữ, từ huggingface.co/lmz/candle-whisper) được tải trực tiếp từ Hugging Face.
 - `assets/cedict.txt` và `assets/cedict-gloss.txt.gz` lấy từ CC-CEDICT (MDBG và những người đóng góp, bản ngày 2026-10-27, CC BY-SA 4.0): file thứ nhất bỏ phần định nghĩa tiếng Anh, file thứ hai giữ nghĩa tiếng Anh rút gọn của từng mục từ; cả hai cũng theo CC BY-SA 4.0. Xem `assets/cedict-LICENSE`.
 - `assets/hanviet.txt` chứa âm Hán Việt của Thiều Chửu, Hán Việt tự điển (1942, phạm vi công cộng), theo bản số hóa của catusf/tudien (CC0 1.0), cùng quan hệ dị thể và một phần âm đọc kVietnamese của Unicode Han Database (Unihan), Copyright Unicode, Inc., Unicode License v3. Xem `assets/hanviet-LICENSE`.

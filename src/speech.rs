@@ -416,7 +416,7 @@ fn hear_with(group: &'static str, pcm: &[f32], dir: &Path, zh: bool) -> Result<(
 /// that it hears Mandarin, with the inverse text normalization it was measured with.
 fn load_sherpa(dir: &Path, group: &str) -> Result<OfflineRecognizer, String> {
     let folder = models::folder(dir, group).ok_or("Không có model này")?;
-    let file = |name: &str| Some(narrow(&folder.join(name)));
+    let file = |name: &str| Some(crate::voice::narrow(&folder.join(name)));
     let mut config = OfflineRecognizerConfig::default();
     config.model_config.num_threads = hardware::model_threads();
     config.model_config.tokens = file("tokens.txt");
@@ -481,33 +481,6 @@ fn heard(json: &str) -> Option<(String, f32)> {
         p.iter().map(|l| l.exp()).sum::<f32>() / p.len() as f32
     };
     Some((text, confidence))
-}
-
-/// A path sherpa-onnx can open, as voice.rs makes them: its C API takes narrow strings, which on Windows lose letters
-/// such as those of a Vietnamese user name, so there a path that is not ASCII goes in its short 8.3 form when the
-/// disk keeps one.
-#[cfg(windows)]
-fn narrow(path: &Path) -> String {
-    use std::os::windows::ffi::{OsStrExt, OsStringExt};
-    let text = path.to_string_lossy().into_owned();
-    if text.is_ascii() {
-        return text;
-    }
-    let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
-    let mut short = vec![0u16; 1024];
-    // SAFETY: `wide` ends in a zero and `short` holds as many units as it is said to.
-    let n = unsafe {
-        windows_sys::Win32::Storage::FileSystem::GetShortPathNameW(wide.as_ptr(), short.as_mut_ptr(), short.len() as u32)
-    } as usize;
-    if n == 0 || n >= short.len() {
-        return text;
-    }
-    std::ffi::OsString::from_wide(&short[..n]).to_string_lossy().into_owned()
-}
-
-#[cfg(not(windows))]
-fn narrow(path: &Path) -> String {
-    path.to_string_lossy().into_owned()
 }
 
 /// A Whisper of the first versions: its files, and the language it is told to hear, for one that hears more than
