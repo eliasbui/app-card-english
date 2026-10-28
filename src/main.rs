@@ -12,6 +12,7 @@ mod db;
 mod fsrs;
 mod models;
 mod net;
+mod packs;
 mod pron;
 mod speech;
 mod update;
@@ -477,6 +478,17 @@ impl App {
                     result.map(|s| json!(s))
                 }));
             }
+            "pack_add" => {
+                let pack = text("pack");
+                let n = args["n"].as_u64().unwrap_or(10) as usize;
+                let settings = self.ai_settings();
+                let proxy = self.proxy.clone();
+                background(Box::new(move || {
+                    packs::add(&dir, &settings, &pack, n, &day, |data| {
+                        let _ = proxy.send_event(UserEvent::Post(json!({ "event": "pack_progress", "data": data })));
+                    })
+                }));
+            }
             "ai_models" => {
                 let provider = text("provider");
                 let settings = self.ai_settings();
@@ -782,6 +794,35 @@ impl App {
                 .map(|w| json!(w))
                 .ok_or_else(|| "Không tìm thấy từ này".into()),
             "rec_level" => Ok(json!(speech::level())),
+            "packs" => packs::status(db, &self.course()).map_err(e),
+            "pack_cancel" => {
+                packs::cancel();
+                Ok(Value::Null)
+            }
+            // Where packs start: after the bands a test found known, or back at the start.
+            "pack_move" => {
+                for (id, at) in args["moves"].as_object().into_iter().flatten() {
+                    packs::set_position(db, id, at.as_u64().unwrap_or(0) as usize)?;
+                }
+                packs::status(db, &self.course()).map_err(e)
+            }
+            "vocab_test" => {
+                let course = self.course();
+                Ok(json!({ "lang": course, "items": packs::test(&course) }))
+            }
+            "vocab_result" => {
+                let lang = if args["lang"] == "zh" { "zh" } else { "en" };
+                let answers: Vec<(Option<usize>, bool)> = args["answers"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .map(|a| (a["band"].as_u64().map(|b| b as usize), a["yes"].as_bool().unwrap_or(false)))
+                    .collect();
+                let mut estimate = packs::estimate(lang, &answers);
+                // Only the packs that would move forward.
+                estimate.moves.retain(|m| packs::find(m.pack).is_some_and(|p| m.to > packs::position(db, p)));
+                Ok(json!(estimate))
+            }
             "open_url" => {
                 let url = args["url"].as_str().unwrap_or_default();
                 if !(update::is_release_url(url) || OPEN_URLS.contains(&url)) {
