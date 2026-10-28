@@ -26,6 +26,13 @@ impl Local {
     pub fn seconds(&self) -> i64 {
         i64::from(self.minutes() * 60 + self.second)
     }
+
+    /// The day of the week, 0 for Sunday to 6 for Saturday, by Sakamoto's method.
+    pub fn weekday(&self) -> u32 {
+        const T: [i32; 12] = [0, 3, 2, 5, 0, 3, 5, 1, 4, 6, 2, 4];
+        let y = if self.month < 3 { self.year - 1 } else { self.year };
+        (y + y / 4 - y / 100 + y / 400 + T[self.month as usize - 1] + self.day as i32).rem_euclid(7) as u32
+    }
 }
 
 #[cfg(unix)]
@@ -109,5 +116,7 @@ mod tests {
         assert!(t.year >= 2024 && (1..=12).contains(&t.month) && (1..=31).contains(&t.day) && t.hour < 24 && t.minute < 60);
         assert_eq!(t.date().len(), 10);
         assert!(t.seconds() < 86_400);
+        let day = |year, month, day| Local { year, month, day, hour: 0, minute: 0, second: 0 }.weekday();
+        assert_eq!([day(2026, 10, 28), day(2000, 1, 1), day(2024, 2, 29), day(2026, 3, 1), day(2027, 1, 3)], [3, 6, 4, 0, 0]);
     }
 }
