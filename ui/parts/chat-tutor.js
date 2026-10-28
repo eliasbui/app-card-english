@@ -47,12 +47,23 @@
     input.placeholder = "Hỏi về từ, câu hay ngữ pháp";
   }
 
-  /// An answer as a bubble shows it: bold where the model marked it, headings as bold lines, the rest as written.
-  const rich = (text) => esc(text).replace(/^#{1,4}\s*(.+)$/gm, "<b>$1</b>").replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+  /// Text in the language of the course: Chinese characters, or Latin letters without the marks of Vietnamese.
+  const foreign = (t) => (zh() ? hasHan(t) : /[a-z]/i.test(t) && !/[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(t));
+  /// An answer as a bubble shows it: bold where the model marked it, the words of the course read aloud when clicked,
+  /// headings as bold lines, the rest as written.
+  const rich = (text) => esc(text).replace(/^#{1,4}\s*(.+)$/gm, "<b>$1</b>")
+    .replace(/\*\*(.+?)\*\*/g, (_, t) => (foreign(t) ? `<b class="chat-say" data-say="${t}" title="Bấm để nghe">${t}</b>` : `<b>${t}</b>`));
+  /// What "Nghe" reads of an answer: its Chinese, or its English words in bold.
+  function spoken(text) {
+    const parts = zh() ? text.match(/[\u4e00-\u9fff，。？！、]+/g) || [] : [...text.matchAll(/\*\*(.+?)\*\*/g)].map((m) => m[1]).filter(foreign);
+    return parts.join(zh() ? "，" : ". ");
+  }
   function bubble(m, by = "") {
     if (m.role === "user") return `<div class="chat-msg me"><div class="chat-bubble">${esc(m.text)}</div></div>`;
     const who = by || (m.source ? `Trả lời bởi ${esc(m.source)}.` : "");
-    return `<div class="chat-msg"><div class="chat-bubble">${rich(m.text)}</div>${who ? `<div class="chat-by">${who}</div>` : ""}</div>`;
+    const say = spoken(m.text);
+    return `<div class="chat-msg"><div class="chat-bubble">${rich(m.text)}</div>
+      ${say || who ? `<div class="chat-by">${say ? `<button class="btn small chat-listen" data-say="${esc(say)}">Nghe</button>` : ""}${who}</div>` : ""}</div>`;
   }
   function empty() {
     log.innerHTML = `<div class="chat-empty">${st(zh() ? "mascot-zh" : "mascot-think")}<b>Chào bạn!</b>

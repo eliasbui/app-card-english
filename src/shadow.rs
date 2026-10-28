@@ -492,7 +492,7 @@ mod tests {
     #[test]
     #[ignore = "needs the Kokoro packs and Whisper in the data folder"]
     fn shadowing_a_kokoro_reading_end_to_end() {
-        let dir = crate::data_dir();
+        let dir = crate::models_only();
         for (sentence, learner, said) in [
             ("Are you ready for the trip?", "Daniel", "Are you ready for the trip?"),
             ("Are you ready for the trip?", "Daniel", "You are ready for the trip."),

@@ -1668,7 +1668,7 @@ mod tests {
     #[ignore = "needs the downloaded models: cargo test -- --ignored"]
     fn qwen_explains_and_suggests() {
         let settings = Settings { provider: "local".into(), ..Settings::default() };
-        let dir = crate::data_dir();
+        let dir = crate::models_only();
         let ai = Ai::new(&settings, &dir);
         for word in ["happy", "take off", "environment"] {
             let start = std::time::Instant::now();
@@ -1687,7 +1687,7 @@ mod tests {
     #[test]
     #[ignore = "needs the downloaded models: cargo test -- --ignored"]
     fn qwen_tutors_and_plays_a_scene() {
-        let dir = crate::data_dir();
+        let dir = crate::models_only();
         let words = [
             db::Word { lapses: 2, learned_at: 1, ..word("negotiate", "đàm phán") },
             db::Word { learned_at: 1, ..word("deadline", "hạn chót") },

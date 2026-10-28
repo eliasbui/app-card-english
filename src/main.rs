@@ -120,6 +120,17 @@ fn day_start() -> i64 {
     clock::now().map_or(t - 86_400, |l| t - l.seconds())
 }
 
+/// The downloaded models seen from a folder of their own, for the tests that run them: an `Ai` opens the database of
+/// its folder, which in the real one is the learner's, and would bring it up to the version under test.
+#[cfg(test)]
+fn models_only() -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("card-english-models-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    #[cfg(unix)]
+    let _ = std::os::unix::fs::symlink(data_dir().join("models"), dir.join("models"));
+    dir
+}
+
 fn data_dir() -> PathBuf {
     let env = |key: &str| std::env::var_os(key).map(PathBuf::from);
     let home = env("HOME").or_else(|| env("USERPROFILE")).unwrap_or_else(|| ".".into());

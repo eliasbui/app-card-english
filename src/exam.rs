@@ -2890,11 +2890,7 @@ mod tests {
     #[test]
     #[ignore = "needs the downloaded Qwen 1.5B: cargo test -- --ignored"]
     fn qwen_writes_a_section() {
-        // The models of the data folder seen from a folder of its own, so that the AI's checks open no real database.
-        let dir = std::env::temp_dir().join(format!("card-english-exam-qwen-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        #[cfg(unix)]
-        let _ = std::os::unix::fs::symlink(crate::data_dir().join("models"), dir.join("models"));
+        let dir = crate::models_only();
         let settings = ai::Settings { provider: "local".into(), local_model: "llm15".into(), ..ai::Settings::default() };
         let ai = ai::Ai::new(&settings, &dir);
         for (purpose, zh, skill) in [("IELTS 6.5", false, "Đọc"), ("HSK 3", true, "Nghe")] {

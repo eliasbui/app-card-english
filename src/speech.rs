@@ -556,14 +556,14 @@ mod tests {
         assert!(said.success());
         let pcm = read_wav(&std::fs::read(&wav).unwrap());
         let start = std::time::Instant::now();
-        let right = assess("beautiful", &pcm, &crate::data_dir()).unwrap();
+        let right = assess("beautiful", &pcm, &crate::models_only()).unwrap();
         println!("{right:?} in {:?}", start.elapsed());
         assert!(right.score >= 80, "{right:?}");
-        let wrong = assess("computer", &pcm, &crate::data_dir()).unwrap();
+        let wrong = assess("computer", &pcm, &crate::models_only()).unwrap();
         println!("{wrong:?}");
         assert!(wrong.score < 50, "{wrong:?}");
-        assert_eq!(assess("beautiful", &vec![0.0; 16_000], &crate::data_dir()).unwrap().score, 0);
-        assert!(hear(&pcm, "en", &crate::data_dir()).unwrap().to_lowercase().contains("beautiful"));
+        assert_eq!(assess("beautiful", &vec![0.0; 16_000], &crate::models_only()).unwrap().score, 0);
+        assert!(hear(&pcm, "en", &crate::models_only()).unwrap().to_lowercase().contains("beautiful"));
     }
 
     #[cfg(target_os = "macos")]
@@ -582,13 +582,13 @@ mod tests {
             read_wav(&std::fs::read(&wav).unwrap())
         };
         let word = say("学习");
-        let right = assess("学习", &word, &crate::data_dir()).unwrap();
+        let right = assess("学习", &word, &crate::models_only()).unwrap();
         println!("{right:?}");
         assert!(right.score >= 80, "{right:?}");
-        let wrong = assess("电脑", &word, &crate::data_dir()).unwrap();
+        let wrong = assess("电脑", &word, &crate::models_only()).unwrap();
         println!("{wrong:?}");
         assert!(wrong.score < 50, "{wrong:?}");
-        let sentence = assess("我们明天去北京。", &say("我们明天去北京。"), &crate::data_dir()).unwrap();
+        let sentence = assess("我们明天去北京。", &say("我们明天去北京。"), &crate::models_only()).unwrap();
         println!("{sentence:?}");
         assert!(sentence.score >= 75, "{sentence:?}");
     }

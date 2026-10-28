@@ -74,3 +74,9 @@
     @keyframes chat-up { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
     .chat-compose { padding-bottom: 12px; }
   }
+  /* The words of the course in an answer: read aloud when clicked, and all at once with the button under it. */
+  .chat-say { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
+  .chat-say:hover { color: var(--accent-text); }
+  .chat-msg.me .chat-say:hover { color: inherit; }
+  .chat-by { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .chat-listen { min-height: 24px; padding: 0 9px; font-size: 12px; }
