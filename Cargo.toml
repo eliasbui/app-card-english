@@ -50,6 +50,8 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage
 candle-core = { version = "0.9", features = ["metal"] }
 candle-nn = { version = "0.9", features = ["metal"] }
 candle-transformers = { version = "0.9", features = ["metal"] }
+# Clearing the old reminders from the Notification Center; already in the tree through tao and notify-rust.
+objc2 = "0.6"
 
 [dev-dependencies]
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "ico"] }

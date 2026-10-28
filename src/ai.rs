@@ -551,10 +551,15 @@ fn label(provider: &str, group: &str) -> &'static str {
 }
 
 /// The local model a call uses: the chosen one when it is downloaded, else the other one that is, else the chosen.
+/// With none chosen, the better one: Qwen 1.5B once it is downloaded, Qwen 0.5B until then.
 pub fn local_group(dir: &Path, wanted: &str) -> &'static str {
-    let wanted = if wanted == "llm15" { "llm15" } else { "llm" };
-    let other = if wanted == "llm15" { "llm" } else { "llm15" };
-    if !models::ready(dir, wanted) && models::ready(dir, other) { other } else { wanted }
+    let ready = |group| models::ready(dir, group);
+    match wanted {
+        "llm15" if ready("llm15") || !ready("llm") => "llm15",
+        "llm" if ready("llm") || !ready("llm15") => "llm",
+        _ if ready("llm15") => "llm15",
+        _ => "llm",
+    }
 }
 
 /// The name of a local model in the usage records and the answers.
@@ -1853,12 +1858,22 @@ mod tests {
     }
 
     #[test]
-    fn the_local_model_is_the_chosen_one_until_only_the_other_is_there() {
+    fn the_local_model_is_the_chosen_one_or_the_better_one_until_only_the_other_is_there() {
         let dir = std::env::temp_dir().join(format!("card-english-local-{}", std::process::id()));
-        assert_eq!((local_group(&dir, ""), local_group(&dir, "llm15"), local_group(&dir, "x")), ("llm", "llm15", "llm"));
+        let groups = || ["", "llm", "llm15", "x"].map(|wanted| local_group(&dir, wanted));
+        // Nothing downloaded: the chosen one, which the error then names, and Qwen 0.5B when none is chosen.
+        assert_eq!(groups(), ["llm", "llm", "llm15", "llm"]);
+        models::fake_download(&dir, "llm");
+        assert_eq!(groups(), ["llm", "llm", "llm", "llm"]);
+        // Qwen 1.5B downloaded: it is the default, but a learner who chose Qwen 0.5B keeps it.
+        models::fake_download(&dir, "llm15");
+        assert_eq!(groups(), ["llm15", "llm", "llm15", "llm15"]);
+        models::delete(&dir, "llm").unwrap();
+        assert_eq!(groups(), ["llm15", "llm15", "llm15", "llm15"]);
         assert_eq!((label("local", "llm"), label("local", "llm15")), ("Model trên máy (Qwen 0.5B)", "Model trên máy (Qwen 1.5B)"));
         assert_eq!(local_model_id("llm15"), "qwen2.5-1.5b-instruct");
         unload();
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
