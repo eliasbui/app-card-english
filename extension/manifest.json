@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Card English",
+  "version": "1.0.0",
+  "description": "Bôi đen một từ trên trang web, bấm chuột phải và chọn Thêm vào Card English.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuoMf9Q8p+i+OG1Lnc85m/zyJ9HTsgVf/OaFpuLp6bTyQeK1PkPo0EwsdCFYZdsKYmZzae908Xn9DvMUjEzggeDLIAFiHQfhWbQp6LqPXWKE9q0vB+pcn1suYFSnW58GPfhqRhwr/WOKPOued64ST3IqDZjMKP8xSZ2WjB/+Egw8a3Qt/jYGRO3emKvYsObIFFrWBuUM+GBCcmhml4ZfCQXORCJA4s+H+FeOI98D/Z1iJD9GBUQ2JrkqP6PjmYw1AXoCxp2y+r2mEsM0fXrSATKDCSvzNL0NduddFhpLDBHW5ks7+d28IV8e2CTHLOeMxVdDsDPQOSb6++Ne9yY2KuQIDAQAB",
+  "permissions": ["contextMenus", "nativeMessaging", "scripting", "activeTab"],
+  "background": { "service_worker": "background.js" },
+  "icons": { "16": "icon-128.png", "48": "icon-128.png", "128": "icon-128.png" }
+}

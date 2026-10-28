@@ -4,6 +4,7 @@
 mod ai;
 mod autostart;
 mod backup;
+mod browser;
 mod chatgpt;
 mod clock;
 mod cloud;
@@ -78,6 +79,10 @@ const REMIND_TICK: Duration = Duration::from_secs(60);
 const HOTKEYS: [&str; 4] = ["CmdOrCtrl+Shift+E", "CmdOrCtrl+Shift+Y", "Alt+Shift+E", "CmdOrCtrl+Alt+E"];
 /// The most of the copied text the page is given, as much as a passage the AI reads for its words.
 const MAX_COPIED: usize = 4000;
+/// How often the app looks for words the browser extension left in the inbox.
+const INBOX_EVERY: Duration = Duration::from_secs(2);
+/// The longest text the reader keeps for a course, in bytes, and cuts into words at a time.
+const MAX_READER: usize = 256 * 1024;
 
 enum UserEvent {
     Ipc(String),
@@ -91,8 +96,8 @@ enum UserEvent {
     /// Time to count again what is left to study today, for the menu bar.
     Count,
     Hotkey,
-    /// The copied text, read after the shortcut, for the page to look up.
-    QuickAdd(String),
+    /// For the page to look up: the copied text, read after the shortcut, or what the browser extension sent.
+    QuickAdd(Value),
 }
 
 fn now() -> i64 {
@@ -124,6 +129,11 @@ fn main() {
     if let Err(e) = std::fs::create_dir_all(&dir) {
         eprintln!("cannot make {}: {e}", dir.display());
         std::process::exit(1);
+    }
+    // Started by a browser as the host of the extension, which passes its origin: no window, only the word handed over.
+    if std::env::args().skip(1).any(|a| a.starts_with(browser::ORIGIN)) {
+        browser::host(&dir);
+        return;
     }
     // One copy at a time, or every copy would send the same reminders.
     let lock = File::create(dir.join("app.lock")).and_then(|f| f.try_lock().map(|_| f).map_err(Into::into));
@@ -186,6 +196,20 @@ fn main() {
             thread::sleep(Duration::from_secs(2));
             ai::warm_up(&dir);
             speech::warm_up(&dir);
+        });
+    }
+    {
+        let dir = dir.clone();
+        thread::spawn(move || browser::register(&dir));
+    }
+    {
+        // Words from the browser extension, sent while the app runs or since it last ran.
+        let (dir, proxy) = (dir.clone(), proxy.clone());
+        thread::spawn(move || loop {
+            if let Some(words) = browser::take(&dir) {
+                let _ = proxy.send_event(UserEvent::QuickAdd(words));
+            }
+            thread::sleep(INBOX_EVERY);
         });
     }
 
@@ -254,7 +278,7 @@ fn main() {
                         eprintln!("clipboard: {e}");
                         String::new()
                     });
-                    let _ = proxy.send_event(UserEvent::QuickAdd(text));
+                    let _ = proxy.send_event(UserEvent::QuickAdd(json!(text)));
                 });
             }
             Event::UserEvent(UserEvent::QuickAdd(text)) => app.quick_add(target, text),
@@ -282,8 +306,8 @@ struct App {
     hotkey_error: String,
     /// Whether the page in the window has started and can take events.
     page_ready: bool,
-    /// Copied text that came before the page was ready, handed over when it starts.
-    pending_add: Option<String>,
+    /// What came to be looked up before the page was ready, handed over when it starts.
+    pending_add: Option<Value>,
 }
 
 impl App {
@@ -350,13 +374,13 @@ impl App {
         }
     }
 
-    /// Opens the window on the copied text; a page still loading gets it when it starts.
-    fn quick_add(&mut self, target: &EventLoopWindowTarget<UserEvent>, text: String) {
+    /// Opens the window on what is to be looked up; a page still loading gets it when it starts.
+    fn quick_add(&mut self, target: &EventLoopWindowTarget<UserEvent>, data: Value) {
         self.show(target);
         if self.page_ready {
-            self.post(&json!({ "event": "quick_add", "data": text }));
+            self.post(&json!({ "event": "quick_add", "data": data }));
         } else {
-            self.pending_add = Some(text);
+            self.pending_add = Some(data);
         }
     }
 
@@ -833,6 +857,23 @@ impl App {
                 Ok(json!(moved))
             }
             "ipa" => Ok(json!(pron::ipa(args["word"].as_str().unwrap_or_default()))),
+            "hanviet" => Ok(json!(pron::hanviet(args["word"].as_str().unwrap_or_default()))),
+            "segment" => {
+                let text = args["text"].as_str().unwrap_or_default();
+                if text.len() > MAX_READER {
+                    return Err("Văn bản quá dài, hãy chia thành nhiều phần".into());
+                }
+                Ok(json!(pron::segment(text)))
+            }
+            "reader_text" => {
+                // The last text of the reader, a file for each course, kept so that it is there after a restart.
+                let path = self.dir.join(format!("reader-{}.txt", self.course()));
+                match args["text"].as_str() {
+                    Some(text) if text.len() > MAX_READER => Err("Văn bản quá dài, hãy chia thành nhiều phần".into()),
+                    Some(text) => std::fs::write(&path, text).map(|()| Value::Null).map_err(|e| format!("Không lưu được văn bản: {e}")),
+                    None => Ok(json!(std::fs::read_to_string(&path).unwrap_or_default())),
+                }
+            }
             "save" => {
                 let mut word: db::Word = serde_json::from_value(args["word"].clone()).map_err(|e| e.to_string())?;
                 word.word = word.word.trim().to_owned();
