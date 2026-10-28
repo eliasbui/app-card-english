@@ -17,7 +17,7 @@ Khóa tiếng Trung:
 
 - Khóa thứ hai, đổi khóa ở thanh bên. Mỗi khóa là một không gian riêng: lịch ôn, XP, cấp độ, chuỗi ngày học, thành tích, thống kê, màu giao diện, mục tiêu, số từ mới mỗi ngày và giọng đọc đều tách riêng. Nhắc nhở và số trên thanh menu theo khóa đang chọn. Từ có chữ Hán tự vào khóa tiếng Trung, kể cả khi nhập từ file.
 - Pinyin có dấu thanh lấy từ CC-CEDICT, âm Hán Việt của từng từ lấy từ tự điển Thiều Chửu, câu ví dụ kèm pinyin, trình độ HSK.
-- Nghe đọc bằng giọng Kokoro tiếng Trung tải về (giọng tự nhiên, chạy offline) hoặc giọng phổ thông của hệ điều hành.
+- Nghe đọc bằng giọng Kokoro tiếng Trung (tự nhiên nhất, cho máy mạnh) hoặc Piper Xiao Ya (rất nhẹ, cho máy yếu và trung bình) tải về, chạy offline, hoặc giọng phổ thông của hệ điều hành.
 - Chấm phát âm bằng Whisper tiny đa ngôn ngữ (tải thêm 45 MB trong Cài đặt), phân biệt được lỗi sai thanh điệu với lỗi sai âm.
 - Bài điền từ và nghe viết nhận cả chữ Hán lẫn pinyin không dấu.
 - AI gợi ý từ, chữa câu, viết truyện ngắn và chọn từ trong đoạn văn tiếng Trung dán vào.
@@ -54,7 +54,21 @@ Nhắc học:
 - Số từ cần học hiển thị cạnh icon trên thanh menu và trong tooltip của khay hệ thống.
 - Khởi động cùng máy tính (LaunchAgent trên macOS, khóa Run trên Windows, mục autostart trên Linux), khi đó app chỉ chạy trong khay.
 
-Giọng đọc: mỗi khóa tải được một gói giọng Kokoro chạy trên máy qua sherpa-onnx (tiếng Anh 132 MB với các giọng Heart, Bella, Nicole, Michael, Emma, George; tiếng Trung 147 MB với 6 giọng nam và nữ), hoặc dùng giọng của hệ điều hành; chỉnh tốc độ. Gói giọng đã tải xóa được trong Cài đặt để lấy lại dung lượng, khóa đó quay về giọng của hệ điều hành.
+Giọng đọc: các gói giọng chạy trên máy qua sherpa-onnx, tải trong Cài đặt, hoặc giọng của hệ điều hành; chỉnh tốc độ.
+
+| Gói | Dung lượng | Giọng | Hợp với |
+| --- | --- | --- | --- |
+| Supertonic 3 | 129 MB | 10 giọng nam nữ, đọc cả tiếng Anh và tiếng Việt | Máy yếu và trung bình: nhanh gấp vài lần Kokoro |
+| Kokoro | 350 MB | 14 giọng Anh-Mỹ và Anh-Anh tự nhiên nhất | Máy mạnh: đọc một từ dưới một giây |
+| Kokoro tiếng Trung | 365 MB | 6 giọng Quan Thoại nam nữ | Máy mạnh |
+| Piper Xiao Ya | 14 MB | Một giọng nữ Quan Thoại | Máy yếu và trung bình |
+
+- Cài đặt cho biết cấu hình máy (bộ xử lý, số luồng, RAM, xếp loại yếu, trung bình hay mạnh), gắn nhãn Gợi ý cho máy này lên gói hợp nhất, và ghi thời gian đọc một từ lần gần nhất. Model chạy với số luồng theo máy: khoảng một luồng mỗi nhân, tối đa 4, máy mạnh tối đa 6; trên Mac chỉ tính nhân hiệu năng cao.
+- Âm thanh phát ngay trong app qua cpal, không mở trình phát của hệ thống (trên Windows trước đây mỗi lần đọc phải chờ PowerShell khởi động). Đoạn vừa đọc được giữ lại nên bấm nghe lại là phát ngay, giọng đã chọn được mở sẵn khi app khởi động, và trong buổi học từ của hai thẻ kế tiếp được đọc sẵn trong lúc bạn xem thẻ hiện tại.
+- Kokoro bản int8 của các phiên bản trước vẫn dùng được nhưng chậm hơn bản mới khoảng 2,5 lần (ONNX Runtime chạy chậm các phép tích chập int8); tải bản mới là bản cũ tự xóa.
+- Đọc chuẩn: từ Kokoro không có trong từ điển phát âm (như cellphone, webpage) được đọc thành hai từ ghép lại, số được đọc thành chữ (3, 1,250, 12.5%, 21st, năm 1999), sở hữu cách đọc như số nhiều, giọng Anh-Anh dùng từ điển Anh-Anh; từ vẫn không có cách đọc thì câu đó chuyển sang Supertonic, chưa tải thì sang giọng của hệ điều hành, thay vì bị bỏ mất. Từ đơn được thêm dấu chấm cuối, Kokoro đọc rõ hơn.
+- Nút Nghe nghĩa đọc nghĩa tiếng Việt của từ bằng Supertonic, hoặc giọng tiếng Việt của máy nếu có; giọng tiếng Việt chọn riêng trong Cài đặt, dùng chung cho hai khóa.
+- Gói giọng đã tải xóa được trong Cài đặt để lấy lại dung lượng; giọng đã chọn từ gói đó quay về giọng của hệ điều hành.
 
 Phím tắt toàn cục (Cmd hoặc Ctrl + Shift + E, và vài tổ hợp khác): thêm từ vừa copy (có tra nghĩa), hoặc nếu là cả đoạn văn thì để AI chọn ra những từ đáng học.
 
@@ -77,7 +91,7 @@ Mới trong 0.5.4:
 
 Mới trong 0.5.3:
 
-- Bài thi thử: với lộ trình khó (mục tiêu ghi IELTS, TOEIC, VSTEP, HSK, hoặc trình độ từ B2 trở lên), mỗi chặng kết thúc bằng một bài kiểm tra chặng và chặng cuối là một đề thi thử đủ bốn kỹ năng Nghe, Đọc, Viết, Nói, theo dạng câu hỏi, thứ tự phần thi, thời gian và thang điểm của đề thật (IELTS band 0-9, TOEIC 10-990, VSTEP bậc 3-5, HSK 3.0 kèm HSKK). AI viết đề từ chủ đề của chặng và các từ bạn đã học; đề được lưu lại nên mở lại không phải viết lại. Bài nghe đọc bằng giọng Kokoro (giọng nam và nữ cho hội thoại), bài nói ghi âm và nhận giọng bằng Whisper trên máy, bài viết và bài nói được AI chấm theo tiêu chí của đề kèm lỗi, cách sửa và bản viết tốt hơn. Chặng chỉ xong khi đủ từ và qua bài kiểm tra, trừ khi bạn tự đánh dấu xong; lộ trình thường vẫn có nút Thi thử. Cần Qwen 1.5B hoặc một nguồn AI trên mạng.
+- Bài thi thử: với lộ trình khó (mục tiêu ghi IELTS, TOEIC, VSTEP, HSK, hoặc trình độ từ B2 trở lên), mỗi chặng kết thúc bằng một bài kiểm tra chặng và chặng cuối là một đề thi thử đủ bốn kỹ năng Nghe, Đọc, Viết, Nói, theo dạng câu hỏi, thứ tự phần thi, thời gian và thang điểm của đề thật (IELTS band 0-9, TOEIC 10-990, VSTEP bậc 3-5, HSK 3.0 kèm HSKK). AI viết đề từ chủ đề của chặng và các từ bạn đã học; đề được lưu lại nên mở lại không phải viết lại. Bài nghe đọc bằng giọng của app đã tải (giọng nam và nữ cho hội thoại), bài nói ghi âm và nhận giọng bằng Whisper trên máy, bài viết và bài nói được AI chấm theo tiêu chí của đề kèm lỗi, cách sửa và bản viết tốt hơn. Chặng chỉ xong khi đủ từ và qua bài kiểm tra, trừ khi bạn tự đánh dấu xong; lộ trình thường vẫn có nút Thi thử. Cần Qwen 1.5B hoặc một nguồn AI trên mạng.
 - Trợ lý học: chọn model ngay trong khung chat (áp dụng cho cả Hội thoại nhập vai), tab Lịch sử để mở lại hay xóa các cuộc trò chuyện, nút Cuộc mới, và bấm vào từ tiếng Anh hoặc tiếng Trung in đậm trong câu trả lời để nghe.
 - Bấm vào thông báo nhắc học là mở ngay cửa sổ Đố nhanh để ôn các từ đến hạn; chưa có từ nào cần ôn thì app mở cửa sổ chính. Trên macOS thông báo có thêm nút Học ngay, và lời nhắc mới thay cho lời nhắc cũ.
 - Khi bạn chưa chọn model trên máy, app tự dùng Qwen 1.5B nếu đã tải, chưa có thì Qwen 0.5B; tải xong Qwen 1.5B là dùng ngay, không cần mở lại app.
@@ -90,7 +104,7 @@ Mới trong 0.5.0:
 - Đố nhanh: chọn Đố nhanh trên icon ở khay để mở một cửa sổ nhỏ luôn nằm trên cùng, ôn từng từ đến hạn mà không cần mở app.
 - Học thông minh: mỗi từ nhận một dạng bài vừa sức (từ mới chọn đáp án, từ đã quen điền từ và nghe chép, từ đã thuộc luyện nói hoặc đặt câu), các dạng xen kẽ trong một lượt. Trả lời sai thì bấm "Vì sao sai?" để AI giải thích bằng tiếng Việt.
 - Trò chơi: Nối từ (nối 6 từ với nghĩa, tính giờ, lưu kỷ lục từng khóa) và Sắp xếp câu (xếp các mảnh thành câu ví dụ rồi xem bản dịch).
-- Nói đuổi: app đọc câu ví dụ bằng giọng Kokoro, bạn nói theo ngay; điểm chấm theo từng từ (nói sai từ thì không qua dù đúng ngữ điệu), kèm đường lên xuống giọng của bạn đặt cạnh giọng mẫu (tính theo nửa cung quanh giọng trung bình của mỗi người) và một câu góp ý. Cần gói giọng Kokoro của khóa để so với giọng mẫu.
+- Nói đuổi: app đọc câu ví dụ bằng giọng của app, bạn nói theo ngay; điểm chấm theo từng từ (nói sai từ thì không qua dù đúng ngữ điệu), kèm đường lên xuống giọng của bạn đặt cạnh giọng mẫu (tính theo nửa cung quanh giọng trung bình của mỗi người) và một câu góp ý. Cần một gói giọng của khóa (Kokoro, Supertonic hoặc Piper) để so với giọng mẫu.
 - Đọc hiểu (mục Học từ ngữ cảnh trong Bài tập): dán đoạn văn hoặc mở file .txt, .srt, .vtt; mỗi từ được tô màu theo danh sách của bạn (chưa có, đang học, đã thuộc, đã bỏ qua). Bấm vào một từ để nghe, xem phiên âm (tiếng Trung có pinyin và âm Hán Việt) và thêm vào danh sách cùng câu chứa nó.
 - Tiện ích trình duyệt cho Chrome, Edge, Brave và Cốc Cốc (thư mục `extension`, cách cài trong `extension/README.md`): bôi đen một từ, bấm chuột phải, chọn "Thêm vào Card English"; từ hiện ra trong app, kể cả khi lúc đó app chưa mở.
 - Bộ từ có sẵn: NGSL (2.809 từ tiếng Anh thông dụng nhất), NAWL (từ học thuật), TSL (từ TOEIC), HSK 3.0 cấp 1 đến 7-9. Bấm Thêm 10 / 20 / 50 từ, AI giải thích từng từ trong nền, có thanh tiến độ và nút Dừng. Bài Kiểm tra vốn từ (khoảng 56 câu Biết hoặc Không biết, có vài từ không có thật để trừ phần đoán) ước lượng vốn từ và trình độ, rồi cho các bộ từ bắt đầu ngay sau phần bạn đã biết.
@@ -203,7 +217,8 @@ Cấu trúc:
 - `src/cloud.rs`: Gemini và DeepSeek.
 - `src/speech.rs`: ghi âm (cpal), Whisper, chấm điểm.
 - `src/pron.rs`: IPA và so khớp âm vị từ CMUdict, pinyin và âm Hán Việt.
-- `src/voice.rs`: giọng đọc Kokoro (tải và giải nén gói, xóa gói, đọc ra file WAV, phát).
+- `src/voice.rs`: các gói giọng Kokoro, Supertonic và Piper (tải, xóa, chọn theo máy, chuẩn bị chữ cho từng giọng, giữ đoạn vừa đọc, đọc sẵn, phát qua cpal).
+- `src/hardware.rs`: bộ xử lý, RAM, xếp loại máy yếu, trung bình, mạnh và số luồng của model.
 - `src/update.rs`, `src/models.rs`, `src/net.rs`: phiên bản mới, tải model, HTTP qua curl của hệ thống.
 - `ui/index.html`: toàn bộ giao diện.
 - `ui/stickers.webp`: bộ hình dán.
@@ -260,7 +275,7 @@ README của tap là `packaging/homebrew/README.md`, được script chép sang 
 ## Giấy phép dữ liệu
 
 - CMU Pronouncing Dictionary: xem `assets/cmudict-LICENSE`.
-- Giọng Kokoro-82M (Apache 2.0) đóng gói bởi sherpa-onnx (Apache 2.0), tải từ github.com/k2-fsa/sherpa-onnx/releases, kiểm tra bằng SHA-256.
+- Giọng Kokoro-82M (Apache 2.0), Supertonic 3 (model OpenRAIL-M, mã MIT, Supertone Inc.) và Piper zh_CN xiao_ya (dữ liệu Biaobei, chỉ dùng phi thương mại) đóng gói bởi sherpa-onnx (Apache 2.0), tải từ github.com/k2-fsa/sherpa-onnx/releases, kiểm tra bằng SHA-256.
 - Model Qwen2.5 (Apache 2.0) và Whisper (MIT, cả tiny.en lẫn bản tiny đa ngôn ngữ, từ huggingface.co/lmz/candle-whisper) được tải trực tiếp từ Hugging Face.
 - `assets/cedict.txt` và `assets/cedict-gloss.txt.gz` lấy từ CC-CEDICT (MDBG và những người đóng góp, bản ngày 2026-10-27, CC BY-SA 4.0): file thứ nhất bỏ phần định nghĩa tiếng Anh, file thứ hai giữ nghĩa tiếng Anh rút gọn của từng mục từ; cả hai cũng theo CC BY-SA 4.0. Xem `assets/cedict-LICENSE`.
 - `assets/hanviet.txt` chứa âm Hán Việt của Thiều Chửu, Hán Việt tự điển (1942, phạm vi công cộng), theo bản số hóa của catusf/tudien (CC0 1.0), cùng quan hệ dị thể và một phần âm đọc kVietnamese của Unicode Han Database (Unihan), Copyright Unicode, Inc., Unicode License v3. Xem `assets/hanviet-LICENSE`.
