@@ -40,5 +40,16 @@ git push origin HEAD "v$VERSION"
 gh release create "v$VERSION" "$ZIP" "$WINZIP" --title "v$VERSION" --generate-notes
 echo "published v$VERSION with the macOS and Windows zips"
 
+# What the app reads to find this release (src/update.rs): the API's answer in shape, fetched through github.com's
+# download links, which the API's limit of sixty calls an hour for a whole network does not touch.
+asset() {
+    printf '{"name": "%s", "size": %s, "digest": "sha256:%s", "browser_download_url": "https://github.com/eliasbui/app-card-english/releases/download/v%s/%s"}' \
+        "$(basename "$1")" "$(stat -f %z "$1")" "$(shasum -a 256 "$1" | cut -d ' ' -f 1)" "$VERSION" "$(basename "$1")"
+}
+NOTES=$(gh release view "v$VERSION" --json body --jq '.body | tojson')
+printf '{"tag_name": "v%s", "html_url": "https://github.com/eliasbui/app-card-english/releases/tag/v%s", "body": %s, "assets": [%s, %s]}\n' \
+    "$VERSION" "$VERSION" "$NOTES" "$(asset "$ZIP")" "$(asset "$WINZIP")" > dist/latest.json
+gh release upload "v$VERSION" dist/latest.json
+
 scripts/update-cask.sh "$VERSION" "$ZIP" ||
     echo "the Homebrew cask was not updated; run scripts/update-cask.sh $VERSION $ZIP once the tap can be pushed to" >&2

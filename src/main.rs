@@ -621,7 +621,7 @@ impl App {
                 if !is_tutor(&thread) {
                     return self.post(&reply(Err("Không tìm thấy cuộc trò chuyện này".into())));
                 }
-                let settings = self.ai_settings();
+                let settings = self.chat_ai_settings();
                 let course = self.course();
                 let words = self.course_words(&course);
                 let history = db::messages(&self.db, &course, &thread, 8).unwrap_or_default();
@@ -652,7 +652,7 @@ impl App {
                 if !history.is_empty() && (said.is_empty() || said.chars().count() > 500) {
                     return self.post(&reply(Err("Hãy nói hoặc gõ một câu trả lời, ngắn hơn 500 ký tự".into())));
                 }
-                let settings = self.ai_settings();
+                let settings = self.chat_ai_settings();
                 let words = self.course_words(&course);
                 let at = now();
                 background(Box::new(move || {
@@ -684,7 +684,7 @@ impl App {
                 let thread = text("thread");
                 let Some(scene) = scene_of(&thread) else { return self.post(&reply(Err("Không có tình huống này".into()))) };
                 let history = db::messages(&self.db, &course, &thread, 60).unwrap_or_default();
-                let settings = self.ai_settings();
+                let settings = self.chat_ai_settings();
                 let words = self.course_words(&course);
                 background(Box::new(move || {
                     let ai = ai::Ai::new(&settings, &dir);
@@ -1252,6 +1252,20 @@ impl App {
         }
     }
 
+    /// The AI of the tutor and the role-play: the source chosen in the chat, `tutor_ai`, or else the app's.
+    fn chat_ai_settings(&self) -> ai::Settings {
+        let mut settings = self.ai_settings();
+        match self.setting("tutor_ai").unwrap_or_default().as_str() {
+            "" => {}
+            local if local.starts_with("local:") => {
+                settings.provider = "local".into();
+                settings.local_model = local["local:".len()..].into();
+            }
+            provider => settings.provider = provider.into(),
+        }
+        settings
+    }
+
     /// The words of a course the AI may draw on: all but the ones set aside.
     fn course_words(&self, course: &str) -> Vec<db::Word> {
         db::list(&self.db, "").unwrap_or_default().into_iter().filter(|w| w.lang == course && !w.skipped).collect()
@@ -1291,6 +1305,7 @@ impl App {
         json!({
             "ai_provider": self.provider(),
             "local_model": if text("local_model") == "llm15" { "llm15" } else { "llm" },
+            "tutor_ai": text("tutor_ai"),
             "has_gemini_key": self.setting("gemini_key").is_some(),
             "has_deepseek_key": self.setting("deepseek_key").is_some(),
             "chatgpt_model": text("chatgpt_model"),
@@ -1385,6 +1400,7 @@ fn valid_setting(key: &str, value: &str) -> bool {
         "new_per_day" | "remind_hours" | "daily_goal" => value.parse::<u32>().is_ok_and(|n| n <= 1000),
         "chatgpt_welcomed" => value == "1",
         "local_model" => matches!(value, "llm" | "llm15"),
+        "tutor_ai" => matches!(value, "" | "local:llm" | "local:llm15") || ai::PROVIDERS[1..].contains(&value),
         "desired_retention" => between(value, 0.7, 0.97),
         "speech_rate" => between(value, 0.5, 1.5),
         "streak_freeze" | "tray_count" => matches!(value, "0" | "1"),
@@ -1647,6 +1663,8 @@ mod tests {
         assert!(valid_setting("remind_at", "20:00") && valid_setting("remind_at", "") && !valid_setting("quiet_from", "25:00"));
         assert!(valid_setting("hotkey", "CmdOrCtrl+Shift+E") && valid_setting("hotkey", "") && !valid_setting("hotkey", "Ctrl+Q"));
         assert!(valid_setting("accent", "en-GB") && !valid_setting("accent", "fr-FR"));
+        assert!(valid_setting("tutor_ai", "") && valid_setting("tutor_ai", "local:llm15") && valid_setting("tutor_ai", "gemini"));
+        assert!(!valid_setting("tutor_ai", "local") && !valid_setting("tutor_ai", "local:llm3") && !valid_setting("tutor_ai", "claude"));
         assert!(valid_setting("achievements", "streak7,words50") && !valid_setting("achievements", "<b>"));
         assert!(valid_setting("speech_rate", "1.2") && !valid_setting("speech_rate", "3"));
         assert!(valid_setting("match_best", "15400") && !valid_setting("match_best", "0") && !valid_setting("match_best", "1.5"));

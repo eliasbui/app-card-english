@@ -27,7 +27,7 @@
   const zh = () => courseOf() === "zh";
   const language = () => (zh() ? "tiếng Trung" : "tiếng Anh");
   const speechReady = () => !!state.models?.[zh() ? "sttzh" : "stt"]?.ready;
-  const weakModel = () => state.settings.ai_provider === "local" && localModel() === "llm";
+  const weakModel = () => window.chatAi?.() === "local:llm";
 
   function show() {
     $("practice-menu").classList.add("hidden");

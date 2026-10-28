@@ -61,15 +61,23 @@ fn releases() -> String {
     format!("https://github.com/{REPO}/releases/")
 }
 
-// shortcut: the API only (sixty calls an hour without sign-in, ample for a daily check); figghost also falls
-// back to releases.atom, add it if the limit is ever hit.
+/// The newest release. Each release since 0.5.2 carries `latest.json`, shaped like the API's answer and read through
+/// github.com's download links, which the API's limit of sixty calls an hour does not touch: that limit counts a whole
+/// network, so an office behind one address runs out of it. Older releases are read from the API.
 pub fn check() -> Result<Check, String> {
+    let agent = ("User-Agent", "card-english");
+    let manifest = format!("https://github.com/{REPO}/releases/latest/download/latest.json");
+    if let Ok((200, body)) = net::request(&manifest, &[agent], None, 10) {
+        if let Ok(check) = parse(&body, PLATFORM) {
+            return Ok(check);
+        }
+    }
     let url = format!("https://api.github.com/repos/{REPO}/releases/latest");
-    let headers = [("Accept", "application/vnd.github+json"), ("User-Agent", "card-english")];
-    let (status, body) = net::request(&url, &headers, None, 10)?;
+    let (status, body) = net::request(&url, &[("Accept", "application/vnd.github+json"), agent], None, 10)?;
     match status {
         200 => parse(&body, PLATFORM),
         404 => Err("Chưa có bản phát hành nào".into()),
+        403 | 429 => Err("GitHub đang giới hạn số lần kiểm tra từ mạng của bạn, hãy thử lại sau ít phút".into()),
         _ => Err(format!("GitHub trả lỗi {status}")),
     }
 }

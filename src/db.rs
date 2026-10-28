@@ -448,23 +448,35 @@ pub fn insert(db: &Connection, w: &Word) -> rusqlite::Result<i64> {
     Ok(db.last_insert_rowid())
 }
 
+/// Runs `f` in a transaction of its own, or in the one already open, since SQLite cannot nest them: a change that is
+/// one step of a larger one, such as deleting a word of many, stays usable alone.
+fn atomic<T>(db: &Connection, f: impl FnOnce(&Connection) -> rusqlite::Result<T>) -> rusqlite::Result<T> {
+    if !db.is_autocommit() {
+        return f(db);
+    }
+    let tx = db.unchecked_transaction()?;
+    let out = f(&tx)?;
+    tx.commit()?;
+    Ok(out)
+}
+
 /// Deletes a word and its answers, and leaves a tombstone for the sync to tell the other machines.
 pub fn delete(db: &Connection, id: i64) -> rusqlite::Result<()> {
-    let tx = db.unchecked_transaction()?;
-    tx.execute("INSERT OR REPLACE INTO tombstones (uid, updated) SELECT uid, ?2 FROM words WHERE id = ?1", [id, stamp()])?;
-    tx.execute("DELETE FROM reviews WHERE word_id = ?1", [id])?;
-    tx.execute("DELETE FROM words WHERE id = ?1", [id])?;
-    tx.commit()
+    atomic(db, |tx| {
+        tx.execute("INSERT OR REPLACE INTO tombstones (uid, updated) SELECT uid, ?2 FROM words WHERE id = ?1", [id, stamp()])?;
+        tx.execute("DELETE FROM reviews WHERE word_id = ?1", [id])?;
+        tx.execute("DELETE FROM words WHERE id = ?1", [id]).map(|_| ())
+    })
 }
 
 /// Does `each` to every word of `ids` in one transaction, and counts them.
 pub fn many(db: &Connection, ids: &[i64], each: impl Fn(&Connection, i64) -> rusqlite::Result<()>) -> rusqlite::Result<usize> {
-    let tx = db.unchecked_transaction()?;
-    for &id in ids {
-        each(&tx, id)?;
-    }
-    tx.commit()?;
-    Ok(ids.len())
+    atomic(db, |tx| {
+        for &id in ids {
+            each(tx, id)?;
+        }
+        Ok(ids.len())
+    })
 }
 
 pub fn set_topic(db: &Connection, id: i64, topic: &str, now: i64) -> rusqlite::Result<()> {
@@ -1325,6 +1337,16 @@ mod tests {
         // The day in September is outside the thirty days.
         assert_eq!(u["gemini"]["month"], serde_json::json!({ "requests": 4, "tokens": 57, "peak": 3, "active_days": 2 }));
         assert_eq!(u["chatgpt"]["today"]["failures"], 1);
+    }
+
+    #[test]
+    fn many_words_are_deleted_at_once_each_with_its_tombstone() {
+        let db = memory();
+        let ids = ["deadline", "souvenir", "itinerary"].map(|w| add(&db, w, 0));
+        assert_eq!(many(&db, &ids[..2], delete).unwrap(), 2);
+        assert_eq!(list(&db, "").unwrap().into_iter().map(|w| w.word).collect::<Vec<_>>(), ["itinerary"]);
+        let tombstones: i64 = db.query_row("SELECT count(*) FROM tombstones", [], |r| r.get(0)).unwrap();
+        assert_eq!(tombstones, 2);
     }
 
     #[test]

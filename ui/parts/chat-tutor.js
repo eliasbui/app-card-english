@@ -23,6 +23,8 @@
         <input type="radio" name="chat-tab" id="chat-tab-history" value="history"><label for="chat-tab-history">Lịch sử</label>
       </div></div>
       <div class="chat-view" id="chat-talk">
+        <div class="chat-model"><label for="chat-model">Model</label><select id="chat-model"></select></div>
+        <p class="chat-hint" id="chat-hint" hidden></p>
         <div class="chat-log" id="chat-log" role="log" aria-live="polite"></div>
         <div class="chips chat-starters" id="chat-starters">${STARTERS.map((s) => `<button type="button">${esc(s)}</button>`).join("")}</div>
         <form class="chat-compose" id="chat-form">
@@ -33,7 +35,7 @@
       <div class="chat-view chat-history" id="chat-history" hidden></div>
     </aside>`);
   const fab = $("chat-fab"), panel = $("chat-panel"), log = $("chat-log"), input = $("chat-input"), send = $("chat-send");
-  const history = $("chat-history");
+  const history = $("chat-history"), select = $("chat-model"), hint = $("chat-hint");
   /// The course whose talk is on screen, the talk, and whether a question is on its way.
   let shown = "", thread = FIRST, busy = false;
   const fresh = () => "tutor:" + [...crypto.getRandomValues(new Uint8Array(8))].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -85,10 +87,45 @@
     }
   }
 
+  const QWEN = { llm: "Qwen 0.5B trên máy", llm15: "Qwen 1.5B trên máy" };
+  /// The AI the tutor and the role-play answer with: the one chosen here, or else the app's; "local:llm" is Qwen 0.5B.
+  function chosen() {
+    if (state.settings.tutor_ai) return state.settings.tutor_ai;
+    const p = state.settings.ai_provider || "local";
+    return p === "local" ? "local:" + (state.settings.local_model || "llm") : p;
+  }
+  window.chatAi = chosen;
+  /// The sources ready to answer, and the one chosen even when it is not, since the app falls back from it.
+  function models() {
+    const t = state.settings.tutor_ai || "", own = state.settings.ai_provider || "local";
+    const options = [["", `Theo nguồn AI chung (${own === "local" ? QWEN[state.settings.local_model] || QWEN.llm : PROVIDER_NAME[own]})`]];
+    for (const g of ["llm", "llm15"]) if (state.models[g]?.ready || t === "local:" + g) options.push(["local:" + g, QWEN[g]]);
+    for (const p of ["chatgpt", "codex", "gemini", "deepseek"]) if (ready(p) || t === p) options.push([p, PROVIDER_NAME[p]]);
+    select.innerHTML = options.map(([v, name]) => `<option value="${v}"${v === t ? " selected" : ""}>${esc(name)}</option>`).join("");
+    hint.hidden = chosen() !== "local:llm";
+    hint.innerHTML = `Qwen 0.5B rất nhỏ nên trả lời còn ngô nghê. ${state.models.llm15?.ready ? "Chọn Qwen 1.5B ở trên"
+      : `<a href="#" data-settings>Tải Qwen 1.5B</a>`} hoặc dùng Gemini (API key miễn phí) để trợ lý thông minh hơn.`;
+  }
+  select.onchange = async () => {
+    try {
+      state.settings = await app.call("set_setting", { key: "tutor_ai", value: select.value });
+    } catch (e) {
+      toast(String(e));
+    }
+    models();
+  };
+  hint.onclick = (e) => {
+    if (!e.target.closest("[data-settings]")) return;
+    e.preventDefault();
+    closeChat();
+    go("settings");
+  };
+
   function openChat() {
     panel.hidden = false;
     document.documentElement.classList.add("chat-open");
     fab.setAttribute("aria-expanded", "true");
+    models();
     if (shown !== courseOf()) load();
     input.focus({ preventScroll: true });
   }
