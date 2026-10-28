@@ -67,6 +67,13 @@ Giao diện: hình dán hoạt hình dễ thương (tạo bằng công cụ sinh
 
 Cập nhật: app kiểm tra phiên bản mới qua GitHub Releases của `eliasbui/app-card-english` và hỏi trước khi cập nhật. Trên macOS và Windows app tự tải bản mới, kiểm tra kích thước và mã SHA-256 mà GitHub công bố, thay vào chỗ bản đang cài rồi tự mở lại, không cần chạy `brew` hay `irm`. Chỉ khi thư mục cài không ghi được (ví dụ cài cho mọi người dùng) app mới hiện lệnh cập nhật hoặc trang tải về.
 
+Mới trong 0.5.4:
+
+- Trợ lý học làm được việc ngay trong khung chat, gõ tự nhiên có dấu hay không dấu: "Gợi ý 100 từ chủ đề công nghệ" (danh sách từ có phiên âm, nghĩa, nút Nghe, chọn rồi Thêm, AI giải thích từng từ, Gợi ý thêm mỗi lần 10 từ không trùng), "Đố tôi 5 từ hay quên" (bài đố chọn đáp án và điền từ từ chính các từ của bạn, có XP và Vì sao sai?), "Tạo bài tập nối từ chủ đề du lịch", "Thi thử IELTS", "Nhập các từ: a, b, c" hoặc dán một đoạn văn kèm "chọn từ", "Tiến độ của tôi", "Lộ trình của tôi". Các yêu cầu này do app tự nhận ra nên chạy được với mọi model; thẻ trong cuộc trò chuyện được lưu lại.
+- Khung chat giống ChatGPT: câu trả lời hiển thị markdown (tiêu đề, danh sách, bảng, trích dẫn), Sao chép mọi tin nhắn, Sửa câu hỏi đã gửi và Hỏi lại câu trả lời cuối, những tin nhắn sau đó được thay bằng câu trả lời mới.
+- Trợ lý giúp mọi việc học và dùng ngôn ngữ: dịch câu hay đoạn văn, viết và sửa email, thành ngữ, văn hóa giao tiếp, ôn thi.
+- Nút bài tập trong mỗi chặng của lộ trình luyện trên tất cả các chủ đề của chặng, kể cả những từ vừa thêm.
+
 Mới trong 0.5.3:
 
 - Bài thi thử: với lộ trình khó (mục tiêu ghi IELTS, TOEIC, VSTEP, HSK, hoặc trình độ từ B2 trở lên), mỗi chặng kết thúc bằng một bài kiểm tra chặng và chặng cuối là một đề thi thử đủ bốn kỹ năng Nghe, Đọc, Viết, Nói, theo dạng câu hỏi, thứ tự phần thi, thời gian và thang điểm của đề thật (IELTS band 0-9, TOEIC 10-990, VSTEP bậc 3-5, HSK 3.0 kèm HSKK). AI viết đề từ chủ đề của chặng và các từ bạn đã học; đề được lưu lại nên mở lại không phải viết lại. Bài nghe đọc bằng giọng Kokoro (giọng nam và nữ cho hội thoại), bài nói ghi âm và nhận giọng bằng Whisper trên máy, bài viết và bài nói được AI chấm theo tiêu chí của đề kèm lỗi, cách sửa và bản viết tốt hơn. Chặng chỉ xong khi đủ từ và qua bài kiểm tra, trừ khi bạn tự đánh dấu xong; lộ trình thường vẫn có nút Thi thử. Cần Qwen 1.5B hoặc một nguồn AI trên mạng.
