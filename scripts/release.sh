@@ -1,6 +1,7 @@
 #!/bin/sh
-# Releases a version: bumps it, builds the macOS app (Apple silicon and Intel in one) and the Windows app here,
-# tags and pushes, publishes the GitHub release with both zips, and points the Homebrew cask at the macOS one.
+# Releases a version: bumps it, builds the macOS app (Apple silicon and Intel in one) and the Windows app (x64 and
+# arm64) here, tags and pushes, publishes the GitHub release with the three zips, and points the Homebrew cask at the
+# macOS one.
 #
 #   scripts/release.sh 0.2.0
 set -eu
@@ -30,14 +31,15 @@ ZIP="dist/CardEnglish-$VERSION-macos.zip"
 rm -f "$ZIP"
 ditto -c -k --keepParent "dist/Card English.app" "$ZIP"
 scripts/package-windows.sh
-WINZIP="dist/CardEnglish-$VERSION-windows-x64.zip"
+X64ZIP="dist/CardEnglish-$VERSION-windows-x64.zip"
+ARM64ZIP="dist/CardEnglish-$VERSION-windows-arm64.zip"
 
 # Releasing the version Cargo.toml already has leaves nothing to commit.
 git diff --quiet Cargo.toml Cargo.lock || git commit -q -m "Release $VERSION" Cargo.toml Cargo.lock
 git tag "v$VERSION"
 git push origin HEAD "v$VERSION"
 
-gh release create "v$VERSION" "$ZIP" "$WINZIP" --title "v$VERSION" --generate-notes
+gh release create "v$VERSION" "$ZIP" "$X64ZIP" "$ARM64ZIP" --title "v$VERSION" --generate-notes
 echo "published v$VERSION with the macOS and Windows zips"
 
 # What the app reads to find this release (src/update.rs): the API's answer in shape, fetched through github.com's
@@ -47,8 +49,8 @@ asset() {
         "$(basename "$1")" "$(stat -f %z "$1")" "$(shasum -a 256 "$1" | cut -d ' ' -f 1)" "$VERSION" "$(basename "$1")"
 }
 NOTES=$(gh release view "v$VERSION" --json body --jq '.body | tojson')
-printf '{"tag_name": "v%s", "html_url": "https://github.com/eliasbui/app-card-english/releases/tag/v%s", "body": %s, "assets": [%s, %s]}\n' \
-    "$VERSION" "$VERSION" "$NOTES" "$(asset "$ZIP")" "$(asset "$WINZIP")" > dist/latest.json
+printf '{"tag_name": "v%s", "html_url": "https://github.com/eliasbui/app-card-english/releases/tag/v%s", "body": %s, "assets": [%s, %s, %s]}\n' \
+    "$VERSION" "$VERSION" "$NOTES" "$(asset "$ZIP")" "$(asset "$X64ZIP")" "$(asset "$ARM64ZIP")" > dist/latest.json
 gh release upload "v$VERSION" dist/latest.json
 
 scripts/update-cask.sh "$VERSION" "$ZIP" ||

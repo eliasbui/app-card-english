@@ -66,7 +66,7 @@ Dữ liệu:
 
 Giao diện: hình dán hoạt hình dễ thương (tạo bằng công cụ sinh ảnh AI), màu nhấn xanh, hồng hoặc tím, giao diện sáng, tối hoặc theo hệ thống.
 
-Cập nhật: app kiểm tra phiên bản mới qua GitHub Releases của `eliasbui/app-card-english` và hỏi trước khi cập nhật. Trên macOS và Windows app tự tải bản mới, kiểm tra kích thước và mã SHA-256 mà GitHub công bố, thay vào chỗ bản đang cài rồi tự mở lại, không cần chạy `brew` hay `irm`. Chỉ khi thư mục cài không ghi được (ví dụ cài cho mọi người dùng) app mới hiện lệnh cập nhật hoặc trang tải về.
+Cập nhật: app kiểm tra phiên bản mới qua GitHub Releases của `eliasbui/app-card-english` và hỏi trước khi cập nhật. Trên macOS và Windows app tự tải bản mới, kiểm tra kích thước và mã SHA-256 mà GitHub công bố, thay vào chỗ bản đang cài rồi tự mở lại, không cần chạy `brew` hay `irm`. Bản x64 đang chạy giả lập trên máy Windows ARM64 (Snapdragon) được thay bằng bản arm64 khi bản phát hành có. Chỉ khi thư mục cài không ghi được (ví dụ cài cho mọi người dùng) app mới hiện lệnh cập nhật hoặc trang tải về.
 
 Mới trong 0.5.4:
 
@@ -154,12 +154,12 @@ Trên Windows 10 và 11, mở PowerShell và chạy:
 
     irm https://raw.githubusercontent.com/eliasbui/app-card-english/main/scripts/install.ps1 | iex
 
-Script cài app cho tài khoản đang dùng vào `%LOCALAPPDATA%\Programs\CardEnglish`, không cần quyền quản trị, kiểm tra file tải về bằng mã SHA-256 mà GitHub công bố, rồi thêm lối tắt vào menu Start.
+Script cài app cho tài khoản đang dùng vào `%LOCALAPPDATA%\Programs\CardEnglish`, không cần quyền quản trị, kiểm tra file tải về bằng mã SHA-256 mà GitHub công bố, rồi thêm lối tắt vào menu Start. Script tự chọn bản hợp với máy: bản arm64 cho máy Snapdragon (Windows ARM64), bản x64 cho máy Intel và AMD.
 
 - Cập nhật: bấm Cập nhật ngay trong app, hoặc chạy lại lệnh trên. Nếu app đang chạy, script đóng app rồi mở lại sau khi thay.
 - Gỡ: Settings > Apps > Card English > Uninstall, gỡ luôn mục khởi động cùng máy tính nếu đã bật. Dữ liệu trong `%APPDATA%\CardEnglish` được giữ lại; xóa thư mục đó nếu muốn xóa cả dữ liệu.
 
-Hoặc tải bản zip trong GitHub Releases và cài bằng tay. Lưu ý:
+Hoặc tải bản zip trong GitHub Releases và cài bằng tay: `CardEnglish-<version>-macos.zip` cho macOS, `CardEnglish-<version>-windows-arm64.zip` cho Windows trên máy Snapdragon, `CardEnglish-<version>-windows-x64.zip` cho Windows trên máy Intel và AMD. Lưu ý:
 
 - macOS: app chỉ ký ad-hoc. Lần đầu mở, macOS sẽ chặn; vào System Settings > Privacy & Security, bấm Open Anyway (hoặc chạy `xattr -dr com.apple.quarantine "/Applications/Card English.app"`).
 - Windows: chưa ký số nên SmartScreen có thể cảnh báo, chọn More info > Run anyway. Cần WebView2, có sẵn trên Windows 10 và 11.
@@ -212,7 +212,7 @@ Cấu trúc:
 - `scripts/make-zh-data.py`: dựng lại hai file trên từ nguồn.
 - `packaging/homebrew/`, `scripts/update-cask.sh`: cask Homebrew và script cập nhật tap.
 - `scripts/install.ps1`: cài, cập nhật và đăng ký gỡ app trên Windows.
-- `scripts/package-windows.sh`: build bản Windows ngay trên máy Mac bằng `cargo-xwin` và LLVM của Homebrew.
+- `scripts/package-windows.sh`: build bản Windows x64 và arm64 ngay trên máy Mac bằng `cargo-xwin` và LLVM của Homebrew.
 
 ## Phát hành
 
@@ -220,17 +220,19 @@ Cấu trúc:
 scripts/release.sh 0.2.0
 ```
 
-Chạy trên máy Mac. Script tăng version, chạy test, build bản macOS universal (Apple silicon và Intel) và bản Windows x64 ngay trên máy, tạo tag và push, đăng GitHub Release kèm hai file zip, rồi trỏ cask trong tap `eliasbui/homebrew-card-english` sang file zip macOS; app sẽ tự thấy bản mới. Không dùng GitHub Actions.
+Chạy trên máy Mac. Script tăng version, chạy test, build bản macOS universal (Apple silicon và Intel) và hai bản Windows (x64 và arm64) ngay trên máy, tạo tag và push, đăng GitHub Release kèm ba file zip, rồi trỏ cask trong tap `eliasbui/homebrew-card-english` sang file zip macOS; app sẽ tự thấy bản mới. Không dùng GitHub Actions.
 
 Bản Windows được cross-compile sang MSVC ngay trên máy Mac bằng `cargo-xwin` và LLVM của Homebrew (`scripts/package-windows.sh`), vì thư viện sherpa-onnx dựng sẵn cho Windows là bản MSVC. Không cần Docker nữa, chỉ cần cài một lần:
 
 ```sh
 brew install llvm lld
 cargo install --locked cargo-xwin
-rustup target add x86_64-pc-windows-msvc
+rustup target add x86_64-pc-windows-msvc aarch64-pc-windows-msvc
 ```
 
-LLVM của Homebrew chỉ được đưa vào PATH bên trong script, không đụng tới cấu hình shell. Lần build đầu `cargo-xwin` tải MSVC CRT và Windows SDK (khoảng 1 GB, vào `~/Library/Caches/cargo-xwin`), các lần sau dùng lại. Test chỉ chạy trên macOS; bản Windows được biên dịch và link nhưng không chạy thử, nên sau khi phát hành nên mở thử trên một máy Windows.
+LLVM của Homebrew chỉ được đưa vào PATH bên trong script, không đụng tới cấu hình shell. Lần build đầu `cargo-xwin` tải MSVC CRT và Windows SDK (khoảng 1 GB, vào `~/Library/Caches/cargo-xwin`), các lần sau dùng lại. Script build cả hai bản; chỉ build một bản thì chạy `ARCH=x64 scripts/package-windows.sh` hoặc `ARCH=arm64 scripts/package-windows.sh`.
+
+Bản arm64 dùng CRT MSVC 14.51 của Visual Studio 2026, tải riêng vào `~/Library/Caches/cargo-xwin-18` (khoảng 1 GB), vì thư viện sherpa-onnx cho ARM64 gọi những hàm của thư viện C++ chuẩn mà CRT 14.44 (bản `cargo-xwin` tải mặc định) không có cho ARM64, nên link báo lỗi thiếu `__std_find_trivial_1` và các hàm cùng loại. Bản x64 vẫn dùng CRT cũ. Test chỉ chạy trên macOS; hai bản Windows được biên dịch và link nhưng không chạy thử, nên sau khi phát hành nên mở thử trên một máy Windows x64 và một máy Snapdragon.
 
 Image và volume Docker của cách build cũ không còn dùng tới; muốn lấy lại chỗ trống thì xóa bằng tay:
 
