@@ -13,6 +13,7 @@ mod fsrs;
 mod models;
 mod net;
 mod pron;
+mod roadmap;
 mod speech;
 mod update;
 mod voice;
@@ -477,6 +478,25 @@ impl App {
                     result.map(|s| json!(s))
                 }));
             }
+            "roadmap_plan" => {
+                // Without the AI, the template: quick, but answered the same way.
+                let mut goal: roadmap::Roadmap = serde_json::from_value(args["goal"].clone()).unwrap_or_default();
+                goal.level = valid_level(&goal.level);
+                goal.minutes = goal.minutes.clamp(5, 600);
+                let days = roadmap::plan_days(&goal, &today(&args));
+                let (with_ai, zh) = (args["ai"].as_bool().unwrap_or(false), self.course() == "zh");
+                let settings = self.ai_settings();
+                background(Box::new(move || {
+                    let days = days?;
+                    if !with_ai {
+                        return Ok(json!({ "steps": roadmap::fit(roadmap::template(zh), days, goal.minutes, zh) }));
+                    }
+                    let ai = ai::Ai::new(&settings, &dir);
+                    let result = ai.roadmap(&goal, days, zh);
+                    record_usage(&dir, &day, &ai.attempts.borrow());
+                    result.map(|p| json!(p))
+                }));
+            }
             "ai_models" => {
                 let provider = text("provider");
                 let settings = self.ai_settings();
@@ -781,6 +801,46 @@ impl App {
                 .map_err(e)?
                 .map(|w| json!(w))
                 .ok_or_else(|| "Không tìm thấy từ này".into()),
+            "delete_many" | "skip_many" | "set_topic_many" => {
+                let ids: Vec<i64> = args["ids"].as_array().into_iter().flatten().filter_map(Value::as_i64).take(100_000).collect();
+                let on = args["on"].as_bool().unwrap_or(true);
+                let topic = roadmap::cut(args["topic"].as_str().unwrap_or_default(), 40);
+                match cmd {
+                    "delete_many" => db::many(db, &ids, db::delete),
+                    "skip_many" => db::many(db, &ids, |db, id| db::set_skipped(db, id, on).map(drop)),
+                    _ => db::many(db, &ids, |db, id| db::set_topic(db, id, &topic)),
+                }
+                .map(|n| json!(n))
+                .map_err(e)
+            }
+            "topics" => roadmap::topics(db, &self.course()).map(|t| json!(t)).map_err(e),
+            "topic_save" | "topic_delete" => {
+                let course = self.course();
+                if cmd == "topic_save" {
+                    let topic: roadmap::Topic = serde_json::from_value(args["topic"].clone()).map_err(|e| e.to_string())?;
+                    roadmap::save_topic(db, &course, &topic, args["old"].as_str().unwrap_or_default(), now())?;
+                } else {
+                    let text = |key: &str| args[key].as_str().unwrap_or_default();
+                    roadmap::delete_topic(db, &course, text("uid"), text("name"), now()).map_err(e)?;
+                }
+                roadmap::topics(db, &course).map(|t| json!(t)).map_err(e)
+            }
+            "roadmaps" | "roadmap_save" | "roadmap_activate" | "roadmap_delete" => {
+                let (course, today) = (self.course(), today(args));
+                let uid = args["uid"].as_str().unwrap_or_default();
+                match cmd {
+                    "roadmap_save" => {
+                        let mut r: roadmap::Roadmap = serde_json::from_value(args["roadmap"].clone()).map_err(|e| e.to_string())?;
+                        r.level = valid_level(&r.level);
+                        roadmap::sanitize(&mut r, &today)?;
+                        roadmap::save_roadmap(db, &course, &r, now())?;
+                    }
+                    "roadmap_activate" => roadmap::activate(db, &course, uid, now()).map_err(e)?,
+                    "roadmap_delete" => roadmap::delete_roadmap(db, &course, uid, now()).map_err(e)?,
+                    _ => {}
+                }
+                roadmap::view(db, &course, &today, now()).map_err(e)
+            }
             "rec_level" => Ok(json!(speech::level())),
             "open_url" => {
                 let url = args["url"].as_str().unwrap_or_default();
@@ -880,6 +940,11 @@ impl App {
             "achievements": db::setting(&self.db, &db::scoped("achievements", &self.course())).ok().flatten(),
         })
     }
+}
+
+/// The learner's date as the page sent it, or else as the clock has it.
+fn today(args: &Value) -> String {
+    args["today"].as_str().filter(|d| db::is_day(d)).map(str::to_owned).or_else(|| clock::now().map(|l| l.date())).unwrap_or_default()
 }
 
 /// A level such as `B2` or `HSK3` from what the page or a model wrote, or nothing.

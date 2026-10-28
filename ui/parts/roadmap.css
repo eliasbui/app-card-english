@@ -1,0 +1,126 @@
+  /* Topic colours: the fixed set a topic can take, each readable on both themes. */
+  .tc-blue { --tc: #2563eb; }
+  .tc-green { --tc: var(--green); }
+  .tc-amber { --tc: var(--amber); }
+  .tc-red { --tc: var(--red); }
+  .tc-purple { --tc: #7c3aed; }
+  .tc-teal { --tc: #0e7c84; }
+  .tc-gray { --tc: var(--muted); }
+  :root[data-theme="dark"] .tc-blue { --tc: #7aa2ff; }
+  :root[data-theme="dark"] .tc-purple { --tc: #b79cff; }
+  :root[data-theme="dark"] .tc-teal { --tc: #3fcfd6; }
+  .tdot { display: inline-block; flex-shrink: 0; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--tc, var(--line-strong)); vertical-align: 1px; }
+  .tag.ttag { background: color-mix(in srgb, var(--tc, var(--muted)) 13%, transparent); color: var(--tc, var(--text-2)); }
+
+  /* Picking words in the list: a box before each word, a bar of what can be done to the picked ones. */
+  .pick-row { display: flex; align-items: flex-start; gap: 10px; }
+  th .pick-row { align-items: center; }
+  label.pick { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 22px; height: 22px; margin: 0 0 0 -4px;
+               border-radius: 6px; cursor: pointer; user-select: none; }
+  label.pick:hover { background: var(--hover); }
+  label.pick input { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+  td .pick-row label.pick { margin-top: 0; }
+  tbody tr.picked, tbody tr.picked:hover { background: var(--accent-soft); }
+  .pick-bar { position: sticky; top: 8px; z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 12px; padding: 8px 10px 8px 14px;
+              border: 1px solid var(--accent); border-radius: var(--r-md); background: var(--surface); box-shadow: var(--shadow-md); animation: rise .2s ease; }
+  .pick-bar b { font-size: 13.5px; }
+  .pick-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+  .pick-bar .btn.danger { min-width: 64px; }
+
+  /* The topics the learner made. */
+  #topics-card > .row b { font-size: 15px; }
+  .topic-form { margin: 12px 0 4px; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); }
+  .topic-form .row + .row { margin-top: 10px; }
+  .topic-form input:not([type]) { flex: 1 1 200px; min-width: 0; background-color: var(--surface); }
+  .topic-form .error { margin-top: 8px; font-size: 13px; }
+  .swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+  .swatch { position: relative; display: block; width: 24px; height: 24px; margin: 0; border-radius: 50%; background: var(--tc); cursor: pointer;
+            box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08); transition: box-shadow .15s, transform .15s; }
+  .swatch:hover { transform: scale(1.1); }
+  .swatch input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .swatch:has(input:checked) { box-shadow: 0 0 0 2px var(--surface-2), 0 0 0 4px var(--tc); }
+  .swatch:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 4px; }
+  .topic-list { margin-top: 6px; }
+  .topic-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 10px 2px; border-bottom: 1px solid var(--line); }
+  .topic-row:last-child { border-bottom: 0; }
+  .topic-row > .grow { min-width: 160px; }
+  .topic-row .tdot { width: 10px; height: 10px; margin: 0 4px 0 0; }
+  .topic-row .topic-form { flex-basis: 100%; margin: 0; }
+
+  /* The roadmap page. */
+  .rm-start-head { display: flex; align-items: center; gap: 14px; margin-bottom: 4px; }
+  .rm-start-head .st { width: 84px; height: 84px; margin: -6px 0; }
+  .rm-start-head b { font-size: 17px; }
+  .rm-start input#rm-purpose { width: 100%; }
+  .rm-start .chips { margin: 10px 0 0; }
+  .rm-start .grid3 input, .rm-start .grid3 select { width: 100%; }
+  .rm-thinking { padding: 26px 20px; }
+  .rm-thinking .skeleton { height: 92px; margin-top: 12px; }
+  .rm-draft { border-color: var(--accent); background: var(--accent-soft); }
+  .rm-draft .row.actions { margin-top: 12px; }
+  .rm-goal-title { margin: 2px 0 4px; font-size: 22px; font-weight: 700; line-height: 1.25; letter-spacing: -.01em; overflow-wrap: anywhere; }
+  .rm-overall { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 14px; }
+  .rm-overall .progress { flex: 1 1 200px; }
+  .rm-pace { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; padding: 10px 12px; border-radius: var(--r-md);
+             background: var(--surface-2); border: 1px solid var(--line); font-size: 13.5px; }
+  .rm-pace > .grow { min-width: 200px; }
+  .rm-pace.ahead, .rm-pace.done { background: var(--green-soft); border-color: var(--green-line); }
+  .rm-pace.behind { background: var(--amber-soft); border-color: var(--amber-line); }
+  .rm-pace.late { background: var(--red-soft); border-color: var(--red-line); }
+  .rm-stages { position: relative; }
+  .rm-stage { position: relative; padding: 16px 18px; }
+  .rm-stage.current { border-color: var(--accent); box-shadow: var(--shadow-md); }
+  .rm-stage.done .rm-stage-title { color: var(--muted); }
+  .rm-stage-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+  .rm-stage-head > .grow { min-width: 150px; }
+  .rm-stage-title { font-size: 15.5px; overflow-wrap: anywhere; }
+  .rm-n { display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%;
+          background: var(--hover); color: var(--muted); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .rm-stage.current .rm-n { background: var(--accent); color: var(--on-accent); }
+  .rm-stage.done .rm-n { background: var(--green-soft); color: var(--green); }
+  .rm-tags, .rm-ex { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .rm-detail { margin-top: 8px; color: var(--text-2); }
+  .rm-progress { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 12px; }
+  .rm-progress .progress { flex: 1 1 180px; height: 7px; }
+  .rm-stage.done .rm-progress .progress div { background: var(--green); }
+  .rm-stage-actions { margin-top: 10px; }
+  .rm-sugg:empty { display: none; }
+  .rm-sugg { margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--line-strong); }
+  .rm-sugg .suggestions { margin-top: 8px; }
+  .rm-sugg .row { margin-top: 10px; }
+  .rm-step-form { padding: 14px 16px; }
+  .rm-step-form > .row input { min-width: 0; font-weight: 600; }
+  .rm-step-form .grid3 input { width: 100%; }
+  .rm-step-form .span2 { grid-column: span 2; }
+  .rm-ex-pick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .ex-chip { display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 4px 11px 4px 8px; border: 1px solid var(--line-strong); border-radius: 99px;
+             color: var(--text-2); font-size: 13px; font-weight: 500; cursor: pointer; }
+  .ex-chip:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
+  .ex-chip input { margin: 0; accent-color: var(--accent); }
+  #rm-head select { max-width: 260px; }
+
+  /* Home: the current stage of the roadmap, under the session card. */
+  #page-home.studying #roadmap-home { display: none; }
+  #roadmap-home .card-title { margin-bottom: 8px; }
+  #roadmap-home .card-title .grow { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rm-home-stage { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; margin-bottom: 8px; }
+  .rm-home-stage b { overflow-wrap: anywhere; }
+  .rm-home-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 10px; }
+  .rm-home-foot .muted { flex: 1 1 240px; font-size: 13px; }
+
+  @media (max-width: 720px) {
+    /* Sticky offsets count from inside the 72 px padding of main: this keeps the bar just under the top bar. */
+    .pick-bar { top: -8px; }
+    #page-roadmap .page-head > .grow { flex-basis: 100%; }
+    #rm-head select { flex: 1 1 140px; max-width: none; }
+  }
+  /* Six buttons in the bottom bar: the longest label, "Học hôm nay", still fits on one line. */
+  @media (max-width: 520px) {
+    nav .nav { font-size: 10px; letter-spacing: -.01em; }
+  }
+  @media (max-width: 640px) {
+    .rm-step-form .span2 { grid-column: auto; }
+    .rm-start-head .st { width: 60px; height: 60px; }
+    .rm-goal-title { font-size: 19px; }
+    .pick-bar { padding-left: 10px; }
+  }

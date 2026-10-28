@@ -2,7 +2,7 @@
 //! machine, the user's ChatGPT plan, or Gemini and DeepSeek with an API key. The chosen one is asked first; when
 //! it fails, the others that are ready take over, and every call is kept for measuring usage.
 
-use crate::{chatgpt, cloud, codex, db, models, pron};
+use crate::{chatgpt, cloud, codex, db, models, pron, roadmap};
 use candle_core::{Device, Tensor};
 use candle_transformers::{
     generation::LogitsProcessor, models::quantized_qwen2::ModelWeights, utils::apply_repeat_penalty,
@@ -168,6 +168,35 @@ const SUGGEST_SHOT: (&str, &str) = (
 );
 pub const SUGGEST_COUNT: usize = 8;
 
+// A roadmap: one line per stage, the Vietnamese the app shows; the exercises are the app's own.
+const ROADMAP_SYSTEM: &str = "You plan English vocabulary study for a Vietnamese learner. Split the days given into \
+stages, from easy to hard, as many as asked. Reply with one line per stage and nothing else. Each line is: stage title | \
+topics, comma separated | number of new words | skills | exercises | days. Write titles, topics and skills in \
+Vietnamese. Choose exercises from: Flashcard, Điền từ, Chọn đáp án, Nghe chép, Luyện nói, Đặt câu, Truyện ngắn. \
+The days of all stages add up to the days given.";
+const ROADMAP_SHOT: (&str, &str) = (
+    "Goal: TOEIC 750\nLevel: A2\nDays: 90\nMinutes a day: 20\nStages: 6",
+    "Nền tảng công sở | Công việc văn phòng, Giao tiếp hằng ngày | 60 | Nghe, Từ vựng | Flashcard, Chọn đáp án | 14\n\
+     Email và điện thoại | Email, Điện thoại | 60 | Đọc, Viết | Điền từ, Đặt câu | 14\n\
+     Họp và thuyết trình | Cuộc họp, Thuyết trình | 70 | Nghe, Nói | Nghe chép, Luyện nói | 15\n\
+     Mua bán và hợp đồng | Kinh doanh, Hợp đồng | 70 | Đọc, Từ vựng | Chọn đáp án, Điền từ | 15\n\
+     Công tác nước ngoài | Du lịch, Khách sạn | 60 | Nghe, Đọc | Nghe chép, Truyện ngắn | 16\n\
+     Luyện đề TOEIC | Từ vựng TOEIC | 50 | Nghe, Đọc | Flashcard, Chọn đáp án | 16",
+);
+const ROADMAP_ZH_SYSTEM: &str = "You plan Chinese vocabulary study for a Vietnamese learner. Split the days given into \
+stages, from easy to hard, as many as asked. Reply with one line per stage and nothing else. Each line is: stage title | \
+topics, comma separated | number of new words | skills | exercises | days. Write titles, topics and skills in \
+Vietnamese. Choose exercises from: Flashcard, Điền từ, Chọn đáp án, Nghe chép, Luyện nói, Đặt câu, Truyện ngắn. \
+The days of all stages add up to the days given.";
+const ROADMAP_ZH_SHOT: (&str, &str) = (
+    "Goal: HSK 3\nLevel: HSK1\nDays: 120\nMinutes a day: 20\nStages: 5",
+    "Chào hỏi và gia đình | Chào hỏi, Gia đình | 60 | Nghe, Phát âm | Flashcard, Luyện nói | 20\n\
+     Ăn uống và mua sắm | Ăn uống, Mua sắm | 70 | Nghe, Nói | Chọn đáp án, Nghe chép | 25\n\
+     Thời gian và trường học | Thời gian, Trường học | 70 | Đọc, Viết | Điền từ, Đặt câu | 25\n\
+     Du lịch và đi lại | Du lịch, Giao thông | 70 | Nghe, Đọc | Nghe chép, Truyện ngắn | 25\n\
+     Luyện đề HSK 3 | Từ vựng HSK 3 | 60 | Đọc, Nghe | Flashcard, Chọn đáp án | 25",
+);
+
 /// What every provider is asked: a system prompt, one worked example and the question.
 pub struct Prompt<'a> {
     pub system: &'a str,
@@ -309,6 +338,14 @@ pub struct Suggestion {
 #[derive(Debug, Serialize)]
 pub struct Suggestions {
     pub items: Vec<Suggestion>,
+    #[serde(flatten)]
+    pub by: By,
+}
+
+/// The stages a model proposes for a goal, made whole by `roadmap::fit`.
+#[derive(Debug, Serialize)]
+pub struct Plan {
+    pub steps: Vec<roadmap::Step>,
     #[serde(flatten)]
     pub by: By,
 }
@@ -634,6 +671,27 @@ impl<'a> Ai<'a> {
         }
         Ok(Suggestions { items, by })
     }
+
+    /// The stages towards `goal` in `days` days, about one for every two weeks; what the model leaves out or gets
+    /// wrong is filled in, and only an answer with no stage at all fails.
+    pub fn roadmap(&self, goal: &roadmap::Roadmap, days: i64, zh: bool) -> Result<Plan, String> {
+        let stages = (days / 14).clamp(roadmap::MIN_STEPS as i64, roadmap::MAX_STEPS as i64);
+        let level = if goal.level.is_empty() { "beginner" } else { &goal.level };
+        let question = format!(
+            "Goal: {}\nLevel: {level}\nDays: {days}\nMinutes a day: {}\nStages: {stages}",
+            roadmap::cut(&goal.purpose, 80),
+            goal.minutes
+        );
+        let (system, example) = if zh { (ROADMAP_ZH_SYSTEM, ROADMAP_ZH_SHOT) } else { (ROADMAP_SYSTEM, ROADMAP_SHOT) };
+        // The answer is Vietnamese in both courses.
+        let prompt = Prompt { system, example, question: &question, max_tokens: 640, cjk: false };
+        let (text, by) = self.chat(&prompt)?;
+        let steps = parse_roadmap(&text);
+        if steps.is_empty() {
+            return Err("AI chưa lập được lộ trình, hãy thử lại hoặc tự lập lộ trình".into());
+        }
+        Ok(Plan { steps: roadmap::fit(steps, days, goal.minutes, zh), by })
+    }
 }
 
 /// A Vietnamese letter without its marks, `ệ` as `e` and `đ` as `d`; any other character as it is.
@@ -825,6 +883,78 @@ fn parse_suggestions(text: &str, known: &[String]) -> Vec<Suggestion> {
         if out.len() == SUGGEST_COUNT + 2 {
             break;
         }
+    }
+    out
+}
+
+/// The first whole number in `text`, 0 when there is none.
+fn first_number(text: &str) -> i64 {
+    text.split(|c: char| !c.is_ascii_digit()).find(|s| !s.is_empty()).and_then(|s| s.parse().ok()).unwrap_or(0)
+}
+
+/// An exercise of the app from the name a model gave it.
+fn exercise_of(name: &str) -> Option<&'static str> {
+    let n = fold_label(name);
+    let has = |words: &[&str]| words.iter().any(|w| n.contains(w));
+    Some(match () {
+        _ if has(&["FLASH"]) => "flash",
+        _ if has(&["DIEN", "FILL", "GAP"]) => "fill",
+        _ if has(&["CHON", "CHOICE", "QUIZ"]) => "choice",
+        _ if has(&["NGHE", "DICTA", "LISTEN"]) => "dict",
+        _ if has(&["NOI", "SPEAK", "PHATAM"]) => "speak",
+        _ if has(&["DATCAU", "VIET", "WRIT", "SENTENCE"]) => "write",
+        _ if has(&["TRUYEN", "STORY", "DOC", "READ"]) => "story",
+        _ => return None,
+    })
+}
+
+/// `title | topics | words | skills | exercises | days` lines, tolerant of numbering, a "Stage 1:" before the
+/// title, the pipes of a Markdown table and its header, and spans in weeks or months. What is missing stays empty
+/// or zero for `roadmap::fit` to fill; a line without a title and a topic is no stage.
+fn parse_roadmap(text: &str) -> Vec<roadmap::Step> {
+    const HEADERS: [&str; 7] = ["TENCHANG", "CHANG", "TITLE", "STAGE", "STAGETITLE", "GIAIDOAN", "TEN"];
+    let mut out = Vec::new();
+    for line in text.lines() {
+        let line = line.trim().trim_matches(['|', '｜']);
+        let fields: Vec<&str> = line.split(['|', '｜']).map(str::trim).collect();
+        if fields.len() < 2 {
+            continue;
+        }
+        let title = fields[0].trim_start_matches(|c: char| c.is_ascii_digit() || matches!(c, '.' | ')' | '-' | '*' | '#' | ' '));
+        let title = match title.split_once([':', '：']) {
+            Some((head, rest)) if head.chars().count() <= 14 && head.chars().any(|c| c.is_ascii_digit()) => rest,
+            _ => title,
+        };
+        let title = clean(title);
+        let header = HEADERS.contains(&fold_label(&title).as_str()) && !title.chars().any(|c| c.is_ascii_digit());
+        if title.is_empty() || header {
+            continue;
+        }
+        let field = |i: usize| fields.get(i).copied().unwrap_or_default();
+        let topics = field(1).split([',', '，', '、', ';']).map(clean).filter(|t| !t.is_empty()).collect();
+        let span = fold_label(field(5));
+        let unit = if span.contains("TUAN") || span.contains("WEEK") {
+            7
+        } else if span.contains("THANG") || span.contains("MONTH") {
+            30
+        } else {
+            1
+        };
+        let mut exercises: Vec<String> = Vec::new();
+        for kind in field(4).split([',', '，', '、', ';', '/']).filter_map(exercise_of) {
+            if !exercises.iter().any(|e| e == kind) {
+                exercises.push(kind.into());
+            }
+        }
+        out.push(roadmap::Step {
+            title,
+            topics,
+            target: first_number(field(2)),
+            skills: clean(field(3)),
+            exercises,
+            days: first_number(field(5)).saturating_mul(unit),
+            done: false,
+        });
     }
     out
 }
@@ -1087,6 +1217,41 @@ mod tests {
         assert_eq!(s[0].meaning, "khách sạn");
         assert_eq!(s[0].ipa, "/hoʊˈtɛl/");
         assert_eq!(parse_suggestions(SUGGEST_SHOT.1, &[]).len(), 8);
+    }
+
+    #[test]
+    fn a_roadmap_parses_from_tidy_and_from_messy_answers() {
+        let steps = parse_roadmap(ROADMAP_SHOT.1);
+        assert_eq!(steps.len(), 6);
+        assert_eq!(steps.iter().map(|s| s.days).sum::<i64>(), 90);
+        let first = &steps[0];
+        assert_eq!((first.title.as_str(), first.topics.clone(), first.target), ("Nền tảng công sở", vec!["Công việc văn phòng".to_owned(), "Giao tiếp hằng ngày".to_owned()], 60));
+        assert_eq!((first.skills.as_str(), first.exercises.clone()), ("Nghe, Từ vựng", vec!["flash".to_owned(), "choice".to_owned()]));
+        assert_eq!(steps[2].exercises, ["dict", "speak"]);
+        assert_eq!(steps[4].exercises, ["dict", "story"]);
+        let zh = parse_roadmap(ROADMAP_ZH_SHOT.1);
+        assert_eq!((zh.len(), zh.iter().map(|s| s.days).sum::<i64>()), (5, 120));
+        assert_eq!(zh[2].exercises, ["fill", "write"]);
+        // What a small model writes: chatter, a Markdown table with its header, numbering, weeks, gaps.
+        let messy = "Sure! Here is the plan:\n\
+            | Tên chặng | Chủ đề | Số từ | Kỹ năng | Bài tập | Số ngày |\n\
+            |---|---|---|---|---|---|\n\
+            | 1. Chặng 1: **Làm quen** | Chào hỏi、Gia đình | khoảng 40 từ | Nghe | flashcard / luyện nói | 2 tuần |\n\
+            2) Stage 2 - Đi chợ | Mua sắm\n\
+            Chặng 3 | Du lịch | 50 | | Quiz, Story, Dance | 1 tháng\n\
+            Good luck!";
+        let steps = parse_roadmap(messy);
+        assert_eq!(steps.iter().map(|s| s.title.as_str()).collect::<Vec<_>>(), ["Làm quen", "Stage 2 - Đi chợ", "Chặng 3"]);
+        assert_eq!((steps[0].topics.clone(), steps[0].target, steps[0].days), (vec!["Chào hỏi".to_owned(), "Gia đình".to_owned()], 40, 14));
+        assert_eq!(steps[0].exercises, ["flash", "speak"]);
+        assert_eq!((steps[1].target, steps[1].days, steps[1].exercises.len()), (0, 0, 0));
+        assert_eq!((steps[2].days, steps[2].exercises.clone()), (30, vec!["choice".to_owned(), "story".to_owned()]));
+        // Filled up to a whole roadmap of the goal's days.
+        let fitted = roadmap::fit(steps, 60, 20, false);
+        assert_eq!((fitted.len(), fitted.iter().map(|s| s.days).sum::<i64>()), (4, 60));
+        assert!(fitted.iter().all(|s| s.target > 0 && !s.topics.is_empty() && !s.exercises.is_empty()));
+        assert!(parse_roadmap("Học chăm chỉ mỗi ngày.\nChúc bạn thành công!").is_empty());
+        assert_eq!((first_number("khoảng 1200 từ"), first_number("-"), exercise_of("Nghe chép")), (1200, 0, Some("dict")));
     }
 
     #[test]
