@@ -1,0 +1,54 @@
+  /* Ready-made packs: the panel in the vocabulary page. */
+  .pk-lead { margin: 6px 0 14px; }
+  .pk-tiles { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  .pk-tiles .tile { gap: 4px; }
+  .pk-tiles .tile > span { margin-bottom: 8px; line-height: 1.45; }
+  .pk-tiles .tile em { margin-top: 0; padding-top: 2px; color: var(--muted); font-size: 12.5px; }
+  .pk-tiles .tile em b { color: var(--text); }
+  .pk-bar { display: block; width: 100%; height: 6px; margin-top: auto; border-radius: 99px; overflow: hidden; background: var(--hover); }
+  .pk-bar i { display: block; height: 100%; min-width: 0; border-radius: 99px; background: var(--accent); }
+  .tiles input:checked + .tile .pk-bar { background: var(--surface); }
+  .pk-action { margin-top: 16px; }
+  .pk-action:empty { display: none; }
+  .pk-next { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .pk-next .tag { font-size: 12.5px; }
+  .pk-add { margin-top: 12px; }
+  .pk-start { margin-top: 10px; }
+  .pk-done { margin: 0; }
+  .pk-run { padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface-2); }
+  .pk-run .row .grow { min-width: 0; overflow-wrap: anywhere; }
+  .pk-run .progress { margin: 10px 0 6px; }
+  .pk-run p { margin: 0; }
+  .pk-report { margin-top: 12px; }
+  .pk-report:empty { display: none; }
+  .pk-report summary { margin-top: 4px; color: var(--accent-text); font-weight: 600; cursor: pointer; }
+  .pk-report ul { margin: 6px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; }
+
+  /* The vocabulary test. */
+  .vt-dialog { max-width: 520px; }
+  .vt-bar { max-width: none; margin: 0 0 18px; }
+  .vt-ask { margin: 0; text-align: center; }
+  .vt-word { margin: 14px 0 26px; font-size: 40px; font-weight: 700; line-height: 1.2; letter-spacing: -.01em; text-align: center; overflow-wrap: anywhere; }
+  .vt-word[lang="zh-CN"] { font-size: 52px; letter-spacing: .04em; }
+  .vt-answers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .vt-foot { margin-top: 14px; }
+  .vt-big { margin: 4px 0 8px; font-size: 30px; font-weight: 800; line-height: 1.2; letter-spacing: -.02em; }
+  .vt-level { margin-bottom: 4px; }
+  .vt-bands { display: grid; gap: 7px; margin: 14px 0; }
+  .vt-band { display: grid; grid-template-columns: minmax(120px, 38%) 1fr 40px; align-items: center; gap: 10px; font-size: 13px; }
+  .vt-band > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .vt-band .progress { height: 6px; }
+  .vt-band .num { text-align: right; }
+  .vt-move { margin-top: 14px; padding: 12px 14px; border: 1px solid var(--accent); border-radius: var(--r-md); background: var(--accent-soft); }
+  .vt-move ul { margin: 6px 0; padding-left: 18px; }
+  .vt-move p { margin: 0; }
+  @media (max-width: 560px) {
+    .vt-word { font-size: 32px; }
+    .vt-word[lang="zh-CN"] { font-size: 44px; }
+    .vt-big { font-size: 25px; }
+    .vt-answers .btn.big { padding: 0 12px; }
+    .pk-add > .muted { flex-basis: 100%; }
+    /* Seven HSK levels: two a row, without the line that only repeats the level. */
+    :root[data-course="zh"] .pk-tiles { grid-template-columns: 1fr 1fr; }
+    :root[data-course="zh"] .pk-tiles .tile > span { display: none; }
+  }

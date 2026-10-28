@@ -1,0 +1,28 @@
+assets/ngsl.txt, assets/nawl.txt, assets/tsl.txt
+
+Nội dung: mỗi dòng là một từ tiếng Anh, xếp theo thứ hạng tần suất của danh sách gốc (từ hay gặp nhất trước).
+
+Nguồn: dự án NGSL (New General Service List Project)
+  https://www.newgeneralservicelist.com
+
+1. assets/ngsl.txt: New General Service List (NGSL) 1.2, 2.809 từ.
+   Ghi công: New General Service List by Browne, C., Culligan, B., and Phillips, J.
+   File gốc: https://www.newgeneralservicelist.com/s/NGSL_12_stats.csv
+
+2. assets/nawl.txt: New Academic Word List (NAWL) 1.2, 957 từ.
+   Ghi công: New Academic Word List by Browne, C., Culligan, B., and Phillips, J.
+   File gốc: https://www.newgeneralservicelist.com/s/NAWL_12_stats.csv
+
+3. assets/tsl.txt: TOEIC Service List (TSL) 1.2, 1.250 từ.
+   Ghi công: TOEIC Service List by Browne, C. and Culligan, B.
+   File gốc: https://www.newgeneralservicelist.com/s/TSL_12_stats.csv
+
+Ngày tải về: 2026-10-28.
+
+Thay đổi so với bản gốc: chỉ giữ lại từ gốc (headword) theo thứ tự cột thứ hạng, bỏ các cột thống kê (SFI, tần
+suất, nhóm). Cách dựng lại: xem scripts/make-packs.py trong kho app.
+
+Giấy phép: cả ba danh sách gốc được phát hành theo Creative Commons Attribution-ShareAlike 4.0 International
+(CC BY-SA 4.0). Ba file ở đây là tác phẩm phái sinh và được phát hành theo cùng giấy phép đó.
+  https://creativecommons.org/licenses/by-sa/4.0/
+Theo trang của dự án, quyền ngoài phạm vi giấy phép này có thể xin tại http://www.charlie-browne.com.

@@ -1,0 +1,50 @@
+assets/hsk30.txt
+
+Nội dung: mỗi dòng là cấp độ và một từ tiếng Trung (chữ giản thể) của chuẩn HSK 3.0, dạng "3 字词". Cấp 7 đến 9
+được chuẩn gộp chung, ở đây ghi là 7. Các từ theo thứ tự trong văn bản gốc.
+
+Văn bản gốc: 国际中文教育中文水平等级标准 (Chuẩn trình độ tiếng Trung trong giáo dục tiếng Trung quốc tế),
+GF 0025-2021, do Bộ Giáo dục và Ủy ban Công tác Ngôn ngữ Văn tự Quốc gia Trung Quốc ban hành năm 2021.
+  http://www.moe.gov.cn/jyb_xwfb/gzdt_gzdt/s5987/202103/t20210329_523304.html
+Trang của Bộ ghi "版权所有：中华人民共和国教育部". Điều 5 Luật Bản quyền Trung Quốc loại khỏi phạm vi bảo hộ các văn
+bản có tính chất lập pháp, hành chính, tư pháp của cơ quan nhà nước; chuẩn này là văn bản quy phạm do cơ quan nhà
+nước ban hành nên nhiều khả năng thuộc nhóm đó, nhưng chưa có xác nhận chính thức. Ở đây chỉ lấy danh sách từ và
+cấp độ, không lấy phần nào khác của văn bản.
+
+Bản số hóa dùng ở đây: ivankra/hsk30, file hsk30-expanded.csv (commit 4ff9e39, 2023-11-06), dựng từ bản nhận dạng
+chữ của elkmovie/hsk30 và dữ liệu của shawkynasr/HSK-official-Query-System, đều theo giấy phép MIT.
+  https://github.com/ivankra/hsk30
+  https://github.com/elkmovie/hsk30
+  https://github.com/shawkynasr/HSK-official-Query-System
+
+Thay đổi so với bản số hóa: mỗi mục chỉ giữ dạng đầu tiên (爸爸, không lấy 爸), bỏ từ ví dụ của phụ tố (giữ 们,
+bỏ 朋友们), từ có ở hai cấp chỉ giữ ở cấp thấp hơn; bỏ pinyin, từ loại, chữ phồn thể và các cột khác. Cách dựng lại:
+xem scripts/make-packs.py trong kho app.
+
+Giấy phép của bản số hóa, toàn văn ở dưới:
+
+
+MIT License
+
+Copyright (c) 2023 Ivan Krasilnikov
+Copyright (c) 2021 Shawky
+Copyright (c) 2021 Pleco Inc.
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
