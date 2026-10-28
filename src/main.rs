@@ -1268,6 +1268,7 @@ impl App {
             }
             "codex_sign_out" => codex::sign_out(db).map(|_| codex::status(db)),
             "models" => Ok(models::status(&self.dir)),
+            "voices" => Ok(voice::status(&self.dir)),
             "rec_start" => speech::start().map(|_| Value::Null),
             "spell" => {
                 let word: String = args["word"].as_str().unwrap_or_default().chars().take(80).collect();

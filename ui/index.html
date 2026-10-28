@@ -2899,6 +2899,14 @@ const PACK_INFO = {
   "piper-zh": { name: "Piper Xiao Ya", use: "Một giọng nữ Quan Thoại, rất nhẹ và nhanh. Hợp với máy yếu và trung bình." },
 };
 const TIER = { weak: "yếu", medium: "trung bình", strong: "mạnh" };
+// The settings show how long the last word took, which changes as words are read.
+hooks.page.push(async (page) => {
+  if (page !== "settings") return;
+  try {
+    state.voices = await app.call("voices");
+    renderVoices();
+  } catch {}
+});
 const msText = (ms) => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1).replace(".", ",")} giây`);
 /// The course's voice packs, the one suggested for this machine first, then Supertonic for the Vietnamese meanings,
 /// each with the same download row as the models.

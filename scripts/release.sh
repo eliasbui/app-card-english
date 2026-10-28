@@ -37,7 +37,9 @@ ARM64ZIP="dist/CardEnglish-$VERSION-windows-arm64.zip"
 # Releasing the version Cargo.toml already has leaves nothing to commit.
 git diff --quiet Cargo.toml Cargo.lock || git commit -q -m "Release $VERSION" Cargo.toml Cargo.lock
 git tag "v$VERSION"
-git push origin HEAD "v$VERSION"
+# To main whatever branch this runs on, so that a release can be made from a worktree while main is checked out
+# elsewhere; a push that is not a fast-forward of main is refused.
+git push origin HEAD:main "v$VERSION"
 
 gh release create "v$VERSION" "$ZIP" "$X64ZIP" "$ARM64ZIP" --title "v$VERSION" --generate-notes
 echo "published v$VERSION with the macOS and Windows zips"
