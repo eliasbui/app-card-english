@@ -394,13 +394,16 @@
     }
   }
 
-  /// An exercise of the app on the words of a stage: its first topic that has words.
+  /// An exercise of the app on the words of all the topics of a stage, counted from the list itself: the topics'
+  /// counts are loaded once and miss the words added since.
   async function practise(kind, s) {
-    const topic = s.topics.find((t) => state.topics.find((x) => x.name === t)?.words > 0);
-    if (!topic && kind !== "story") return toast("Chặng này chưa có từ nào. Bấm Gợi ý từ cho chặng này để thêm từ trước.");
+    const usable = (await listCourse()).filter((w) => w.meaning && !w.skipped && s.topics.includes(w.topic));
+    if (!usable.length && kind !== "story") return toast("Chặng này chưa có từ nào học được. Bấm Gợi ý từ cho chặng này để thêm từ trước.");
     go("practice");
     await state.sources;
-    if (topic) $("practice-source").value = "topic:" + topic;
+    const select = $("practice-source"), value = "topics:" + s.topics.join("|");
+    select.insertAdjacentHTML("beforeend", `<option value="${esc(value)}">Chặng: ${esc(s.title)}</option>`);
+    select.value = value;
     startPractice(kind);
   }
 

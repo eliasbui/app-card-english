@@ -22,6 +22,8 @@ fn parts() {
     let mut html = String::new();
     for path in &files {
         let text = fs::read_to_string(path).expect("a part of the page");
+        // The page reads a script up to the first `</script>`, even inside a string, and drops the rest of it.
+        assert!(!text.to_lowercase().contains("</script"), "{} must not contain </script>; write <\\/script> in strings", path.display());
         match path.extension().and_then(|e| e.to_str()) {
             Some("css") => html += &format!("<style>\n{text}</style>\n"),
             Some("js") => html += &format!("<script>\n{text}</script>\n"),

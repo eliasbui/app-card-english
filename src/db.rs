@@ -1014,6 +1014,15 @@ pub fn messages(db: &Connection, lang: &str, thread: &str, limit: i64) -> rusqli
     stmt.query_map(params![lang, thread, limit], message)?.collect()
 }
 
+/// Deletes, by marking, the line `uid` of a thread and every later one, as when a question is changed or asked again.
+pub fn truncate_thread(db: &Connection, lang: &str, thread: &str, uid: &str, now: i64) -> rusqlite::Result<usize> {
+    db.execute(
+        "UPDATE chat SET deleted = 1, updated = ?4 WHERE lang = ?1 AND thread = ?2 AND deleted = 0
+         AND (created, id) >= (SELECT created, id FROM chat WHERE uid = ?3 AND lang = ?1 AND thread = ?2)",
+        params![lang, thread, uid, now],
+    )
+}
+
 /// Deletes the lines of a thread of a course by marking them, so that a sync takes the deletion to other copies.
 pub fn clear_thread(db: &Connection, lang: &str, thread: &str, now: i64) -> rusqlite::Result<()> {
     db.execute(
@@ -1414,6 +1423,16 @@ mod tests {
         add_message(&db, "en", &line("tutor", "user", "Quiz me"), 390).unwrap();
         let talks = threads(&db, "en", "tutor", 5).unwrap().into_iter().map(|t| (t.thread, t.title, t.turns)).collect::<Vec<_>>();
         assert_eq!(talks, [("tutor:00000000000000aa".into(), "Affect or effect?".into(), 2), ("tutor".into(), "Quiz me".into(), 1)]);
+        // Changing the question of a talk takes it and what followed away, and nothing else.
+        add_message(&db, "en", &line("tutor:00000000000000bb", "user", "One?"), 500).unwrap();
+        add_message(&db, "en", &line("tutor:00000000000000bb", "ai", "Một."), 500).unwrap();
+        let again = add_message(&db, "en", &line("tutor:00000000000000bb", "user", "Two?"), 501).unwrap();
+        add_message(&db, "en", &line("tutor:00000000000000bb", "ai", "Hai."), 502).unwrap();
+        assert_eq!(truncate_thread(&db, "en", "tutor:00000000000000bb", &again.uid, 600).unwrap(), 2);
+        let left = messages(&db, "en", "tutor:00000000000000bb", 10).unwrap().into_iter().map(|m| m.text).collect::<Vec<_>>();
+        assert_eq!(left, ["One?", "Một."]);
+        assert_eq!(truncate_thread(&db, "en", "tutor:00000000000000bb", "nope", 600).unwrap(), 0);
+        assert_eq!(messages(&db, "en", "roleplay:airport:a1", 10).unwrap().len(), 3, "other threads stay");
         assert_eq!(threads(&db, "en", "roleplay:", 1).unwrap().len(), 1);
         assert!(threads(&db, "zh", "roleplay:", 5).unwrap().is_empty());
         assert_ne!(new_uid(&db).unwrap(), new_uid(&db).unwrap());

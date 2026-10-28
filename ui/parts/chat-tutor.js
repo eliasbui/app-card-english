@@ -49,21 +49,48 @@
 
   /// Text in the language of the course: Chinese characters, or Latin letters without the marks of Vietnamese.
   const foreign = (t) => (zh() ? hasHan(t) : /[a-z]/i.test(t) && !/[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(t));
-  /// An answer as a bubble shows it: bold where the model marked it, the words of the course read aloud when clicked,
-  /// headings as bold lines, the rest as written.
-  const rich = (text) => esc(text).replace(/^#{1,4}\s*(.+)$/gm, "<b>$1</b>")
-    .replace(/\*\*(.+?)\*\*/g, (_, t) => (foreign(t) ? `<b class="chat-say" data-say="${t}" title="Bấm để nghe">${t}</b>` : `<b>${t}</b>`));
+  /// An answer as a bubble shows it, in markdown, with the words of the course in bold read aloud when clicked.
+  const rich = (text) => window.chatMarkdown(text, (t) => (foreign(t) ? `<b class="chat-say" data-say="${t}" title="Bấm để nghe">${t}</b>` : `<b>${t}</b>`));
   /// What "Nghe" reads of an answer: its Chinese, or its English words in bold.
   function spoken(text) {
     const parts = zh() ? text.match(/[\u4e00-\u9fff，。？！、]+/g) || [] : [...text.matchAll(/\*\*(.+?)\*\*/g)].map((m) => m[1]).filter(foreign);
     return parts.join(zh() ? "，" : ". ");
   }
+  /// The lines on screen by uid, for copying, changing and asking again.
+  const lines = new Map();
+  const tool = (act, label) => `<button class="chat-tool" data-act="${act}">${label}</button>`;
   function bubble(m, by = "") {
-    if (m.role === "user") return `<div class="chat-msg me"><div class="chat-bubble">${esc(m.text)}</div></div>`;
+    if (m.uid) lines.set(m.uid, m);
+    const uid = m.uid ? ` data-uid="${esc(m.uid)}"` : "";
+    if (m.role === "user") {
+      return `<div class="chat-msg me"${uid}><div class="chat-bubble">${esc(m.text)}</div>
+        ${m.uid ? `<div class="chat-tools">${tool("copy", "Sao chép")}${tool("edit", "Sửa")}</div>` : ""}</div>`;
+    }
     const who = by || (m.source ? `Trả lời bởi ${esc(m.source)}.` : "");
     const say = spoken(m.text);
-    return `<div class="chat-msg"><div class="chat-bubble">${rich(m.text)}</div>
-      ${say || who ? `<div class="chat-by">${say ? `<button class="btn small chat-listen" data-say="${esc(say)}">Nghe</button>` : ""}${who}</div>` : ""}</div>`;
+    return `<div class="chat-msg ai"${uid}><div class="chat-bubble md">${rich(m.text)}</div>
+      ${say || who ? `<div class="chat-by">${say ? `<button class="btn small chat-listen" data-say="${esc(say)}">Nghe</button>` : ""}${who}</div>` : ""}
+      ${m.uid ? `<div class="chat-tools">${tool("copy", "Sao chép")}${tool("again", "Hỏi lại")}</div>` : ""}</div>`;
+  }
+  /// Only the last answer can be asked again.
+  function markLast() {
+    log.querySelectorAll(".chat-msg.ai.last").forEach((el) => el.classList.remove("last"));
+    [...log.querySelectorAll(".chat-msg.ai[data-uid]")].pop()?.classList.add("last");
+  }
+  /// The clipboard of the web view may be closed to the page, so a selected hidden text area is the way round it.
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      const area = Object.assign(document.createElement("textarea"), { value: text });
+      area.style.cssText = "position:fixed;top:0;opacity:0";
+      document.body.append(area);
+      area.select();
+      const ok = document.execCommand("copy");
+      area.remove();
+      return ok;
+    }
   }
   function empty() {
     log.innerHTML = `<div class="chat-empty">${st(zh() ? "mascot-zh" : "mascot-think")}<b>Chào bạn!</b>
@@ -92,6 +119,7 @@
       if (course !== courseOf() || asked !== thread) return;
       if (!messages.length) return empty();
       log.innerHTML = messages.slice(-SHOWN).map((m) => bubble(m)).join("");
+      markLast();
       log.scrollTop = log.scrollHeight;
     } catch (e) {
       log.innerHTML = `<div class="chat-msg failed"><div class="chat-bubble">${esc(e)}</div></div>`;
@@ -153,34 +181,79 @@
     input.style.height = Math.min(140, input.scrollHeight + 2) + "px";
   }
 
-  async function ask(text) {
+  /// Asks `text`; with `redo`, the uid of a question on screen, it replaces that question and what followed, which
+  /// leave the database only once the new answer is there.
+  async function ask(text, redo = "") {
     text = text.trim();
     if (!text || busy) return;
     busy = true;
     send.disabled = true;
+    panel.classList.add("busy");
     const course = courseOf();
+    const gone = [];
+    for (let el = redo ? log.querySelector(`[data-uid="${CSS.escape(redo)}"]`) : null; el; el = el.nextElementSibling) gone.push(el);
+    gone.forEach((el) => el.remove());
     const mine = add(bubble({ role: "user", text }));
     const wait = add(`<div class="chat-msg"><div class="thinking">${st("mascot-think")}<span>Trợ lý đang trả lời...</span></div></div>`);
     input.value = "";
     fit();
     try {
-      const r = await app.call("tutor", { text, thread, day: localDay() });
+      const r = await app.call("tutor", { text, thread, day: localDay(), redo });
       if (course !== courseOf()) return;
       wait.remove();
+      mine.insertAdjacentHTML("afterend", bubble(r.user));
+      mine.remove();
       add(bubble(r.reply, r.answer.source ? byHtml(r.answer) : ""));
+      markLast();
     } catch (e) {
       if (course !== courseOf()) return;
-      // The question goes back into the box, to be asked again.
+      // The question goes back into the box, to be asked again, and a replaced talk comes back as it was.
       wait.remove();
       mine.remove();
+      gone.forEach((el) => log.append(el));
       if (!input.value) input.value = text;
       fit();
       add(`<div class="chat-msg failed"><div class="chat-bubble">${esc(e)}</div></div>`);
     } finally {
       busy = false;
       send.disabled = false;
+      panel.classList.remove("busy");
     }
   }
+
+  /// The question as an editor in its place; sending it asks it instead of the old one.
+  function edit(el, m) {
+    const parts = el.querySelectorAll(".chat-bubble, .chat-tools");
+    parts.forEach((x) => (x.hidden = true));
+    el.insertAdjacentHTML("beforeend", `<form class="chat-edit"><textarea rows="3" maxlength="2000" aria-label="Sửa câu hỏi"></textarea>
+      <div class="row"><button class="btn small" type="button">Hủy</button><button class="btn small primary" type="submit">Gửi</button></div></form>`);
+    const form = el.querySelector(".chat-edit"), area = form.querySelector("textarea");
+    const close = () => { form.remove(); parts.forEach((x) => (x.hidden = false)); };
+    area.value = m.text;
+    area.focus();
+    area.setSelectionRange(area.value.length, area.value.length);
+    form.querySelector('button[type="button"]').onclick = close;
+    area.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") { e.stopPropagation(); close(); }
+      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); form.requestSubmit(); }
+    });
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      const text = area.value.trim();
+      if (!text || text === m.text.trim()) return close();
+      ask(text, m.uid);
+    };
+  }
+  log.addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-act]"), el = b?.closest(".chat-msg"), m = lines.get(el?.dataset.uid);
+    if (!m) return;
+    if (b.dataset.act === "copy") return toast((await copyText(m.text)) ? "Đã sao chép" : "Chưa sao chép được, hãy chọn chữ rồi sao chép");
+    if (busy) return toast("Đợi trợ lý trả lời xong đã nhé");
+    if (b.dataset.act === "edit") return edit(el, m);
+    // Asking again is asking the question before this answer once more.
+    const question = lines.get(el.previousElementSibling?.dataset.uid);
+    if (b.dataset.act === "again" && question?.role === "user") ask(question.text, question.uid);
+  });
 
   fab.onclick = openChat;
   $("chat-close").onclick = closeChat;

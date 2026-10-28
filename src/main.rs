@@ -645,15 +645,28 @@ impl App {
                 let settings = self.chat_ai_settings();
                 let course = self.course();
                 let words = self.course_words(&course);
-                let history = db::messages(&self.db, &course, &thread, 8).unwrap_or_default();
+                // A question asked again or changed (`redo`, its uid): the talk as it was before it.
+                let redo = text("redo");
+                let mut history = db::messages(&self.db, &course, &thread, 60).unwrap_or_default();
+                if !redo.is_empty() {
+                    let Some(at) = history.iter().position(|m| m.uid == redo && m.role == "user") else {
+                        return self.post(&reply(Err("Không tìm thấy câu hỏi này".into())));
+                    };
+                    history.truncate(at);
+                }
+                let history = history.split_off(history.len().saturating_sub(8));
                 let asked = now();
                 background(Box::new(move || {
                     let ai = ai::Ai::new(&settings, &dir);
                     let result = ai.tutor(&question, &words, &history, course == "zh", asked);
                     record_usage(&dir, &day, &ai.attempts.borrow());
                     let answer = result?;
-                    // Both lines are kept once there is an answer; a failed question stays in the box to ask again.
+                    // Both lines are kept once there is an answer; a failed question stays in the box to ask again,
+                    // and a question asked again replaces the old one and what followed it only then.
                     let db = db::open(&dir.join("words.db")).map_err(|e| e.to_string())?;
+                    if !redo.is_empty() {
+                        db::truncate_thread(&db, &course, &thread, &redo, asked).map_err(|e| e.to_string())?;
+                    }
                     let line = |role: &str, text: &str, source: String| db::Message { thread: thread.clone(), role: role.into(), text: text.into(), source, ..db::Message::default() };
                     let user = db::add_message(&db, &course, &line("user", question.trim(), String::new()), asked).map_err(|e| e.to_string())?;
                     let reply = db::add_message(&db, &course, &line("ai", &answer.text, answer.by.name()), now()).map_err(|e| e.to_string())?;

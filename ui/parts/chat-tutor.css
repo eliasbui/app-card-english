@@ -80,3 +80,29 @@
   .chat-msg.me .chat-say:hover { color: inherit; }
   .chat-by { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
   .chat-listen { min-height: 24px; padding: 0 9px; font-size: 12px; }
+  /* An answer in markdown: tight blocks inside the bubble. */
+  .chat-bubble.md { white-space: normal; }
+  .chat-bubble.md > :first-child { margin-top: 0; }
+  .chat-bubble.md > :last-child { margin-bottom: 0; }
+  .chat-bubble.md p, .chat-bubble.md ul, .chat-bubble.md ol, .chat-bubble.md blockquote, .chat-bubble.md pre, .chat-bubble.md table { margin: 0 0 8px; }
+  .chat-bubble.md .md-h { font-weight: 700; }
+  .chat-bubble.md ul, .chat-bubble.md ol { padding-left: 20px; }
+  .chat-bubble.md li + li { margin-top: 2px; }
+  .chat-bubble.md li > ul, .chat-bubble.md li > ol { margin: 2px 0 0; }
+  .chat-bubble.md blockquote { padding: 2px 0 2px 10px; border-left: 3px solid var(--line-strong); color: var(--text-2); }
+  .chat-bubble.md code { padding: 1px 5px; border-radius: 5px; background: var(--surface-2); font-size: .92em; }
+  .chat-bubble.md pre { padding: 8px 10px; overflow-x: auto; border-radius: var(--r-sm); background: var(--surface-2); font-size: 12.5px; white-space: pre-wrap; }
+  .chat-bubble.md table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; font-size: 13px; }
+  .chat-bubble.md th, .chat-bubble.md td { padding: 4px 8px; border: 1px solid var(--line); text-align: left; vertical-align: top; }
+  .chat-bubble.md th { background: var(--surface-2); }
+
+  /* Copy, change and ask again under a message: on hover, and always where there is no hover. */
+  .chat-tools { display: flex; gap: 2px; margin-top: 2px; opacity: 0; transition: opacity .15s; }
+  .chat-msg:hover .chat-tools, .chat-msg:focus-within .chat-tools { opacity: 1; }
+  @media (hover: none), (max-width: 720px) { .chat-tools { opacity: 1; } }
+  .chat-tool { min-height: 24px; padding: 0 8px; border: 0; border-radius: var(--r-sm); background: none; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
+  .chat-tool:hover { background: var(--surface); color: var(--text); }
+  .chat-msg.ai:not(.last) [data-act="again"], .chat-panel.busy .chat-tool:not([data-act="copy"]) { display: none; }
+  .chat-edit { display: flex; flex-direction: column; gap: 6px; width: min(100%, 340px); }
+  .chat-edit textarea { width: 100%; min-height: 70px; resize: vertical; }
+  .chat-edit .row { justify-content: flex-end; gap: 6px; }

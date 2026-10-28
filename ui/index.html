@@ -2182,6 +2182,7 @@ const SOURCE_EMPTY = {
   hard: "Chưa có từ nào hay quên. Tuyệt quá!",
   weak: "Chưa có từ nào phát âm dưới 60 điểm. Hãy luyện nói vài từ trước.",
   topic: "Chủ đề này chưa có từ nào có nghĩa.",
+  topics: "Chặng này chưa có từ nào có nghĩa.",
 };
 /// The words of the chosen source, the ones most worth practising first.
 function practicePool(all) {
@@ -2189,6 +2190,8 @@ function practicePool(all) {
   if (source === "hard") return all.filter((w) => w.lapses > 0 || w.difficulty >= 7).sort((a, b) => b.lapses - a.lapses || b.difficulty - a.difficulty);
   if (source === "weak") return all.filter((w) => w.score >= 0 && w.score < 60).sort((a, b) => a.score - b.score);
   if (source.startsWith("topic:")) return shuffle(all.filter((w) => w.topic === source.slice(6)));
+  // The topics of a roadmap stage, as the stage's buttons choose them.
+  if (source.startsWith("topics:")) return shuffle(all.filter((w) => source.slice(7).split("|").includes(w.topic)));
   // Words due or weak first, then the rest at random.
   const weight = (w) => (w.learned_at && w.due <= nowSec() ? 0 : 1) + (w.score >= 0 && w.score < 60 ? -0.5 : 0) + Math.random();
   return all.slice().sort((a, b) => weight(a) - weight(b));
