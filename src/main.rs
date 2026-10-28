@@ -24,6 +24,7 @@ mod roadmap;
 mod shadow;
 mod speech;
 mod sync;
+mod talk;
 mod update;
 mod voice;
 
@@ -1024,6 +1025,56 @@ impl App {
                     Ok(json!(shadow::compare(&target, score, &pcm, reference)))
                 }));
             }
+            // A turn of the speaking tutor: what the learner said (or typed), the AI's answer read aloud as it comes.
+            "talk_turn" => {
+                let course = self.course();
+                let history = args["history"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|m| Some((m["role"].as_str()?.to_owned(), m["text"].as_str()?.to_owned())))
+                    .collect();
+                let turn = talk::Turn {
+                    settings: self.chat_ai_settings(),
+                    words: self.course_words(&course),
+                    history,
+                    target: text("target"),
+                    typed: text("text"),
+                    voice: voice::ready(&dir, &course).then(|| self.kokoro_voice(&course)),
+                    accent: self.setting("accent").unwrap_or_default(),
+                    rate: self.setting("speech_rate").and_then(|v| v.parse().ok()).unwrap_or(0.95),
+                    day,
+                    course,
+                };
+                // The page's number of the turn goes with each event, so that one cut short is told apart.
+                let (proxy, number) = (self.proxy.clone(), args["turn"].clone());
+                background(Box::new(move || {
+                    talk::turn(&dir, turn, |mut data| {
+                        data["turn"] = number.clone();
+                        let _ = proxy.send_event(UserEvent::Post(json!({ "event": "talk", "data": data })));
+                    })
+                }));
+            }
+            "talk_download" => {
+                let proxy = self.proxy.clone();
+                background(Box::new(move || {
+                    talk::download(&dir, |done, total| {
+                        let message = json!({ "event": "progress", "data": { "group": "talk", "done": done, "total": total } });
+                        let _ = proxy.send_event(UserEvent::Post(message));
+                    })?;
+                    talk::warm_up(&dir, "", None);
+                    Ok(talk::status(&dir))
+                }));
+            }
+            // Whether the tutor can hear; its models load in the background meanwhile, for the first sentence.
+            "talk_model" => {
+                let course = self.course();
+                let voice = voice::ready(&dir, &course).then(|| self.kokoro_voice(&course));
+                let warm = dir.clone();
+                thread::spawn(move || talk::warm_up(&warm, &course, voice));
+                self.post(&reply(Ok(talk::status(&dir))));
+            }
+            "talk_delete" => background(Box::new(move || talk::delete(&dir).map(|()| talk::status(&dir)))),
             "download_voice" => {
                 let course = if text("course") == "zh" { "zh" } else { "en" };
                 let proxy = self.proxy.clone();
@@ -1307,6 +1358,12 @@ impl App {
                 exam::handle(db, &self.dir, &self.course(), &self.ai_settings(), cmd, args, now())
             }
             "rec_level" => Ok(json!(speech::level())),
+            "talk_stop" => {
+                talk::interrupt();
+                Ok(Value::Null)
+            }
+            // A recording that heard no one: dropped without being written down.
+            "rec_cancel" => speech::stop().map(|_| Value::Null),
             "packs" => packs::status(db, &self.course()).map_err(e),
             "pack_cancel" => {
                 packs::cancel();
@@ -1392,6 +1449,16 @@ impl App {
             provider => settings.provider = provider.into(),
         }
         settings
+    }
+
+    /// The Kokoro voice chosen for a language, or the first of its pack.
+    fn kokoro_voice(&self, lang: &str) -> i32 {
+        db::setting(&self.db, &db::scoped("voice", lang))
+            .ok()
+            .flatten()
+            .and_then(|v| v.strip_prefix("kokoro:").and_then(|sid| sid.parse::<i32>().ok()))
+            .or_else(|| voice::VOICES.iter().find(|v| v.0 == lang).map(|v| v.1))
+            .unwrap_or_default()
     }
 
     /// The words of a course the AI may draw on: all but the ones set aside.

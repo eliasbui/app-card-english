@@ -129,7 +129,7 @@ pub fn stop() -> Result<Vec<f32>, String> {
 }
 
 // shortcut: linear interpolation, plenty for speech recognition; use a windowed-sinc resampler if quality matters.
-fn resample(samples: &[f32], from: u32, to: u32) -> Vec<f32> {
+pub(crate) fn resample(samples: &[f32], from: u32, to: u32) -> Vec<f32> {
     if from == to || samples.is_empty() {
         return samples.to_vec();
     }

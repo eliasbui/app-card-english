@@ -2,7 +2,7 @@
 //! API key or token) is handed over on standard input so that it never shows in the list of processes.
 
 use std::{
-    io::{Read, Write},
+    io::{BufRead, Read, Write},
     path::{Path, PathBuf},
     process::{Command, Stdio},
 };
@@ -61,6 +61,16 @@ pub struct Reply {
 /// GET, or POST when there is a body. The body is read even for an error, so that the reason the server gives
 /// can be shown.
 pub fn fetch(url: &str, headers: &[(&str, &str)], body: Option<&str>, seconds: u64) -> Result<Reply, String> {
+    run(&config(url, headers, body), &[], seconds, None)
+}
+
+/// `fetch` that also hands each line to `line` as it arrives, for a stream of server-sent events read while it
+/// comes; the reply is the same once it ends.
+pub fn stream(url: &str, headers: &[(&str, &str)], body: Option<&str>, seconds: u64, line: &mut dyn FnMut(&str)) -> Result<Reply, String> {
+    run(&config(url, headers, body), &["--no-buffer".into()], seconds, Some(line))
+}
+
+fn config(url: &str, headers: &[(&str, &str)], body: Option<&str>) -> String {
     let mut config = format!("url = {}\n", quote(url));
     for (name, value) in headers {
         config.push_str(&format!("header = {}\n", quote(&format!("{name}: {value}"))));
@@ -68,7 +78,7 @@ pub fn fetch(url: &str, headers: &[(&str, &str)], body: Option<&str>, seconds: u
     if let Some(body) = body {
         config.push_str(&format!("data-binary = {}\n", quote(body)));
     }
-    run(&config, &[], seconds)
+    config
 }
 
 /// A request for binary content, which `fetch` cannot carry: the body is read from the file `body` and the answer's
@@ -90,11 +100,12 @@ pub fn transfer(method: &str, url: &str, headers: &[(&str, &str)], body: Option<
         args.push("--output".into());
         args.push(out.into());
     }
-    run(&config, &args, seconds)
+    run(&config, &args, seconds, None)
 }
 
-/// Runs curl on a configuration given on standard input, with `args` before it.
-fn run(config: &str, args: &[std::ffi::OsString], seconds: u64) -> Result<Reply, String> {
+/// Runs curl on a configuration given on standard input, with `args` before it, and hands each line of its output
+/// to `line` as it comes when asked to.
+fn run(config: &str, args: &[std::ffi::OsString], seconds: u64, line: Option<&mut dyn FnMut(&str)>) -> Result<Reply, String> {
     let mut child = command(curl())
         .args(["--silent", "--location", "--proto", "=https", "--max-time"])
         .arg(seconds.to_string())
@@ -110,7 +121,18 @@ fn run(config: &str, args: &[std::ffi::OsString], seconds: u64) -> Result<Reply,
     }
     let mut out = String::new();
     if let Some(stdout) = child.stdout.take() {
-        stdout.take(MAX_BODY).read_to_string(&mut out).map_err(|e| e.to_string())?;
+        match line {
+            Some(line) => {
+                let mut reader = std::io::BufReader::new(stdout.take(MAX_BODY));
+                let mut next = String::new();
+                while reader.read_line(&mut next).map_err(|e| e.to_string())? > 0 {
+                    line(next.trim_end());
+                    out.push_str(&next);
+                    next.clear();
+                }
+            }
+            None => drop(stdout.take(MAX_BODY).read_to_string(&mut out).map_err(|e| e.to_string())?),
+        }
     }
     let _ = child.wait();
     split_reply(&out).ok_or_else(|| "Không kết nối được mạng".into())

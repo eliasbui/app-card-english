@@ -9,7 +9,7 @@ use candle_transformers::{
 };
 use serde::Serialize;
 use serde_json::Value;
-use std::{cell::RefCell, path::Path, sync::Mutex};
+use std::{cell::{Cell, RefCell}, path::Path, sync::Mutex};
 use tokenizers::Tokenizer;
 
 pub const PROVIDERS: [&str; 5] = ["local", "chatgpt", "codex", "gemini", "deepseek"];
@@ -617,11 +617,17 @@ pub struct Ai<'a> {
     settings: &'a Settings,
     dir: &'a Path,
     pub attempts: RefCell<Vec<Attempt>>,
+    /// Hears the answer while it comes, from the providers that stream it, or all at once from the others.
+    on_text: Option<&'a dyn Fn(&str)>,
 }
 
 impl<'a> Ai<'a> {
     pub fn new(settings: &'a Settings, dir: &'a Path) -> Self {
-        Self { settings, dir, attempts: RefCell::new(Vec::new()) }
+        Self { settings, dir, attempts: RefCell::new(Vec::new()), on_text: None }
+    }
+
+    pub fn streaming(self, on_text: &'a dyn Fn(&str)) -> Self {
+        Self { on_text: Some(on_text), ..self }
     }
 
     fn database(&self) -> Result<rusqlite::Connection, String> {
@@ -701,19 +707,30 @@ impl<'a> Ai<'a> {
         Ok(pick)
     }
 
-    fn call(&self, provider: &'static str, prompt: &Prompt) -> (String, Result<Answer, CallError>) {
+    /// The model asked, its answer, and whether some of the answer was already handed to `on_text`.
+    fn call(&self, provider: &'static str, prompt: &Prompt) -> (String, Result<Answer, CallError>, bool) {
         let model = match self.model(provider) {
             Ok(model) => model,
-            Err(e) => return (String::new(), Err(e)),
+            Err(e) => return (String::new(), Err(e), false),
         };
+        let streamed = Cell::new(false);
+        let tap = |text: &str| {
+            streamed.set(true);
+            self.on_text.inspect(|f| f(text));
+        };
+        let on_text = self.on_text.map(|_| &tap as &dyn Fn(&str));
         let result = match provider {
-            "chatgpt" => self.database().map_err(CallError::from).and_then(|db| chatgpt::chat(&db, &model, prompt)),
-            "codex" => self.database().map_err(CallError::from).and_then(|db| codex::chat(&db, &model, prompt)),
+            "chatgpt" => self.database().map_err(CallError::from).and_then(|db| chatgpt::chat(&db, &model, prompt, on_text)),
+            "codex" => self.database().map_err(CallError::from).and_then(|db| codex::chat(&db, &model, prompt, on_text)),
             "gemini" => cloud::gemini_chat(&self.settings.gemini_key, &model, prompt),
             "deepseek" => cloud::deepseek_chat(&self.settings.deepseek_key, &model, prompt),
             _ => local(prompt, self.dir, self.group()),
         };
-        (model, result)
+        // The providers that do not stream hand their answer on whole.
+        if let (Ok(answer), false) = (&result, streamed.get()) {
+            tap(&answer.text);
+        }
+        (model, result, streamed.get())
     }
 
     /// Asks the providers in order until one answers.
@@ -721,7 +738,7 @@ impl<'a> Ai<'a> {
         let mut failures = Vec::new();
         let mut manage_url = "";
         for provider in self.order() {
-            let (model, result) = self.call(provider, prompt);
+            let (model, result, streamed) = self.call(provider, prompt);
             let answer = match result {
                 Ok(answer) => answer,
                 Err(e) => {
@@ -729,6 +746,10 @@ impl<'a> Ai<'a> {
                         manage_url = usage_url(provider);
                     }
                     failures.push(format!("{}: {}.", self.label(provider), e.message.trim_end_matches('.')));
+                    // Half an answer was already heard: another provider's whole one would follow it.
+                    if streamed {
+                        break;
+                    }
                     self.attempts.borrow_mut().push(Attempt {
                         provider,
                         model,
@@ -1115,7 +1136,7 @@ fn mentions(text: &str, word: &str) -> bool {
 }
 
 /// A line of a talk on one line of a prompt, at most `max` characters.
-fn cut(text: &str, max: usize) -> String {
+pub(crate) fn cut(text: &str, max: usize) -> String {
     let flat = text.split_whitespace().collect::<Vec<_>>().join(" ");
     if flat.chars().count() <= max { flat } else { format!("{}...", flat.chars().take(max).collect::<String>()) }
 }
@@ -1184,14 +1205,14 @@ fn talk(history: &[db::Message], turns: usize) -> Vec<&db::Message> {
 }
 
 /// The words a role-play works in: the ones due or often forgotten first, then the ones learned last.
-fn practice_words(words: &[db::Word], count: usize) -> Vec<String> {
+pub(crate) fn practice_words(words: &[db::Word], count: usize) -> Vec<String> {
     let mut list: Vec<&db::Word> = words.iter().filter(|w| !w.skipped && !w.meaning.is_empty()).collect();
     list.sort_by_key(|w| (std::cmp::Reverse(w.lapses.min(3)), std::cmp::Reverse(w.last_review.max(w.created))));
     list.iter().take(count).map(|w| format!("{} ({})", w.word, cut(&w.meaning, 30))).collect()
 }
 
 /// The level most of the learner's words are at, as a prompt names it, or A2 and HSK 2 when they have none.
-fn level(words: &[db::Word], zh: bool) -> String {
+pub(crate) fn level(words: &[db::Word], zh: bool) -> String {
     let mut counts: Vec<(&str, usize)> = Vec::new();
     for w in words.iter().filter(|w| !w.skipped && w.level.starts_with("HSK") == zh && !w.level.is_empty()) {
         match counts.iter_mut().find(|(l, _)| *l == w.level) {

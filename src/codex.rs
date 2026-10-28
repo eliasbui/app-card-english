@@ -5,7 +5,7 @@
 
 use crate::{
     ai::{Answer, CallError, ModelInfo, Prompt},
-    chatgpt::{self, challenge, exclusive, host_id, now, oauth_error, parse_stream, post_form, random_token, unix_time, wait_for_callback},
+    chatgpt::{self, challenge, exclusive, hand_on, host_id, now, oauth_error, parse_stream, post_form, random_token, unix_time, wait_for_callback},
     db, net, update,
 };
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -286,8 +286,8 @@ fn parse_models(json: &Value) -> Vec<ModelInfo> {
         .collect()
 }
 
-/// One answer, streamed from the backend Codex uses.
-pub fn chat(db: &Connection, model: &str, prompt: &Prompt) -> Result<Answer, CallError> {
+/// One answer, streamed from the backend Codex uses; `on_text` hears each piece of text as it comes.
+pub fn chat(db: &Connection, model: &str, prompt: &Prompt, on_text: Option<&dyn Fn(&str)>) -> Result<Answer, CallError> {
     let install = installation_id(db)?;
     let agent = user_agent();
     let message = |role: &str, kind: &str, text: &str| json!({ "type": "message", "role": role, "content": [{ "type": kind, "text": text }] });
@@ -305,8 +305,9 @@ pub fn chat(db: &Connection, model: &str, prompt: &Prompt) -> Result<Answer, Cal
         "store": false,
         "stream": true,
         "prompt_cache_key": install,
-        // A dictionary entry needs little thought: less is faster and uses less of the plan.
-        "reasoning": { "effort": "low" },
+        // A dictionary entry needs little thought: less is faster and uses less of the plan. A spoken answer, heard
+        // while it comes, needs none.
+        "reasoning": { "effort": if on_text.is_some() { "none" } else { "low" } },
         "client_metadata": { "x-codex-installation-id": install },
     });
     let post = |body: &Value| {
@@ -322,7 +323,7 @@ pub fn chat(db: &Connection, model: &str, prompt: &Prompt) -> Result<Answer, Cal
                 ("session-id", install.as_str()),
                 ("x-codex-installation-id", install.as_str()),
             ];
-            net::fetch(&format!("{BASE}/responses"), &headers, Some(&body.to_string()), 120)
+            net::stream(&format!("{BASE}/responses"), &headers, Some(&body.to_string()), 120, &mut |line| hand_on(line, on_text))
         })
     };
     let mut reply = post(&body)?;

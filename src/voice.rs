@@ -1,13 +1,16 @@
 //! Natural voices from Kokoro, run on the machine through sherpa-onnx: one model for English, another for
 //! Chinese, each downloaded as an archive into the data folder when the learner asks for it.
 
-use crate::net;
+use crate::{net, speech};
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use sha2::{Digest, Sha256};
 use sherpa_onnx::{GenerationConfig, OfflineTts, OfflineTtsConfig, OfflineTtsKokoroModelConfig, OfflineTtsModelConfig};
 use std::{
+    collections::VecDeque,
     path::{Path, PathBuf},
     process::Stdio,
-    sync::Mutex,
+    sync::{Arc, Mutex, mpsc},
+    time::Duration,
 };
 
 /// Course, folder (the archive's name without `.tar.bz2`), size and SHA-256 of the archive.
@@ -136,7 +139,7 @@ pub fn speak_and_keep(dir: &Path, course: &str, sid: i32, text: &str, speed: f32
 /// A path sherpa-onnx can open. Its C API takes narrow strings, which on Windows lose letters such as those of a
 /// Vietnamese user name, so there a path that is not ASCII goes in its short 8.3 form when the disk keeps one.
 #[cfg(windows)]
-fn narrow(path: &Path) -> String {
+pub(crate) fn narrow(path: &Path) -> String {
     use std::os::windows::ffi::{OsStrExt, OsStringExt};
     let text = path.to_string_lossy().into_owned();
     if text.is_ascii() {
@@ -155,12 +158,20 @@ fn narrow(path: &Path) -> String {
 }
 
 #[cfg(not(windows))]
-fn narrow(path: &Path) -> String {
+pub(crate) fn narrow(path: &Path) -> String {
     path.to_string_lossy().into_owned()
 }
 
 /// Writes the speech to a WAV file in the data folder and gives its path, with the samples and their rate.
 pub(crate) fn synthesize(dir: &Path, course: &str, sid: i32, text: &str, speed: f32) -> Result<(PathBuf, Vec<f32>, u32), String> {
+    let (samples, rate) = generate(dir, course, sid, text, speed)?;
+    let wav = dir.join("speech.wav");
+    write_wav(&wav, &samples, rate).map_err(|e| format!("Không ghi được file âm thanh: {e}"))?;
+    Ok((wav, samples, rate))
+}
+
+/// The speech of `text` as samples and their rate.
+pub(crate) fn generate(dir: &Path, course: &str, sid: i32, text: &str, speed: f32) -> Result<(Vec<f32>, u32), String> {
     let (name, ..) = pack(course)?;
     if !ready(dir, course) {
         return Err("Chưa tải giọng đọc Kokoro".into());
@@ -194,9 +205,7 @@ pub(crate) fn synthesize(dir: &Path, course: &str, sid: i32, text: &str, speed: 
     let (_, tts) = loaded.as_ref().ok_or("Không mở được giọng đọc Kokoro")?;
     let config = GenerationConfig { sid, speed: speed.clamp(0.5, 1.5), ..Default::default() };
     let audio = tts.generate_with_config(text, &config, None::<fn(&[f32], f32) -> bool>).ok_or("Kokoro không đọc được câu này")?;
-    let (wav, rate) = (dir.join("speech.wav"), audio.sample_rate().max(1) as u32);
-    write_wav(&wav, audio.samples(), rate).map_err(|e| format!("Không ghi được file âm thanh: {e}"))?;
-    Ok((wav, audio.samples().to_vec(), rate))
+    Ok((audio.samples().to_vec(), audio.sample_rate().max(1) as u32))
 }
 
 /// A 16-bit mono WAV of `samples` (from -1 to 1), written here because sherpa-onnx's own writer takes a narrow path.
@@ -236,6 +245,52 @@ fn play(wav: &Path) -> Result<(), String> {
     };
     let status = cmd.stdin(Stdio::null()).status().map_err(|e| format!("Không phát được âm thanh: {e}"))?;
     if status.success() { Ok(()) } else { Err("Không phát được âm thanh".into()) }
+}
+
+/// Plays the pieces of speech sent on `pieces`, each with its rate, one after another on the default output as they
+/// come, and returns once the sender is gone and all of it was heard, or as soon as `stop` says so. Played here rather
+/// than by the system's player: no file and no process for each sentence, and a stop is heard at once.
+pub fn play_stream(pieces: mpsc::Receiver<(Vec<f32>, u32)>, stop: &dyn Fn() -> bool) -> Result<(), String> {
+    let device = cpal::default_host().default_output_device().ok_or("Không tìm thấy loa")?;
+    let config = device.default_output_config().map_err(|e| format!("Loa: {e}"))?;
+    let (rate, channels) = (config.sample_rate().0, usize::from(config.channels()).max(1));
+    let queue = Arc::new(Mutex::new(VecDeque::<f32>::new()));
+    let stream = match config.sample_format() {
+        cpal::SampleFormat::F32 => output::<f32>(&device, &config.config(), queue.clone(), channels),
+        cpal::SampleFormat::I16 => output::<i16>(&device, &config.config(), queue.clone(), channels),
+        cpal::SampleFormat::U16 => output::<u16>(&device, &config.config(), queue.clone(), channels),
+        other => return Err(format!("Loa dùng định dạng {other} chưa hỗ trợ")),
+    }?;
+    stream.play().map_err(|e| format!("Loa: {e}"))?;
+    let left = || queue.lock().map_or(0, |q| q.len());
+    while !stop() {
+        match pieces.recv_timeout(Duration::from_millis(20)) {
+            Ok((samples, from)) => queue.lock().map_err(|_| "loa đang lỗi")?.extend(speech::resample(&samples, from, rate)),
+            Err(mpsc::RecvTimeoutError::Timeout) => {}
+            Err(mpsc::RecvTimeoutError::Disconnected) if left() == 0 => {
+                // What the device still holds.
+                std::thread::sleep(Duration::from_millis(120));
+                break;
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => std::thread::sleep(Duration::from_millis(20)),
+        }
+    }
+    Ok(())
+}
+
+fn output<T: cpal::SizedSample + cpal::FromSample<f32>>(
+    device: &cpal::Device,
+    config: &cpal::StreamConfig,
+    queue: Arc<Mutex<VecDeque<f32>>>,
+    channels: usize,
+) -> Result<cpal::Stream, String> {
+    let fill = move |out: &mut [T], _: &cpal::OutputCallbackInfo| {
+        let mut queue = queue.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+        for frame in out.chunks_mut(channels) {
+            frame.fill(T::from_sample(queue.pop_front().unwrap_or(0.0)));
+        }
+    };
+    device.build_output_stream(config, fill, |e| eprintln!("loa: {e}"), None).map_err(|e| format!("Loa: {e}"))
 }
 
 #[cfg(test)]
