@@ -67,6 +67,26 @@ Giao diện: hình dán hoạt hình dễ thương (tạo bằng công cụ sinh
 
 Cập nhật: app kiểm tra phiên bản mới qua GitHub Releases của `eliasbui/app-card-english` và hỏi trước khi cập nhật. Trên macOS và Windows app tự tải bản mới, kiểm tra kích thước và mã SHA-256 mà GitHub công bố, thay vào chỗ bản đang cài rồi tự mở lại, không cần chạy `brew` hay `irm`. Chỉ khi thư mục cài không ghi được (ví dụ cài cho mọi người dùng) app mới hiện lệnh cập nhật hoặc trang tải về.
 
+Mới trong 0.5.0:
+
+- Lịch ôn tự chia đều: mỗi lần trả lời, từ được hẹn vào ngày ít từ ôn nhất trong vài ngày quanh hạn FSRS. Trong Cài đặt, chọn những ngày bận trong tuần làm ngày ôn nhẹ (mỗi khóa chọn riêng), app sẽ tránh hẹn từ vào những ngày đó. Ở trang Học hôm nay, nút Hoãn từ cần ôn dời các từ đang đến hạn sang 1 đến 7 ngày tới (từ còn nhớ chắc dời xa nhất), nút Ôn trước đưa các từ sắp đến hạn trong 1 đến 3 ngày tới vào buổi học hôm nay.
+- Đố nhanh: chọn Đố nhanh trên icon ở khay để mở một cửa sổ nhỏ luôn nằm trên cùng, ôn từng từ đến hạn mà không cần mở app.
+- Học thông minh: mỗi từ nhận một dạng bài vừa sức (từ mới chọn đáp án, từ đã quen điền từ và nghe chép, từ đã thuộc luyện nói hoặc đặt câu), các dạng xen kẽ trong một lượt. Trả lời sai thì bấm "Vì sao sai?" để AI giải thích bằng tiếng Việt.
+- Trò chơi: Nối từ (nối 6 từ với nghĩa, tính giờ, lưu kỷ lục từng khóa) và Sắp xếp câu (xếp các mảnh thành câu ví dụ rồi xem bản dịch).
+- Nói đuổi: app đọc câu ví dụ bằng giọng Kokoro, bạn nói theo ngay; điểm chấm theo từng từ (nói sai từ thì không qua dù đúng ngữ điệu), kèm đường lên xuống giọng của bạn đặt cạnh giọng mẫu (tính theo nửa cung quanh giọng trung bình của mỗi người) và một câu góp ý. Cần gói giọng Kokoro của khóa để so với giọng mẫu.
+- Đọc hiểu (mục Học từ ngữ cảnh trong Bài tập): dán đoạn văn hoặc mở file .txt, .srt, .vtt; mỗi từ được tô màu theo danh sách của bạn (chưa có, đang học, đã thuộc, đã bỏ qua). Bấm vào một từ để nghe, xem phiên âm (tiếng Trung có pinyin và âm Hán Việt) và thêm vào danh sách cùng câu chứa nó.
+- Tiện ích trình duyệt cho Chrome, Edge, Brave và Cốc Cốc (thư mục `extension`, cách cài trong `extension/README.md`): bôi đen một từ, bấm chuột phải, chọn "Thêm vào Card English"; từ hiện ra trong app, kể cả khi lúc đó app chưa mở.
+- Bộ từ có sẵn: NGSL (2.809 từ tiếng Anh thông dụng nhất), NAWL (từ học thuật), TSL (từ TOEIC), HSK 3.0 cấp 1 đến 7-9. Bấm Thêm 10 / 20 / 50 từ, AI giải thích từng từ trong nền, có thanh tiến độ và nút Dừng. Bài Kiểm tra vốn từ (khoảng 56 câu Biết hoặc Không biết, có vài từ không có thật để trừ phần đoán) ước lượng vốn từ và trình độ, rồi cho các bộ từ bắt đầu ngay sau phần bạn đã biết.
+- Chọn nhiều từ: tick ô đầu mỗi dòng (giữ Shift để chọn một dãy) rồi xóa, bỏ qua, học lại hoặc gán chủ đề cho cả nhóm.
+- Chủ đề: tự tạo chủ đề với màu và mô tả; đổi tên thì mọi từ đổi theo, xóa chủ đề thì từ vẫn còn.
+- Lộ trình: đặt mục tiêu (IELTS, TOEIC, HSK, du lịch...), trình độ, hạn chót hoặc ngày thi và số phút mỗi ngày; AI chia thành 4 đến 12 chặng (chủ đề, số từ, kỹ năng, bài tập nên làm), hoặc tự lập và sửa mọi thứ. App theo dõi tiến độ từng chặng, cho biết bạn đang nhanh hay chậm so với hạn chót, gợi ý số từ mới mỗi ngày, và hiện chặng đang học trên trang chính với nút Học tiếp.
+- Trợ lý học: nút tròn ở góc dưới bên phải mở khung trò chuyện với AI ở mọi trang. Trợ lý chỉ dùng các từ bạn đã học trong khóa đang chọn để đố từ, giải thích nghĩa và ngữ pháp, đặt câu ví dụ, trả lời bằng tiếng Việt, và từ chối lịch sự mọi câu hỏi không phải về học ngoại ngữ. Lịch sử lưu riêng cho từng khóa và xóa được.
+- Hội thoại nhập vai (Bài tập, Học cùng AI): chọn tình huống như phỏng vấn, sân bay, gọi món, khách sạn, hỏi đường, mua sắm, họp; AI đóng vai người đối diện vừa sức bạn, đọc to từng câu, có bản dịch. Trả lời bằng giọng nói (Whisper trên máy) hoặc gõ phím; Kết thúc để nhận nhận xét lỗi và cách sửa. Qwen 0.5B còn yếu cho hội thoại, nên dùng Qwen 1.5B hoặc nguồn AI trên mạng.
+- Chữ Hán: cửa sổ của mỗi từ tiếng Trung có Thứ tự nét (từng chữ tự viết lại, bộ thủ tô màu riêng) và bộ thủ, thành phần với pinyin và âm Hán Việt (ví dụ 好 = 女 (nữ) + 子 (tử)); mặt sau thẻ cũng có một dòng như vậy. Bài Viết chữ Hán: xem nghĩa và pinyin rồi viết từng nét bằng chuột hoặc cảm ứng. Nét chữ tải một lần cho mỗi chữ rồi dùng được khi không có mạng.
+- Luyện thanh điệu (khóa tiếng Trung): nghe một từ và chọn thanh điệu của từng chữ, rồi tự đọc để máy chỉ ra chữ nào sai thanh.
+- Hình ảnh cho thẻ từ: dán ảnh, kéo thả hoặc chọn file trong ô sửa từ hay cửa sổ của từ; app tự thu nhỏ và hiện ở mặt sau thẻ, đáp án khi ôn và cửa sổ của từ.
+- Đồng bộ Google Drive: Cài đặt, Đăng nhập Google, cho phép trong trình duyệt. Từ vựng, lịch ôn, lịch sử trả lời, XP của từng máy, hình ảnh, chủ đề, lộ trình, lịch sử trò chuyện và các cài đặt học tập được đồng bộ giữa các máy khi mở app, sau mỗi lần học hoặc sửa, mỗi 15 phút và khi bấm Đồng bộ ngay. Dữ liệu nằm trong thư mục ẩn dành riêng cho app trên Google Drive của chính bạn; token đăng nhập không bao giờ nằm trong bản sao lưu.
+
 ## AI
 
 Chọn nguồn AI trong Cài đặt. Khi nguồn đang chọn lỗi hoặc hết hạn mức, app tự chuyển sang nguồn khác đã sẵn sàng và ghi rõ ai đã trả lời.
@@ -201,6 +221,8 @@ gh repo create eliasbui/homebrew-card-english --public
 
 README của tap là `packaging/homebrew/README.md`, được script chép sang mỗi lần cập nhật.
 
+Đồng bộ Google Drive cần một OAuth client loại Desktop app của Google Cloud (bật Google Drive API, các scope `drive.appdata`, `openid`, `userinfo.email`). Client ID và secret được đưa vào lúc build từ `CARD_ENGLISH_GOOGLE_CLIENT_ID` và `CARD_ENGLISH_GOOGLE_CLIENT_SECRET`; `scripts/release.sh` đọc chúng từ `~/.config/card-english/google-oauth.env` nếu có (không đưa file này vào repo). Thiếu chúng thì bản build vẫn chạy, chỉ không đăng nhập Google được.
+
 ## Giấy phép dữ liệu
 
 - CMU Pronouncing Dictionary: xem `assets/cmudict-LICENSE`.
@@ -210,3 +232,7 @@ README của tap là `packaging/homebrew/README.md`, được script chép sang 
 - `assets/hanviet.txt` chứa âm Hán Việt của Thiều Chửu, Hán Việt tự điển (1942, phạm vi công cộng), theo bản số hóa của catusf/tudien (CC0 1.0), cùng quan hệ dị thể và một phần âm đọc kVietnamese của Unicode Han Database (Unihan), Copyright Unicode, Inc., Unicode License v3. Xem `assets/hanviet-LICENSE`.
 - Công thức và tham số mặc định của FSRS-6 theo py-fsrs (open-spaced-repetition, MIT).
 - Hình dán: tác giả tự tạo bằng công cụ sinh ảnh AI.
+- `assets/ngsl.txt`, `assets/nawl.txt`, `assets/tsl.txt`: New General Service List và New Academic Word List của Browne, C., Culligan, B. và Phillips, J., TOEIC Service List của Browne, C. và Culligan, B. (bản 1.2, newgeneralservicelist.com, CC BY-SA 4.0), chỉ giữ từ gốc theo thứ tự tần suất; các file này cũng theo CC BY-SA 4.0. Xem `assets/ngsl-LICENSE`.
+- `assets/hsk30.txt`: danh sách từ và cấp độ HSK 3.0 (GF 0025-2021) lấy từ ivankra/hsk30 (MIT). Xem `assets/hsk30-LICENSE`.
+- `assets/hanzi-parts.txt`: bộ thủ và thành phần chữ lấy từ dictionary.txt của Make Me a Hanzi (LGPL 3 trở lên). Xem `assets/hanzi-parts-LICENSE`.
+- Hanzi Writer (MIT) trong `ui/parts/hanzi-0-writer.js`, và dữ liệu nét chữ hanzi-writer-data từ Make Me a Hanzi (Arphic Public License), tải khi cần. Xem `assets/hanzi-writer-LICENSE`.

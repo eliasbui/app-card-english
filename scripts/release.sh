@@ -14,7 +14,9 @@ git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null && { echo "v$VERSION 
 gh auth status >/dev/null 2>&1 || { echo "sign in to GitHub first: gh auth login" >&2; exit 1; }
 docker info >/dev/null 2>&1 || { echo "start Docker first; it builds the Windows app" >&2; exit 1; }
 # The Google Drive sync signs in with the app's OAuth client, baked in at build time; without it the apps still
-# build, with no Google sign-in.
+# build, with no Google sign-in. Exported, so that the Windows build passes them into Docker too.
+OAUTH="$HOME/.config/card-english/google-oauth.env"
+if [ -f "$OAUTH" ]; then set -a; . "$OAUTH"; set +a; fi
 [ -n "${CARD_ENGLISH_GOOGLE_CLIENT_ID:-}" ] && [ -n "${CARD_ENGLISH_GOOGLE_CLIENT_SECRET:-}" ] ||
     echo "warning: CARD_ENGLISH_GOOGLE_CLIENT_ID or CARD_ENGLISH_GOOGLE_CLIENT_SECRET is not set; this release has no Google Drive sync" >&2
 
