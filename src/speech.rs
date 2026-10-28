@@ -158,10 +158,25 @@ pub struct Score {
     pub missed: Vec<String>,
 }
 
+/// Whether a recording is too short or too quiet to hold a voice.
+fn silent(pcm: &[f32]) -> bool {
+    let rms = (pcm.iter().map(|s| s * s).sum::<f32>() / pcm.len().max(1) as f32).sqrt();
+    pcm.len() < w::SAMPLE_RATE / 4 || rms < SILENCE_RMS
+}
+
+/// What was said, in English or, for "zh", in Chinese, by the Whisper of that course.
+pub fn hear(pcm: &[f32], lang: &str, dir: &Path) -> Result<String, String> {
+    if silent(pcm) {
+        return Err(silence_message(pcm).into());
+    }
+    let (text, _) = transcribe(pcm, dir, if lang == "zh" { &CHINESE } else { &ENGLISH })?;
+    let text = text.trim();
+    if text.is_empty() { Err("Chưa nghe rõ, hãy nói lại hoặc gõ câu trả lời".into()) } else { Ok(text.to_owned()) }
+}
+
 /// Hears the sound and scores it against `target`.
 pub fn assess(target: &str, pcm: &[f32], dir: &Path) -> Result<Score, String> {
-    let rms = (pcm.iter().map(|s| s * s).sum::<f32>() / pcm.len().max(1) as f32).sqrt();
-    if pcm.len() < w::SAMPLE_RATE / 4 || rms < SILENCE_RMS {
+    if silent(pcm) {
         return Ok(Score {
             score: 0,
             heard: String::new(),
@@ -538,6 +553,7 @@ mod tests {
         println!("{wrong:?}");
         assert!(wrong.score < 50, "{wrong:?}");
         assert_eq!(assess("beautiful", &vec![0.0; 16_000], &crate::data_dir()).unwrap().score, 0);
+        assert!(hear(&pcm, "en", &crate::data_dir()).unwrap().to_lowercase().contains("beautiful"));
     }
 
     #[cfg(target_os = "macos")]
@@ -574,6 +590,11 @@ mod tests {
         assert!(blocked.score == 0 && blocked.message.starts_with("Micro không gửi"), "{blocked:?}");
         let quiet: Vec<f32> = (0..16_000).map(|i| if i % 2 == 0 { 0.001 } else { -0.001 }).collect();
         assert!(assess("hello", &quiet, dir).unwrap().message.starts_with("Không nghe thấy giọng"));
+        // A reply to transcribe says the same, before any model is needed.
+        assert!(hear(&vec![0.0; 16_000], "en", dir).unwrap_err().starts_with("Micro không gửi"));
+        assert!(hear(&quiet, "zh", dir).unwrap_err().starts_with("Không nghe thấy giọng"));
+        let voice: Vec<f32> = (0..16_000).map(|i| (i as f32 * 0.05).sin() * 0.2).collect();
+        assert!(hear(&voice, "zh", dir).unwrap_err().starts_with("Chưa tải model chấm phát âm tiếng Trung"));
     }
 
     #[test]

@@ -1,0 +1,56 @@
+  /* The role-play: a scene to pick, then the talk with the AI as bubbles, then the notes. */
+  #roleplay { max-width: 720px; margin: 0 auto; }
+  .rp-top { align-items: flex-start; gap: 12px; }
+  .rp-top > .st { width: 64px; height: 64px; margin: -6px 0 0 -6px; }
+  .rp-top h3 { margin: 2px 0 4px; font-size: 20px; letter-spacing: -.01em; }
+  .rp-top p { margin: 0; }
+  .rp-note { margin: 14px 0 0; padding: 10px 12px; border: 1px solid var(--amber-line); border-radius: var(--r-md); background: var(--amber-soft);
+             color: var(--text-2); font-size: 13px; }
+  .rp-note .btn { margin-left: 6px; vertical-align: middle; }
+  .rp-scenes { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); margin-top: 16px; }
+  .rp-scenes .tile { text-align: left; }
+  .rp-scenes .tile b { font-size: 14.5px; }
+  .rp-zh { color: var(--accent-text) !important; font-weight: 600; }
+  .rp-past { display: grid; gap: 8px; }
+  .rp-past button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--r-md);
+                    background: var(--surface); color: var(--text); text-align: left; cursor: pointer; transition: border-color .15s, background .15s; }
+  .rp-past button:hover { border-color: var(--accent); background: var(--accent-soft); }
+  .rp-past button span { flex: 1; min-width: 0; color: var(--muted); font-size: 12.5px; }
+  .rp-past button em { color: var(--accent-text); font-size: 13px; font-style: normal; font-weight: 600; }
+
+  .rp-bar b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rp-talk { padding: 0; overflow: hidden; }
+  .rp-log { display: flex; flex-direction: column; gap: 12px; min-height: 260px; max-height: calc(100vh - 330px); padding: 18px; overflow-y: auto;
+            background: var(--surface-2); }
+  .rp-log .chat-msg { max-width: 86%; }
+  .rp-reading { margin-top: 3px; color: var(--accent-text); font-size: 13px; }
+  .chat-msg.me .rp-reading { color: inherit; opacity: .85; }
+  .rp-vi { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--line-strong); color: var(--muted); font-size: 13.5px; }
+  .rp-acts { gap: 2px; margin: 2px 0 0; }
+  .rp-acts .btn { min-height: 26px; padding: 0 8px; font-size: 12.5px; }
+  .rp-acts .btn[aria-pressed="true"] { color: var(--accent-text); }
+  .rp-rec:empty { display: none; }
+  .rp-rec { padding: 8px 18px 0; }
+  .rp-compose { display: flex; align-items: flex-end; gap: 8px; padding: 12px 18px 16px; border-top: 1px solid var(--line); }
+  .rp-compose textarea { flex: 1; min-height: var(--h); max-height: 120px; resize: none; }
+  .rp-hint { margin: -6px 18px 14px; font-size: 12.5px; }
+  .rp-hint:empty { display: none; }
+
+  .rp-feedback { align-self: stretch; max-width: none !important; padding: 16px 18px; border: 1px solid var(--accent); border-radius: var(--r-lg);
+                 background: var(--surface); animation: rise .3s ease both; }
+  .rp-feedback h4 { margin: 14px 0 4px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+  .rp-feedback .prompt-label + h4 { margin-top: 8px; }
+  .rp-feedback p { margin: 0; }
+  .rp-feedback ul, .rp-feedback ol { margin: 0; padding-left: 20px; }
+  .rp-feedback li + li { margin-top: 4px; }
+  .rp-feedback del { color: var(--red); }
+  .rp-feedback ins { color: var(--green); font-weight: 600; text-decoration: none; }
+  .rp-feedback .review { justify-content: flex-start; margin-top: 4px; }
+  .rp-feedback .row { margin-top: 14px; }
+
+  @media (max-width: 720px) {
+    .rp-log { max-height: none; min-height: 220px; padding: 14px; }
+    .rp-compose { padding: 10px 14px 14px; }
+    .rp-hint { margin: -4px 14px 12px; }
+    .rp-top > .st { display: none; }
+  }
