@@ -5,10 +5,13 @@
   "use strict";
   if (window.MINI) return;
   /// How the page tells speech from silence by the microphone's loudness (RMS): a voice starts above `START` (or
-  /// three times the room's own noise), and the turn ends after `PAUSE_MS` below two thirds of that.
-  const START = 0.02, PAUSE_MS = 750, POLL_MS = 60;
+  /// three times the room's own noise) for `VOICED` readings, and the turn ends after `PAUSE_MS` below two thirds of
+  /// that. START is low enough for a microphone that is not built in, such as a webcam's on a Mac mini.
+  const START = 0.01, VOICED = 3, PAUSE_MS = 750, POLL_MS = 60;
   /// The longest a turn listens, a little under what the app records.
   const LISTEN_MS = 15000;
+  /// Topics a talk can start with, sent as the learner's first line.
+  const TOPICS = ["Giới thiệu bản thân", "Công việc của tôi", "Sở thích", "Du lịch", "Gọi món ở nhà hàng", "Phỏng vấn xin việc"];
 
   document.querySelector('nav [data-page="practice"]').insertAdjacentHTML("afterend",
     `<button class="nav" data-page="talk">${st("mode-speak")}Gia sư nói<span class="beta">Beta</span></button>`);
@@ -16,57 +19,78 @@
   document.querySelector("main").insertAdjacentHTML("beforeend", `
     <section id="page-talk">
       <header class="page-head"><div class="grow"><h2>Gia sư nói <span class="beta">Beta</span></h2>
-        <p>Nói chuyện 1 kèm 1 với gia sư AI. Bạn cứ nói, hỏi bằng tiếng Việt cũng được; gia sư sửa phát âm, ngữ pháp và trả lời ngay bằng giọng đọc.</p></div></header>
-      <div class="card vt">
-        <div class="vt-models row">
-          <label for="vt-ai">AI</label><select id="vt-ai"></select>
-          <span id="vt-model-box"></span>
-          <span class="grow"></span><a href="#" class="muted" data-vt="delete" id="vt-delete" hidden>Xóa model nghe giọng</a>
+        <p>Luyện nói 1 kèm 1 với gia sư AI: gia sư nghe, sửa phát âm và ngữ pháp, rồi trả lời bằng giọng đọc.</p></div></header>
+      <div class="card vt" id="vt" data-phase="idle">
+        <div class="vt-head">
+          <div class="vt-who">${st("mascot")}<div><b>Gia sư AI</b><span id="vt-course"></span></div></div>
+          <div class="vt-pick"><label for="vt-ai">AI</label><select id="vt-ai"></select><span id="vt-model-box"></span></div>
+          <button class="btn small ghost" id="vt-new">Cuộc mới</button>
         </div>
-        <p class="vt-note" id="vt-note" hidden></p>
+        <div class="vt-note" id="vt-note" hidden></div>
         <div class="vt-log" id="vt-log" role="log" aria-live="polite"></div>
-        <div class="vt-state" id="vt-state" aria-live="polite"></div>
-        <div class="vt-controls">
-          <button class="btn primary" id="vt-main">Bắt đầu nói</button>
-          <button class="btn" id="vt-end" hidden>Kết thúc</button>
+        <div class="vt-dock">
+          <div class="vt-status" id="vt-status" aria-live="polite"></div>
+          <div class="vt-actions">
+            <button class="btn small" id="vt-end" hidden>Kết thúc</button>
+            <button class="vt-mic" id="vt-mic"></button>
+            <span></span>
+          </div>
           <form class="vt-type" id="vt-type"><input id="vt-input" maxlength="500" placeholder="Hoặc gõ câu của bạn" aria-label="Gõ câu của bạn"><button class="btn">Gửi</button></form>
+          <div class="vt-foot"><span id="vt-mic-name"></span><a href="#" data-vt="delete" id="vt-delete" hidden>Xóa model nghe giọng</a></div>
         </div>
       </div>
     </section>`);
-  const log = $("vt-log"), stateBox = $("vt-state"), main = $("vt-main"), endButton = $("vt-end"), input = $("vt-input");
+  const card = $("vt"), log = $("vt-log"), status = $("vt-status"), mic = $("vt-mic"), endButton = $("vt-end"), input = $("vt-input");
 
   /// The talk: its lines for the AI, the sentence the tutor asked the learner to say, what the page is doing
-  /// ("idle", "listening", "thinking" or "speaking"), the timers of the listening, the latest turn and the tutor's
-  /// bubble of each turn still being answered (one cut short goes on filling in while the next one runs).
-  const talk = { history: [], target: "", phase: "idle", on: false, poll: 0, wave: 0, turn: 0, bubbles: new Map() };
+  /// ("idle", "starting", "listening", "thinking" or "speaking"), the timer of the listening, the latest turn and the
+  /// tutor's bubble of each turn still being answered (one cut short goes on filling in while the next one runs).
+  const talk = { history: [], target: "", phase: "idle", on: false, poll: 0, turn: 0, bubbles: new Map() };
   const zh = () => courseOf() === "zh";
   /// The model that hears the learner (Whisper small, Vietnamese and the language of the course): { ready, size }.
   let hearing = { ready: false, size: 0 };
+  /// The microphone the last recording used, named in the advice when it hears nothing.
+  let micName = "";
 
-  function setPhase(phase, text = "") {
-    talk.phase = phase;
-    main.textContent = { idle: talk.on ? "Nói tiếp" : "Bắt đầu nói", listening: "Xong, gửi đi", thinking: "Đang nghĩ...", speaking: "Ngắt lời" }[phase];
-    main.disabled = phase === "thinking";
+  /// The big button's word and what it does, and the line under it, for each phase.
+  const PHASES = {
+    idle: ["Nói", "Bắt đầu nói", "Bấm Nói rồi nói tự nhiên, ngừng một chút là gia sư trả lời."],
+    starting: ["Chờ", "Đang mở micro", "Đang mở micro..."],
+    listening: ["Xong", "Gửi câu vừa nói", "Đang nghe. Ngừng một chút là tự gửi, hoặc bấm Xong."],
+    thinking: ["Chờ", "Gia sư đang nghĩ", "Gia sư đang suy nghĩ..."],
+    speaking: ["Ngắt", "Ngắt lời gia sư", "Gia sư đang nói. Bấm Ngắt để nói luôn."],
+  };
+  function setPhase(phase, note = "", error = false) {
+    const [word, action, line] = PHASES[phase];
+    talk.phase = card.dataset.phase = phase;
+    mic.textContent = phase === "idle" && talk.on ? "Nói tiếp" : word;
+    mic.setAttribute("aria-label", action);
+    mic.disabled = phase === "thinking" || phase === "starting";
+    mic.style.setProperty("--lv", 0);
     endButton.hidden = !talk.on;
-    if (phase !== "listening") {
-      clearInterval(talk.wave);
-      stateBox.innerHTML = text ? `<span class="muted">${esc(text)}</span>` : "";
-    }
+    tell(note || (phase === "idle" && talk.on ? "" : line), error);
   }
+  const tell = (text, error = false) => (status.innerHTML = text ? `<span class="${error ? "error" : ""}">${esc(text)}</span>` : "");
 
   // Which AI answers: the same choice as the study assistant's, and for a provider on the internet, its model.
   async function models() {
     $("vt-ai").innerHTML = window.chatChoices?.() || "";
+    $("vt-course").textContent = zh() ? "Khóa tiếng Trung" : "Khóa tiếng Anh";
     const source = window.chatAi?.() || "local:llm", box = $("vt-model-box");
     hearing = await app.call("talk_model").catch(() => hearing);
-    const note = $("vt-note");
     const notes = [];
-    if (!hearing.ready) notes.push(`Cần tải model nghe giọng nói tiếng Việt và tiếng ${zh() ? "Trung" : "Anh"} (Whisper small, ${Math.round(hearing.size / 1e6)} MB, chạy trên máy). <button class="btn small" data-vt="download">Tải ngay</button><span id="vt-dl"></span> Trong lúc đó bạn có thể gõ câu.`);
-    if (source.startsWith("local:")) notes.push("Model trên máy trả lời chậm và chưa đủ giỏi để làm gia sư. Chọn ChatGPT ở trên để nhanh nhất.");
-    if (!packsFor(courseOf()).length) notes.push(`Chưa tải giọng đọc nào nên gia sư đọc bằng giọng của máy. <a href="#" data-vt="settings">Tải trong Cài đặt</a> để giọng tự nhiên hơn.`);
+    if (!hearing.ready) notes.push(`<div class="grow"><b>Tải model nghe giọng nói</b>
+      <span>Whisper small, ${Math.round(hearing.size / 1e6)} MB, nghe tiếng Việt và tiếng ${zh() ? "Trung" : "Anh"}, chạy trên máy. Trong lúc chờ, bạn vẫn gõ câu được.</span>
+      <progress id="vt-dl" max="1" value="0" hidden></progress><span class="error" id="vt-dl-error"></span></div>
+      <button class="btn small primary" data-vt="download">Tải ngay</button>`);
+    if (source.startsWith("local:")) notes.push(`<div class="grow"><b>Nên chọn ChatGPT ở trên</b>
+      <span>Model trên máy trả lời chậm và chưa đủ giỏi để làm gia sư.</span></div>`);
+    if (!packsFor(courseOf()).length) notes.push(`<div class="grow"><b>Chưa có giọng đọc tự nhiên</b>
+      <span>Gia sư đang đọc bằng giọng của máy.</span></div><button class="btn small" data-vt="settings">Tải trong Cài đặt</button>`);
+    const note = $("vt-note");
     note.hidden = !notes.length;
+    note.innerHTML = notes.map((n) => `<div class="vt-note-row">${n}</div>`).join("");
     $("vt-delete").hidden = !hearing.ready;
-    note.innerHTML = notes.map((n) => `<span>${n}</span>`).join("");
     box.innerHTML = "";
     if (source.startsWith("local:")) return;
     try {
@@ -96,7 +120,13 @@
   }
   function empty() {
     log.innerHTML = `<div class="vt-empty">${st(zh() ? "mascot-zh" : "mascot-cheer")}<b>Sẵn sàng luyện nói?</b>
-      <p>Bấm Bắt đầu nói rồi cứ nói tự nhiên, ngừng một chút là gia sư hiểu bạn đã nói xong. Gia sư nghe được cả tiếng Việt, nên muốn hỏi "câu này nói thế nào" thì cứ hỏi.</p></div>`;
+      <div class="vt-steps">
+        <div><b>1. Bấm Nói</b>Nói tự nhiên, hỏi bằng tiếng Việt cũng được.</div>
+        <div><b>2. Ngừng một chút</b>Gia sư hiểu là bạn đã nói xong.</div>
+        <div><b>3. Nghe và nói theo</b>Gia sư sửa lỗi và đưa câu để bạn nói lại.</div>
+      </div>
+      <p>Hoặc chọn một chủ đề để gia sư mở lời:</p>
+      <div class="chips">${TOPICS.map((t) => `<button type="button" data-topic="${esc(t)}">${esc(t)}</button>`).join("")}</div></div>`;
   }
   /// The learner's line, with how well the sentence to repeat went.
   function mine(text, check) {
@@ -117,16 +147,26 @@
     }
     return { say: out.say.join(" "), try: out.try.join(" "), fix: out.fix.join("\n") };
   }
+  /// A note of FIX, its `"wrong" -> "right": why` shown as the wrong words struck out and the right ones in green.
+  function fixLine(line) {
+    const m = line.match(/^"(.+?)"\s*->\s*"(.+?)"\s*:?\s*(.*)$/);
+    if (!m) return `<li>${esc(line)}</li>`;
+    return `<li><span class="vt-wrong">${esc(m[1])}</span> thành <span class="vt-right">${esc(m[2])}</span>${m[3] ? `<div>${esc(m[3])}</div>` : ""}</li>`;
+  }
+  /// The inside of a tutor's message: what it said, the sentence to say after it and the corrections.
   function tutorHtml(p, by = "") {
-    return `<div class="chat-bubble"><div class="vt-say">${esc(p.say)}</div>
-      ${p.try ? `<div class="vt-try"><span class="prompt-label">Nói theo</span><b>${esc(p.try)}</b><button class="btn small" data-say="${esc(p.try)}">Nghe</button></div>` : ""}
-      ${p.fix ? `<div class="vt-fix">${p.fix.split("\n").map((l) => `<div>${esc(l)}</div>`).join("")}</div>` : ""}</div>
-      ${by ? `<div class="chat-by">${by}</div>` : ""}`;
+    const fixes = p.fix ? p.fix.split("\n").filter(Boolean) : [];
+    return `${st("mascot")}<div class="vt-body"><div class="chat-bubble">${esc(p.say)}</div>
+      ${p.try ? `<div class="vt-try"><span class="vt-label">Nói theo câu này</span><b>${esc(p.try)}</b>
+        <button class="btn small" data-say="${esc(p.try)}">Nghe mẫu</button></div>` : ""}
+      ${fixes.length ? `<div class="vt-fix"><span class="vt-label">Sửa lỗi</span><ul>${fixes.map(fixLine).join("")}</ul></div>` : ""}
+      ${by ? `<div class="chat-by">${by}</div>` : ""}</div>`;
   }
 
-  const thinking = () => add(`<div class="chat-msg"><div class="thinking">${st("mascot-think")}<span>Gia sư đang nghĩ...</span></div></div>`);
+  const thinking = () => add(`<div class="chat-msg vt-tutor">${st("mascot-think")}<div class="vt-body"><div class="chat-bubble vt-dots" aria-label="Gia sư đang nghĩ"><i></i><i></i><i></i></div></div></div>`);
   hooks.event.push((name, data) => {
     if (name !== "talk" || !talk.bubbles.has(data.turn)) return;
+    // What was heard, or the line typed: the learner's bubble and the tutor's, waiting for its answer.
     if (data.kind === "heard") {
       add(mine(data.text, data.check));
       talk.bubbles.set(data.turn, thinking());
@@ -135,22 +175,25 @@
     if (data.kind === "text" && bubble) {
       bubble.innerHTML = tutorHtml(parts(data.text));
       log.scrollTop = log.scrollHeight;
-      if (data.turn === talk.turn && talk.phase === "thinking") setPhase("speaking", "Gia sư đang nói. Bấm Ngắt lời để nói luôn.");
+      if (data.turn === talk.turn && talk.phase === "thinking") setPhase("speaking");
     }
   });
 
   // Listening: the microphone's loudness decides when the learner has finished.
   async function listen() {
     if (!talk.on) return;
+    setPhase("starting");
     try {
-      await app.call("rec_start");
+      micName = (await app.call("rec_start")) || "";
+      $("vt-mic-name").textContent = micName ? `Micro: ${micName}` : "";
     } catch (e) {
-      setPhase("idle");
-      stateBox.innerHTML = `<span class="error">${esc(e)}</span>`;
+      talk.on = false;
+      setPhase("idle", String(e), true);
       return;
     }
+    // The talk ended while the microphone opened.
+    if (!talk.on || talk.phase !== "starting") return app.call("rec_cancel").catch(() => {});
     setPhase("listening");
-    talk.wave = liveWave(stateBox);
     const started = Date.now();
     let floor = 1, peak = 0, voiced = 0, quietSince = 0, asking = false;
     talk.poll = setInterval(async () => {
@@ -159,57 +202,62 @@
       const level = await app.call("rec_level").catch(() => 0);
       asking = false;
       if (talk.phase !== "listening") return;
+      // Speech is around 0.02 to 0.2 RMS; the curve lifts quiet voices so that they still show.
+      mic.style.setProperty("--lv", Math.min(1, Math.pow(level / 0.15, 0.6)).toFixed(2));
       const elapsed = Date.now() - started;
       // The room's own noise, learned in the first moments and whenever it is quieter.
       floor = Math.min(floor, Math.max(level, 0.002));
       peak = Math.max(peak, level);
       const loud = Math.max(START, floor * 3);
       if (level > loud) { voiced++; quietSince = 0; }
-      else if (voiced >= 2 && level < loud * 0.66 && !quietSince) quietSince = Date.now();
-      if ((voiced >= 2 && quietSince && Date.now() - quietSince > PAUSE_MS) || elapsed > LISTEN_MS) {
-        if (voiced >= 2) return send();
-        stopListening(true).then(() => {
-          if (peak > 0) return listen();
-          // Not a sound at all, not even the room: the system keeps the microphone from the app.
+      else if (voiced >= VOICED && level < loud * 0.66 && !quietSince) quietSince = Date.now();
+      if ((voiced >= VOICED && quietSince && Date.now() - quietSince > PAUSE_MS) || elapsed > LISTEN_MS) {
+        if (voiced >= VOICED) return send();
+        setPhase("starting");
+        stopListening(true).then(async () => {
+          if (peak > 0) {
+            await listen();
+            if (talk.phase === "listening") tell("Chưa nghe thấy giọng bạn. Hãy nói to hơn và gần micro hơn.");
+            return;
+          }
+          // Not a sound at all, not even the room: the system keeps the microphone from the app, or it is not a real one.
           talk.on = false;
-          setPhase("idle");
-          stateBox.innerHTML = `<span class="error">Micro không gửi âm thanh nào. Hãy cho phép Card English dùng micro trong phần quyền riêng tư của máy rồi thử lại.</span>`;
+          setPhase("idle", `Micro${micName ? ` "${micName}"` : ""} không gửi âm thanh nào. Hãy chọn đúng micro trong phần âm thanh của máy, cho phép Card English dùng micro trong phần quyền riêng tư, rồi thử lại.`, true);
         });
       }
     }, POLL_MS);
   }
   async function stopListening(discard) {
     clearInterval(talk.poll);
-    clearInterval(talk.wave);
     if (discard) await app.call("rec_cancel").catch(() => {});
   }
 
-  /// A turn: what was said (or `typed`), then the tutor's answer, read aloud; then the page listens again.
+  /// A turn: what was said (or `typed`), then the tutor's answer, read aloud; then the page listens again. The
+  /// learner's bubble comes with the "heard" event, for a typed line too.
   async function send(typed = "") {
     const turn = ++talk.turn;
-    if (talk.phase === "listening") await stopListening(!!typed);
+    const listening = talk.phase === "listening";
+    // At once, so that the listening's own timer cannot send the same turn again.
     setPhase("thinking", typed ? "" : "Đang nghe lại câu bạn vừa nói...");
     talk.bubbles.set(turn, null);
-    if (typed) {
-      add(mine(typed));
-      talk.bubbles.set(turn, thinking());
-    }
+    if (listening) await stopListening(!!typed);
     try {
       const r = await app.call("talk_turn", { history: talk.history, target: talk.target, text: typed, day: localDay(), turn });
+      // The talk was started over meanwhile.
+      if (!talk.bubbles.has(turn)) return;
       talk.history.push({ role: "user", text: r.heard }, { role: "ai", text: r.say });
       talk.target = r.try || "";
       const bubble = talk.bubbles.get(turn);
       if (bubble) bubble.innerHTML = tutorHtml({ say: r.say, try: r.try, fix: r.fix }, byHtml(r.by));
       if (r.spoken && turn === talk.turn) toast(r.spoken);
-      gainXp(2, main);
+      gainXp(2, mic);
     } catch (e) {
       const heard = talk.bubbles.get(turn);
       if (turn !== talk.turn) return heard?.remove();
       // Nothing made out of the sound: say so and listen again. Any other failure ends the talk.
       if (!heard && !typed && talk.on) {
-        setPhase("idle");
         await listen();
-        stateBox.insertAdjacentHTML("afterbegin", `<div class="muted">${esc(e)}</div>`);
+        if (talk.phase === "listening") tell(String(e));
         return;
       }
       heard?.remove();
@@ -234,7 +282,7 @@
     setPhase("idle");
   }
 
-  main.addEventListener("click", async () => {
+  mic.addEventListener("click", async () => {
     if (talk.phase === "listening") return send();
     if (talk.phase === "speaking") {
       // Cut the tutor short and listen at once; its answer still goes on screen.
@@ -244,19 +292,35 @@
       return listen();
     }
     if (talk.phase !== "idle") return;
-    if (!hearing.ready) return toast("Hãy tải model nghe giọng nói trước, hoặc gõ câu bên cạnh");
+    if (!hearing.ready) return tell("Hãy tải model nghe giọng nói ở trên trước, hoặc gõ câu bên dưới.", true);
     talk.on = true;
     listen();
   });
   endButton.addEventListener("click", end);
+  /// A new talk: the one under way ends, and an answer still coming is dropped.
+  function reset() {
+    end();
+    talk.bubbles.clear();
+    talk.history = [];
+    talk.target = "";
+    empty();
+  }
+  $("vt-new").addEventListener("click", reset);
   $("vt-type").addEventListener("submit", (e) => {
     e.preventDefault();
     const text = input.value.trim();
-    if (!text || talk.phase === "thinking" || talk.phase === "speaking") return;
+    if (!text || !["idle", "listening"].includes(talk.phase)) return;
     input.value = "";
     send(text);
   });
   $("page-talk").addEventListener("click", async (e) => {
+    const topic = e.target.closest("[data-topic]");
+    if (topic) {
+      if (talk.phase !== "idle") return;
+      // The tutor opens the topic, then listens if it can hear.
+      talk.on = hearing.ready;
+      return send(`Mình muốn luyện nói về chủ đề: ${topic.dataset.topic}`);
+    }
     const b = e.target.closest("[data-vt]");
     if (!b) return;
     e.preventDefault();
@@ -267,21 +331,28 @@
       return models();
     }
     b.disabled = true;
+    b.classList.add("loading");
+    $("vt-dl-error").textContent = "";
     try {
       hearing = await app.call("talk_download");
       models();
     } catch (err) {
-      $("vt-dl").innerHTML = ` <span class="error">${esc(err)}</span>`;
+      $("vt-dl-error").textContent = String(err);
       b.disabled = false;
+      b.classList.remove("loading");
     }
   });
   hooks.event.push((name, data) => {
-    if (name === "progress" && data.group === "talk" && $("vt-dl")) $("vt-dl").textContent = ` ${Math.round((100 * data.done) / data.total)}%`;
+    const bar = $("vt-dl");
+    if (name !== "progress" || data.group !== "talk" || !bar) return;
+    bar.hidden = false;
+    bar.value = data.done / data.total;
   });
 
+  setPhase("idle");
   hooks.page.push((page) => {
     if (page === "talk") { models(); if (!log.children.length) empty(); }
-    else if (talk.on) end();
+    else if (talk.on || talk.phase !== "idle") end();
   });
-  hooks.course.push(() => { if (talk.on) end(); talk.history = []; talk.target = ""; empty(); });
+  hooks.course.push(reset);
 })();

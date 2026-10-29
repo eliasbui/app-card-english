@@ -236,15 +236,14 @@ fn hear(pcm: &[f32], dir: &Path) -> Result<String, String> {
     if !pcm.is_empty() && pcm.iter().all(|&s| s == 0.0) {
         return Err("Micro không gửi âm thanh nào, hãy cho phép Card English dùng micro trong phần quyền riêng tư của máy rồi thử lại".into());
     }
-    let rms = (pcm.iter().map(|s| s * s).sum::<f32>() / pcm.len().max(1) as f32).sqrt();
-    if pcm.len() < 4_000 || rms < 0.004 {
+    if speech::silent(pcm) {
         return Err("Không nghe thấy giọng, hãy nói to và gần micro hơn".into());
     }
     let guard = recognizer(dir)?;
     let whisper = guard.as_ref().ok_or("model chưa nạp")?;
     // Half a second of silence after the voice, or Whisper drops the last word.
-    let mut padded = pcm.to_vec();
-    padded.resize(pcm.len() + 8_000, 0.0);
+    let mut padded = speech::louder(pcm);
+    padded.resize(padded.len() + 8_000, 0.0);
     let stream = whisper.create_stream();
     stream.accept_waveform(16_000, &padded);
     whisper.decode(&stream);
@@ -358,20 +357,23 @@ fn parse(text: &str) -> Reply {
 }
 
 /// Cuts the answer, as it streams in, into the sentences to read aloud: those of SAY, then TRY (marked to be read
-/// slower). FIX is only shown.
+/// slower). FIX is only shown. The first line read ends at its first comma: the voice makes a short line sooner, and
+/// starts on it while the rest of the answer is still coming.
 #[derive(Default)]
 struct Reader {
     rest: String,
     part: Part,
+    started: bool,
 }
 
 impl Reader {
     fn push(&mut self, piece: &str) -> Vec<(String, bool)> {
         self.rest.push_str(piece);
         let mut out = Vec::new();
-        while let Some(end) = sentence_end(&self.rest) {
+        while let Some(end) = sentence_end(&self.rest, !self.started) {
             let sentence: String = self.rest.drain(..end).collect();
             out.extend(self.take(&sentence));
+            self.started |= !out.is_empty();
         }
         out
     }
@@ -391,12 +393,16 @@ impl Reader {
 }
 
 /// Where the first finished sentence of `text` ends: after a line break, or after a full stop, question or exclamation
-/// mark (also the Chinese ones) that is followed by a space.
-fn sentence_end(text: &str) -> Option<usize> {
+/// mark (also the Chinese ones) that is followed by a space; with `comma`, after a comma too.
+fn sentence_end(text: &str, comma: bool) -> Option<usize> {
     let mut chars = text.char_indices().peekable();
     while let Some((at, c)) = chars.next() {
         let next = chars.peek().map(|&(_, n)| n);
-        let end = c == '\n' || matches!(c, '。' | '！' | '？') || (matches!(c, '.' | '!' | '?') && next.is_some_and(char::is_whitespace));
+        let stops: &[char] = if comma { &['.', '!', '?', ','] } else { &['.', '!', '?'] };
+        let end = c == '\n'
+            || matches!(c, '。' | '！' | '？')
+            || (comma && c == '，')
+            || (stops.contains(&c) && next.is_some_and(char::is_whitespace));
         if end {
             return Some(at + c.len_utf8());
         }
@@ -424,6 +430,10 @@ mod tests {
         let mut r = Reader::default();
         assert_eq!(r.push("It costs 3.50 dollars. "), [("It costs 3.50 dollars.".to_owned(), false)]);
         assert_eq!(Reader::default().push("**SAY:** 你好！我们"), [("你好！".to_owned(), false)]);
+        // The first line ends at a comma, the next ones do not.
+        let mut r = Reader::default();
+        assert_eq!(r.push("SAY: Well done, you said 1,000 words, great. "), [("Well done,".to_owned(), false), ("you said 1,000 words, great.".to_owned(), false)]);
+        assert_eq!(Reader::default().push("SAY: 很好，我们"), [("很好，".to_owned(), false)]);
     }
 
     /// Hears Vietnamese, English and both mixed, said by the system's voices. Run it by hand with the model in a data

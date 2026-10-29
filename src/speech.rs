@@ -23,7 +23,7 @@ use tokenizers::Tokenizer;
 
 /// A recording stops by itself after this, in case the stop never comes; long enough for an example sentence.
 const MAX_SECONDS: u64 = 16;
-/// Quieter than this (root mean square of the samples) is taken as no voice at all.
+/// Quieter than this (root mean square of the loudest tenth of a second) is taken as no voice at all.
 const SILENCE_RMS: f32 = 0.008;
 const MAX_TOKENS: usize = 64;
 /// How sure a recognizer that gives no probabilities, such as SenseVoice, is taken to be of what it heard.
@@ -50,9 +50,9 @@ pub fn level() -> f32 {
     f32::from_bits(LEVEL.load(Ordering::Relaxed))
 }
 
-/// Starts listening on the default microphone. The stream lives on a thread of its own because cpal's
-/// streams cannot be moved between threads on every platform.
-pub fn start() -> Result<(), String> {
+/// Starts listening on the default microphone and answers its name. The stream lives on a thread of its own because
+/// cpal's streams cannot be moved between threads on every platform.
+pub fn start() -> Result<String, String> {
     let mut slot = RECORDING.lock().map_err(|_| "ghi âm đang lỗi")?;
     if slot.is_some() {
         return Err("Đang ghi âm".into());
@@ -63,9 +63,9 @@ pub fn start() -> Result<(), String> {
     let done = thread::spawn(move || {
         let opened = open_microphone();
         let (stream, samples, rate) = match opened {
-            Ok(o) => {
-                let _ = ready.send(Ok(()));
-                o
+            Ok((stream, samples, rate, name)) => {
+                let _ = ready.send(Ok(name));
+                (stream, samples, rate)
             }
             Err(e) => {
                 let _ = ready.send(Err(e.clone()));
@@ -77,15 +77,16 @@ pub fn start() -> Result<(), String> {
         let samples = samples.lock().map(|s| s.clone()).unwrap_or_default();
         Ok((samples, rate))
     });
-    started.recv().map_err(|_| "Không mở được micro".to_owned())??;
+    let name = started.recv().map_err(|_| "Không mở được micro".to_owned())??;
     *slot = Some(Recording { stop, done });
-    Ok(())
+    Ok(name)
 }
 
-fn open_microphone() -> Result<(cpal::Stream, Arc<Mutex<Vec<f32>>>, u32), String> {
+fn open_microphone() -> Result<(cpal::Stream, Arc<Mutex<Vec<f32>>>, u32, String), String> {
     let device = cpal::default_host()
         .default_input_device()
         .ok_or("Không tìm thấy micro")?;
+    let name = device.name().unwrap_or_default();
     let config = device.default_input_config().map_err(|e| format!("Micro: {e}"))?;
     let rate = config.sample_rate().0;
     let channels = usize::from(config.channels()).max(1);
@@ -126,7 +127,7 @@ fn open_microphone() -> Result<(cpal::Stream, Arc<Mutex<Vec<f32>>>, u32), String
     }
     .map_err(|e| format!("Micro: {e}"))?;
     stream.play().map_err(|e| format!("Micro: {e}"))?;
-    Ok((stream, samples, rate))
+    Ok((stream, samples, rate, name))
 }
 
 /// Stops listening and answers the sound at 16 kHz.
@@ -172,10 +173,23 @@ pub struct Score {
     pub missed: Vec<String>,
 }
 
+/// How loud the voice of a 16 kHz recording is: the root mean square of its loudest tenth of a second, so that a word
+/// is not averaged away by the silence around it, as it was on a quiet microphone (a Mac mini has none of its own).
+fn loudness(pcm: &[f32]) -> f32 {
+    let (tenths, _) = pcm.as_chunks::<{ w::SAMPLE_RATE / 10 }>();
+    tenths.iter().map(|c| (c.iter().map(|s| s * s).sum::<f32>() / c.len() as f32).sqrt()).fold(0.0, f32::max)
+}
+
 /// Whether a recording is too short or too quiet to hold a voice.
-fn silent(pcm: &[f32]) -> bool {
-    let rms = (pcm.iter().map(|s| s * s).sum::<f32>() / pcm.len().max(1) as f32).sqrt();
-    pcm.len() < w::SAMPLE_RATE / 4 || rms < SILENCE_RMS
+pub(crate) fn silent(pcm: &[f32]) -> bool {
+    pcm.len() < w::SAMPLE_RATE / 4 || loudness(pcm) < SILENCE_RMS
+}
+
+/// The recording brought up to a speaking level, at most twenty times louder: a faint voice is heard worse, and a
+/// microphone whose second channel is silent sends half of it.
+pub(crate) fn louder(pcm: &[f32]) -> Vec<f32> {
+    let gain = (0.1 / loudness(pcm).max(1e-4)).clamp(1.0, 20.0);
+    pcm.iter().map(|s| (s * gain).clamp(-1.0, 1.0)).collect()
 }
 
 /// What was said and how sure the recognizer was of it, from 0 to 1, or nothing for a stretch of silence: a long
@@ -394,6 +408,7 @@ fn transcribe(pcm: &[f32], dir: &Path, zh: bool) -> Result<(String, f32), String
 }
 
 fn hear_with(group: &'static str, pcm: &[f32], dir: &Path, zh: bool) -> Result<(String, f32), String> {
+    let pcm = &louder(pcm);
     let mut loaded = LOADED[usize::from(zh)].lock().map_err(|_| "model giọng nói đang lỗi")?;
     if loaded.as_ref().is_none_or(|(g, _)| *g != group) {
         // The old one goes first, so that both are never in memory together.
@@ -623,6 +638,18 @@ fn mel_filters(bins: usize) -> Vec<f32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_short_word_on_a_quiet_microphone_is_heard() {
+        // Half a second of a faint voice in five seconds of a quiet room: too little on average, not in its loudest part.
+        let mut pcm: Vec<f32> = (0..w::SAMPLE_RATE * 5).map(|i| 0.001 * (i as f32 * 0.7).sin()).collect();
+        for (i, s) in pcm[w::SAMPLE_RATE * 2..w::SAMPLE_RATE * 5 / 2].iter_mut().enumerate() {
+            *s = 0.03 * (i as f32 * 0.05).sin();
+        }
+        assert!(!silent(&pcm));
+        assert!((loudness(&louder(&pcm)) - 0.1).abs() < 0.01);
+        assert!(silent(&vec![0.002; w::SAMPLE_RATE * 5]));
+    }
 
     #[test]
     fn the_word_scores_by_confidence_and_a_near_miss_by_its_sounds() {
