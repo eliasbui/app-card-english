@@ -433,7 +433,10 @@ impl App {
             return;
         }
         match self.open_window(target, false) {
-            Ok(pair) => self.window = Some(pair),
+            Ok(pair) => {
+                self.window = Some(pair);
+                self.apply_style();
+            }
             Err(e) => eprintln!("window: {e}"),
         }
     }
@@ -1282,6 +1285,7 @@ impl App {
                             window.set_theme(self.theme());
                         }
                     }
+                    "style" => self.apply_style(),
                     "hotkey" => self.apply_hotkey(),
                     "tray_count" | "new_per_day" | "course" => self.update_count(),
                     // The model in memory waits for a question in progress, so it is let go off the event loop.
@@ -1378,6 +1382,18 @@ impl App {
                 exam::handle(db, &self.dir, &self.course(), &self.ai_settings(), cmd, args, now())
             }
             "rec_level" => Ok(json!(speech::level())),
+            "drag_window" => {
+                if let Some((window, _)) = &self.window {
+                    let _ = window.drag_window();
+                }
+                Ok(Value::Null)
+            }
+            "zoom_window" => {
+                if let Some((window, _)) = &self.window {
+                    window.set_maximized(!window.is_maximized());
+                }
+                Ok(Value::Null)
+            }
             "talk_hear_early" => talk::hear_early(&self.dir).map(|()| Value::Null),
             "talk_stop" => {
                 talk::interrupt();
@@ -1490,6 +1506,19 @@ impl App {
             .unwrap_or(fsrs::DEFAULT_RETENTION)
     }
 
+    /// Liquid Glass draws the page under a clear title bar on macOS, as the system's own apps do, without the title;
+    /// the page leaves the bar's height free and moves the window from there.
+    fn apply_style(&self) {
+        #[cfg(target_os = "macos")]
+        if let Some((window, _)) = &self.window {
+            use tao::platform::macos::WindowExtMacOS;
+            let glass = self.setting("style").as_deref() == Some("glass");
+            window.set_fullsize_content_view(glass);
+            window.set_titlebar_transparent(glass);
+            window.set_title(if glass { "" } else { APP_NAME });
+        }
+    }
+
     fn theme(&self) -> Option<Theme> {
         match self.setting("theme").as_deref() {
             Some("dark") => Some(Theme::Dark),
@@ -1532,6 +1561,8 @@ impl App {
             "chatgpt_welcomed": self.setting("chatgpt_welcomed").is_some(),
             "course": self.course(),
             "theme": self.setting("theme").unwrap_or_else(|| "system".into()),
+            "icons": self.setting("icons").unwrap_or_else(|| "sticker".into()),
+            "style": self.setting("style").unwrap_or_else(|| "default".into()),
             // Each course has a colour of its own until the learner picks one.
             "palette": self.setting("palette").unwrap_or_else(|| if self.course() == "zh" { "red" } else { "blue" }.into()),
             "new_per_day": number("new_per_day", 10),
@@ -1611,6 +1642,8 @@ fn valid_setting(key: &str, value: &str) -> bool {
         "theme" => matches!(value, "system" | "light" | "dark"),
         "course" => matches!(value, "en" | "zh"),
         "palette" => matches!(value, "blue" | "pink" | "purple" | "red"),
+        "icons" => matches!(value, "sticker" | "plain"),
+        "style" => matches!(value, "default" | "glass"),
         "chatgpt_model" | "codex_model" | "gemini_model" | "deepseek_model" => model(value),
         "gemini_key" | "deepseek_key" => value.len() <= 500 && !value.chars().any(char::is_control),
         "new_per_day" | "remind_hours" | "daily_goal" => value.parse::<u32>().is_ok_and(|n| n <= 1000),

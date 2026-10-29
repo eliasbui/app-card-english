@@ -1,0 +1,50 @@
+  /* Liquid Glass, chosen in the settings: the page on a soft wash of the palette's colours, its panels frosted glass
+     that lets the wash through with a bright edge where light catches it, capsule buttons and larger corners. On
+     macOS the main window also draws the page under a clear title bar (src/main.rs), whose strip moves the window. */
+  :root[data-style="glass"] {
+    --surface: rgba(255, 255, 255, .62); --surface-2: rgba(255, 255, 255, .36); --raised: rgba(255, 255, 255, .9);
+    --hover: rgba(255, 255, 255, .6); --line: rgba(255, 255, 255, .75); --line-strong: rgba(20, 24, 32, .13);
+    --glass-edge: inset 0 1px 0 rgba(255, 255, 255, .95), inset 0 0 0 1px rgba(255, 255, 255, .4);
+    --glass-shadow: 0 10px 34px rgba(20, 24, 32, .10); --glass-blur: blur(28px) saturate(180%);
+    --r: 12px; --r-md: 16px; --r-lg: 22px;
+  }
+  :root[data-style="glass"][data-theme="dark"] {
+    --surface: rgba(32, 36, 46, .55); --surface-2: rgba(20, 24, 32, .42); --raised: rgba(64, 70, 84, .75);
+    --hover: rgba(255, 255, 255, .08); --line: rgba(255, 255, 255, .1); --line-strong: rgba(255, 255, 255, .17);
+    --glass-edge: inset 0 1px 0 rgba(255, 255, 255, .16), inset 0 0 0 1px rgba(255, 255, 255, .05);
+    --glass-shadow: 0 10px 34px rgba(0, 0, 0, .38);
+  }
+  :root[data-style="glass"] body {
+    background: radial-gradient(60% 50% at 8% 0%, color-mix(in srgb, var(--hero-a) 30%, transparent), transparent 70%),
+                radial-gradient(50% 45% at 96% 12%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%),
+                radial-gradient(70% 60% at 60% 106%, color-mix(in srgb, var(--hero-b) 24%, transparent), transparent 70%),
+                var(--bg);
+  }
+  /* Their backgrounds are --surface, glass here, or their own, as the welcome card's colours. */
+  :root[data-style="glass"] nav, :root[data-style="glass"] .card, :root[data-style="glass"] .dialog, :root[data-style="glass"] .chat-panel {
+    border-color: transparent; -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); box-shadow: var(--glass-edge), var(--glass-shadow);
+  }
+  /* The sidebar floats beside the page, as in the system's own apps. */
+  :root[data-style="glass"] nav { margin: 10px 0 10px 10px; border-radius: 22px; }
+  :root[data-style="glass"] .card { border-radius: 22px; }
+  :root[data-style="glass"] nav .nav { border-radius: 12px; }
+  :root[data-style="glass"] nav .nav.active { background: color-mix(in srgb, var(--accent) 15%, transparent); }
+  :root[data-style="glass"] .btn { border-radius: 99px; box-shadow: var(--glass-edge); }
+  :root[data-style="glass"] .btn.primary:not(.hero .btn) { border-color: transparent; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 78%, white), var(--accent));
+                                           box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), 0 4px 14px color-mix(in srgb, var(--accent) 32%, transparent); }
+  :root[data-style="glass"] .btn.ghost { border-color: transparent; background: transparent; box-shadow: none; }
+  :root[data-style="glass"] .seg { border-color: transparent; border-radius: 99px; background: var(--surface-2); box-shadow: var(--glass-edge); }
+  :root[data-style="glass"] .seg label { border-radius: 99px; }
+  :root[data-style="glass"] .chips button { border-color: var(--line-strong); background: var(--surface); }
+  /* A track of the light --hover would vanish on a light glass card. */
+  :root[data-style="glass"] .progress { background: color-mix(in srgb, var(--text) 9%, transparent); }
+
+  #drag-strip { display: none; }
+  :root[data-style="glass"][data-os="macos"]:not(.mini-window) body { padding-top: 28px; }
+  :root[data-style="glass"][data-os="macos"]:not(.mini-window) #drag-strip { display: block; position: fixed; z-index: 90; top: 0; right: 0; left: 0; height: 28px; }
+  @media (max-width: 720px) {
+    :root[data-style="glass"] nav { margin: 0; border-radius: 0; }
+    :root[data-style="glass"] .brand { -webkit-backdrop-filter: var(--glass-blur); backdrop-filter: var(--glass-blur); }
+    :root[data-style="glass"][data-os="macos"]:not(.mini-window) .brand { top: 28px; }
+    :root[data-style="glass"][data-os="macos"]:not(.mini-window) .flags { top: 44px; }
+  }

@@ -668,6 +668,7 @@
 </style>
 </head>
 <body>
+<div id="drag-strip" aria-hidden="true"></div>
 <canvas id="confetti"></canvas>
 <div id="toast" role="status" aria-live="polite"></div>
 <div id="modal" class="modal hidden">
@@ -1057,6 +1058,20 @@
           <input type="radio" name="palette" id="pl-pink" value="pink"><label for="pl-pink">Hồng</label>
           <input type="radio" name="palette" id="pl-purple" value="purple"><label for="pl-purple">Tím</label>
           <input type="radio" name="palette" id="pl-red" value="red"><label for="pl-red">Đỏ</label>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div><b>Biểu tượng</b><div class="muted">Sticker hoạt hình hoặc biểu tượng nét đơn giản.</div></div>
+        <div class="seg" id="s-icons" role="radiogroup" aria-label="Biểu tượng">
+          <input type="radio" name="icons" id="ic-sticker" value="sticker"><label for="ic-sticker">Sticker</label>
+          <input type="radio" name="icons" id="ic-plain" value="plain"><label for="ic-plain">Đơn giản</label>
+        </div>
+      </div>
+      <div class="setting-row">
+        <div><b>Phong cách</b><div class="muted">Liquid Glass: kính mờ trong suốt và thanh tiêu đề liền như ứng dụng gốc của macOS.</div></div>
+        <div class="seg" id="s-style" role="radiogroup" aria-label="Phong cách">
+          <input type="radio" name="style" id="sy-default" value="default"><label for="sy-default">Mặc định</label>
+          <input type="radio" name="style" id="sy-glass" value="glass"><label for="sy-glass">Liquid Glass</label>
         </div>
       </div>
     </div>
@@ -2692,6 +2707,11 @@ function applyTheme(theme) {
   document.documentElement.dataset.theme = theme === "light" || theme === "dark" ? theme : (darkScheme.matches ? "dark" : "light");
 }
 darkScheme.addEventListener("change", () => applyTheme(state.settings.theme));
+/// The look: stickers or plain icons, and the default style or Liquid Glass.
+function applyLook(s) {
+  document.documentElement.dataset.icons = s.icons === "plain" ? "plain" : "sticker";
+  document.documentElement.dataset.style = s.style === "glass" ? "glass" : "default";
+}
 function applyPalette(palette) {
   document.documentElement.dataset.palette = ["pink", "purple", "red"].includes(palette) ? palette : "blue";
 }
@@ -3007,7 +3027,7 @@ function renderSettings() {
   $("s-tray_count").checked = !!s.tray_count;
   $("s-autostart").checked = !!s.autostart;
   for (const key of ["remind_at", "quiet_from", "quiet_to"]) $("s-" + key).value = s[key] || "";
-  for (const [prefix, value] of [["th-", s.theme], ["pl-", s.palette], ["ac-", s.accent]]) {
+  for (const [prefix, value] of [["th-", s.theme], ["pl-", s.palette], ["ac-", s.accent], ["ic-", s.icons], ["sy-", s.style]]) {
     const radio = $(prefix + value);
     if (radio) radio.checked = true;
   }
@@ -3081,6 +3101,12 @@ $("btn-voice-test").onclick = (e) => sayWith(e.currentTarget, courseOf() === "zh
 $("s-hotkey").onchange = (e) => saveSetting("hotkey", e.target.value);
 $("s-theme").addEventListener("change", (e) => { applyTheme(e.target.value); saveSetting("theme", e.target.value); });
 $("s-palette").addEventListener("change", (e) => { applyPalette(e.target.value); saveSetting("palette", e.target.value); });
+// Liquid Glass on macOS draws the page under a clear title bar, whose strip moves and zooms the window as a title bar does.
+$("drag-strip").addEventListener("mousedown", (e) => { if (e.button === 0 && e.detail === 1) app.call("drag_window").catch(() => {}); });
+$("drag-strip").addEventListener("dblclick", () => app.call("zoom_window").catch(() => {}));
+for (const key of ["icons", "style"]) {
+  $("s-" + key).addEventListener("change", (e) => { applyLook({ ...state.settings, [key]: e.target.value }); saveSetting(key, e.target.value); });
+}
 $("btn-modal-ok").onclick = () => { $("modal").classList.add("hidden"); saveSetting("chatgpt_welcomed", "1"); };
 
 // Data: exports land in Downloads, imports come from a file the learner picks.
@@ -3378,8 +3404,10 @@ async function quickAdd(text) {
   state.models = init.models;
   state.voices = init.voices;
   state.platform = init.platform || "";
+  document.documentElement.dataset.os = state.platform;
   state.hotkeys = init.hotkeys || [];
   applyTheme(state.settings.theme);
+  applyLook(state.settings);
   applyCourse();
   $("version").textContent = init.version;
   $("s-version").textContent = init.version;
