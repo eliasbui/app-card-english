@@ -1378,6 +1378,7 @@ impl App {
                 exam::handle(db, &self.dir, &self.course(), &self.ai_settings(), cmd, args, now())
             }
             "rec_level" => Ok(json!(speech::level())),
+            "talk_hear_early" => talk::hear_early(&self.dir).map(|()| Value::Null),
             "talk_stop" => {
                 talk::interrupt();
                 Ok(Value::Null)

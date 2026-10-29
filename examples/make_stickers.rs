@@ -5,21 +5,24 @@
 //! The folder (by default .pi/generated-images/stickers, where the image generator saves) holds a picture for
 //! each name of STICKERS: a cartoon sticker on white. The white around it is taken away, the sticker is cut to
 //! its size and laid in a square cell of ui/stickers.webp, in the order of STICKERS, and the `.st-<name>` rules
-//! between the sticker marks of ui/index.html are written again to match. A name without a picture takes the one
-//! FALLBACK gives it, until it has its own. Needs cwebp (brew install webp): WebP keeps the page small enough for
-//! the 2 MB that WebView2 takes as a page.
+//! between the sticker marks of ui/index.html are written again to match. A name without a picture keeps its cell
+//! of the sheet as it is (most pictures were drawn on another machine), or takes the one FALLBACK gives it until it
+//! has its own; so new names go at the end. Needs cwebp and dwebp (brew install webp): WebP keeps the page small
+//! enough for the 2 MB that WebView2 takes as a page.
 
 use image::{ImageEncoder, Rgba, RgbaImage, codecs::png::PngEncoder, imageops::FilterType};
 use std::{collections::VecDeque, path::Path, process::Command};
 
-const STICKERS: [&str; 33] = [
+const STICKERS: [&str; 36] = [
     "mascot", "mascot-cheer", "mascot-sleep", "mascot-empty", "mascot-think", "mascot-zh", "nav-home", "nav-words", "nav-practice",
     "nav-stats", "nav-settings", "mode-flash", "mode-fill", "mode-choice", "mode-dict", "mode-speak", "mode-write",
     "mode-story", "ai", "clock", "streak", "fb-right", "fb-wrong", "ach-first", "ach-streak7", "ach-streak30",
-    "ach-streak100", "ach-words", "ach-learned", "ach-reviews", "ach-perfect", "ach-goal", "ach-xp",
+    "ach-streak100", "ach-words", "ach-learned", "ach-reviews", "ach-perfect", "ach-goal", "ach-xp", "tutor-listen",
+    "tutor-speak", "tutor-teach",
 ];
 /// What stands in for a sticker not drawn yet.
-const FALLBACK: [(&str, &str); 4] = [("mascot-", "mascot"), ("ach-", "nav-stats"), ("streak", "nav-home"), ("fb-", "mascot")];
+const FALLBACK: [(&str, &str); 5] =
+    [("mascot-", "mascot"), ("ach-", "nav-stats"), ("streak", "nav-home"), ("fb-", "mascot"), ("tutor-", "mascot")];
 /// The side of a cell: sharp at 80 points on a Retina screen.
 const CELL: u32 = 160;
 const COLUMNS: u32 = 8;
@@ -30,9 +33,16 @@ fn main() {
     let folder = std::env::args().nth(1).unwrap_or_else(|| ".pi/generated-images/stickers".into());
     let picture = |name: &str| ["jpg", "png", "jpeg"].iter().map(|ext| format!("{folder}/{name}.{ext}")).find(|p| Path::new(p).exists());
     let rows = (STICKERS.len() as u32).div_ceil(COLUMNS);
+    let (old, held) = (current_sheet(), held());
     let mut sheet = RgbaImage::new(COLUMNS * CELL, rows * CELL);
     let mut missing = Vec::new();
     for (i, name) in STICKERS.iter().enumerate() {
+        let (x, y) = ((i as u32 % COLUMNS) * CELL, (i as u32 / COLUMNS) * CELL);
+        // The cell of a sticker drawn before, if the sheet has it and its picture is not here.
+        if let Some(old) = old.as_ref().filter(|o| i < held && picture(name).is_none() && x + CELL <= o.width() && y + CELL <= o.height()) {
+            image::imageops::overlay(&mut sheet, &image::imageops::crop_imm(old, x, y, CELL, CELL).to_image(), x.into(), y.into());
+            continue;
+        }
         let path = picture(name).or_else(|| {
             missing.push(*name);
             FALLBACK.iter().find(|(prefix, _)| name.starts_with(prefix)).and_then(|(_, stand_in)| picture(stand_in))
@@ -45,7 +55,6 @@ fn main() {
             .and_then(|r| r.decode().map_err(|e| e.to_string()))
             .unwrap_or_else(|e| panic!("{path}: {e}"))
             .to_rgba8();
-        let (x, y) = ((i as u32 % COLUMNS) * CELL, (i as u32 / COLUMNS) * CELL);
         image::imageops::overlay(&mut sheet, &sticker(&art), x.into(), y.into());
     }
     let png = std::env::temp_dir().join("card-english-stickers.png");
@@ -64,6 +73,20 @@ fn main() {
     if !missing.is_empty() {
         println!("standing in for: {}", missing.join(", "));
     }
+}
+
+/// The sheet as it is, decoded by dwebp.
+fn current_sheet() -> Option<RgbaImage> {
+    let png = std::env::temp_dir().join("card-english-stickers-old.png");
+    let decoded = Command::new("dwebp").args(["-quiet", "ui/stickers.webp", "-o"]).arg(&png).status().ok()?.success();
+    decoded.then(|| image::open(&png).ok()).flatten().map(|i| i.to_rgba8())
+}
+
+/// How many stickers the sheet holds: the rules between the marks in ui/index.html.
+fn held() -> usize {
+    let page = std::fs::read_to_string("ui/index.html").unwrap();
+    let (start, end) = (page.find(BEGIN).expect("the sticker marks in ui/index.html"), page.find(END).unwrap());
+    page[start..end].matches("background-position").count()
 }
 
 /// The rules that place each sticker of the sheet, between the marks in ui/index.html.

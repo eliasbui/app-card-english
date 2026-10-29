@@ -212,8 +212,12 @@ pub fn fake_download(dir: &Path, group: &str) {
 mod tests {
     use super::*;
 
+    /// A delete refuses while another one holds the lock of downloads, so the tests that delete take turns.
+    static DELETING: Mutex<()> = Mutex::new(());
+
     #[test]
     fn deleting_a_model_keeps_the_tokenizer_the_other_one_reads() {
+        let _one_at_a_time = DELETING.lock();
         let dir = std::env::temp_dir().join(format!("card-english-model-test-{}", std::process::id()));
         fake_download(&dir, "llm");
         fake_download(&dir, "llm15");
@@ -229,6 +233,7 @@ mod tests {
 
     #[test]
     fn a_recognizer_is_there_with_all_its_files_and_goes_with_its_folder() {
+        let _one_at_a_time = DELETING.lock();
         let dir = std::env::temp_dir().join(format!("card-english-archive-test-{}", std::process::id()));
         let unpacked = folder(&dir, "sttsv").unwrap();
         assert!(folder(&dir, "stt").is_none());

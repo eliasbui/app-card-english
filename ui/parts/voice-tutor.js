@@ -6,8 +6,9 @@
   if (window.MINI) return;
   /// How the page tells speech from silence by the microphone's loudness (RMS): a voice starts above `START` (or
   /// three times the room's own noise) for `VOICED` readings, and the turn ends after `PAUSE_MS` below two thirds of
-  /// that. START is low enough for a microphone that is not built in, such as a webcam's on a Mac mini.
-  const START = 0.01, VOICED = 3, PAUSE_MS = 750, POLL_MS = 60;
+  /// that. START is low enough for a microphone that is not built in, such as a webcam's on a Mac mini. After
+  /// `EARLY_MS` of the pause the app starts writing down what was said, so that the text is ready when it ends.
+  const START = 0.01, VOICED = 3, PAUSE_MS = 600, EARLY_MS = 250, POLL_MS = 60;
   /// The longest a turn listens, a little under what the app records.
   const LISTEN_MS = 15000;
   /// Topics a talk can start with, sent as the learner's first line.
@@ -29,15 +30,16 @@
         <div class="vt-note" id="vt-note" hidden></div>
         <div class="vt-log" id="vt-log" role="log" aria-live="polite"></div>
         <div class="vt-dock">
-          <div class="vt-actions">
-            <button class="btn small" id="vt-end" hidden>Kết thúc</button>
-            <button class="vt-mic" id="vt-mic"></button>
+          <div class="vt-state">
+            <span class="st vt-face" id="vt-face" aria-hidden="true"></span>
             <div class="vt-side">
               <div class="vt-status" id="vt-status" aria-live="polite"></div>
               <div class="vt-foot"><span id="vt-mic-name"></span><a href="#" data-vt="delete" id="vt-delete" hidden>Xóa model nghe giọng</a></div>
             </div>
+            <button class="btn small" id="vt-end" hidden>Kết thúc</button>
           </div>
-          <form class="vt-type" id="vt-type"><input id="vt-input" maxlength="500" placeholder="Hoặc gõ câu của bạn" aria-label="Gõ câu của bạn"><button class="btn">Gửi</button></form>
+          <form class="vt-type" id="vt-type"><input id="vt-input" maxlength="500" placeholder="Hoặc gõ câu của bạn" aria-label="Gõ câu của bạn"><button class="btn">Gửi</button>
+            <button type="button" class="vt-mic" id="vt-mic"></button></form>
         </div>
       </div>
     </section>`);
@@ -53,21 +55,22 @@
   /// The microphone the last recording used, named in the advice when it hears nothing.
   let micName = "";
 
-  /// The big button's word and what it does, and the line under it, for each phase.
+  /// The round button's word and what it does, the line beside the tutor's face and the face, for each phase.
   const PHASES = {
-    idle: ["Nói", "Bắt đầu nói", "Bấm Nói rồi nói tự nhiên, ngừng một chút là gia sư trả lời."],
-    starting: ["Chờ", "Đang mở micro", "Đang mở micro..."],
-    listening: ["Xong", "Gửi câu vừa nói", "Đang nghe. Ngừng một chút là tự gửi, hoặc bấm Xong."],
-    thinking: ["Chờ", "Gia sư đang nghĩ", "Gia sư đang suy nghĩ..."],
-    speaking: ["Ngắt", "Ngắt lời gia sư", "Gia sư đang nói. Bấm Ngắt để nói luôn."],
+    idle: ["Nói", "Bắt đầu nói", "Bấm Nói rồi nói tự nhiên, ngừng một chút là gia sư trả lời.", "tutor-teach"],
+    starting: ["Chờ", "Đang mở micro", "Đang mở micro...", "tutor-listen"],
+    listening: ["Xong", "Gửi câu vừa nói", "Gia sư đang nghe. Ngừng một chút là tự gửi, hoặc bấm Xong.", "tutor-listen"],
+    thinking: ["Chờ", "Gia sư đang nghĩ", "Gia sư đang suy nghĩ...", "mascot-think"],
+    speaking: ["Ngắt", "Ngắt lời gia sư", "Gia sư đang nói. Bấm Ngắt để nói luôn.", "tutor-speak"],
   };
   function setPhase(phase, note = "", error = false) {
-    const [word, action, line] = PHASES[phase];
+    const [word, action, line, face] = PHASES[phase];
     talk.phase = card.dataset.phase = phase;
-    mic.textContent = phase === "idle" && talk.on ? "Nói tiếp" : word;
+    $("vt-face").className = `st vt-face st-${face}`;
+    mic.textContent = word;
     mic.setAttribute("aria-label", action);
     mic.disabled = phase === "thinking" || phase === "starting";
-    mic.style.setProperty("--lv", 0);
+    card.style.setProperty("--lv", 0);
     endButton.hidden = !talk.on;
     tell(note || (phase === "idle" && talk.on ? "" : line), error);
   }
@@ -120,7 +123,7 @@
     return log.lastElementChild;
   }
   function empty() {
-    log.innerHTML = `<div class="vt-empty">${st(zh() ? "mascot-zh" : "mascot-cheer")}<b>Sẵn sàng luyện nói?</b>
+    log.innerHTML = `<div class="vt-empty">${st("tutor-teach")}<b>Sẵn sàng luyện nói?</b>
       <p>Chọn một chủ đề để gia sư mở lời, hoặc bấm Nói và nói bất cứ điều gì.</p>
       <div class="chips">${TOPICS.map((t) => `<button type="button" data-topic="${esc(t)}">${esc(t)}</button>`).join("")}</div></div>`;
   }
@@ -149,13 +152,14 @@
     if (!m) return `<li>${esc(line)}</li>`;
     return `<li><span class="vt-wrong">${esc(m[1])}</span> thành <span class="vt-right">${esc(m[2])}</span>${m[3] ? `<div>${esc(m[3])}</div>` : ""}</li>`;
   }
-  /// The inside of a tutor's message: what it said, the sentence to say after it and the corrections.
-  function tutorHtml(p, by = "") {
+  /// The inside of a tutor's message: what it said, the sentence to say after it and the corrections; its face talks
+  /// while the answer comes.
+  function tutorHtml(p, by = "", face = "mascot") {
     const fixes = p.fix ? p.fix.split("\n").filter(Boolean) : [];
-    return `${st("mascot")}<div class="vt-body"><div class="chat-bubble">${esc(p.say)}</div>
+    return `${st(face)}<div class="vt-body"><div class="chat-bubble">${esc(p.say)}</div>
       ${p.try ? `<div class="vt-try"><span class="vt-label">Nói theo câu này</span><b>${esc(p.try)}</b>
         <button class="btn small" data-say="${esc(p.try)}">Nghe mẫu</button></div>` : ""}
-      ${fixes.length ? `<div class="vt-fix"><span class="vt-label">Sửa lỗi</span><ul>${fixes.map(fixLine).join("")}</ul></div>` : ""}
+      ${fixes.length ? `<div class="vt-fix"><span class="vt-label">${st("tutor-teach")}Sửa lỗi</span><ul>${fixes.map(fixLine).join("")}</ul></div>` : ""}
       ${by ? `<div class="chat-by">${by}</div>` : ""}</div>`;
   }
 
@@ -169,7 +173,7 @@
     }
     const bubble = talk.bubbles.get(data.turn);
     if (data.kind === "text" && bubble) {
-      bubble.innerHTML = tutorHtml(parts(data.text));
+      bubble.innerHTML = tutorHtml(parts(data.text), "", "tutor-speak");
       log.scrollTop = log.scrollHeight;
       if (data.turn === talk.turn && talk.phase === "thinking") setPhase("speaking");
     }
@@ -191,7 +195,7 @@
     if (!talk.on || talk.phase !== "starting") return app.call("rec_cancel").catch(() => {});
     setPhase("listening");
     const started = Date.now();
-    let floor = 1, peak = 0, voiced = 0, quietSince = 0, asking = false;
+    let floor = 1, peak = 0, voiced = 0, quietSince = 0, early = false, asking = false;
     talk.poll = setInterval(async () => {
       if (asking) return;
       asking = true;
@@ -199,14 +203,18 @@
       asking = false;
       if (talk.phase !== "listening") return;
       // Speech is around 0.02 to 0.2 RMS; the curve lifts quiet voices so that they still show.
-      mic.style.setProperty("--lv", Math.min(1, Math.pow(level / 0.15, 0.6)).toFixed(2));
+      card.style.setProperty("--lv", Math.min(1, Math.pow(level / 0.15, 0.6)).toFixed(2));
       const elapsed = Date.now() - started;
       // The room's own noise, learned in the first moments and whenever it is quieter.
       floor = Math.min(floor, Math.max(level, 0.002));
       peak = Math.max(peak, level);
       const loud = Math.max(START, floor * 3);
-      if (level > loud) { voiced++; quietSince = 0; }
+      if (level > loud) { voiced++; quietSince = 0; early = false; }
       else if (voiced >= VOICED && level < loud * 0.66 && !quietSince) quietSince = Date.now();
+      if (quietSince && !early && Date.now() - quietSince > EARLY_MS) {
+        early = true;
+        app.call("talk_hear_early").catch(() => {});
+      }
       if ((voiced >= VOICED && quietSince && Date.now() - quietSince > PAUSE_MS) || elapsed > LISTEN_MS) {
         if (voiced >= VOICED) return send();
         setPhase("starting");

@@ -39,6 +39,9 @@ type Take = Result<(Vec<f32>, u32), String>;
 struct Recording {
     stop: mpsc::Sender<()>,
     done: JoinHandle<Take>,
+    /// The sound so far and its rate, for a look at it before the end.
+    samples: Arc<Mutex<Vec<f32>>>,
+    rate: u32,
 }
 
 static RECORDING: Mutex<Option<Recording>> = Mutex::new(None);
@@ -64,7 +67,7 @@ pub fn start() -> Result<String, String> {
         let opened = open_microphone();
         let (stream, samples, rate) = match opened {
             Ok((stream, samples, rate, name)) => {
-                let _ = ready.send(Ok(name));
+                let _ = ready.send(Ok((name, samples.clone(), rate)));
                 (stream, samples, rate)
             }
             Err(e) => {
@@ -77,9 +80,17 @@ pub fn start() -> Result<String, String> {
         let samples = samples.lock().map(|s| s.clone()).unwrap_or_default();
         Ok((samples, rate))
     });
-    let name = started.recv().map_err(|_| "Không mở được micro".to_owned())??;
-    *slot = Some(Recording { stop, done });
+    let (name, samples, rate) = started.recv().map_err(|_| "Không mở được micro".to_owned())??;
+    *slot = Some(Recording { stop, done, samples, rate });
     Ok(name)
+}
+
+/// The sound so far at 16 kHz, while the recording goes on.
+pub fn peek() -> Result<Vec<f32>, String> {
+    let slot = RECORDING.lock().map_err(|_| "ghi âm đang lỗi")?;
+    let recording = slot.as_ref().ok_or("Chưa bắt đầu ghi âm")?;
+    let samples = recording.samples.lock().map(|s| s.clone()).unwrap_or_default();
+    Ok(resample(&samples, recording.rate, w::SAMPLE_RATE as u32))
 }
 
 fn open_microphone() -> Result<(cpal::Stream, Arc<Mutex<Vec<f32>>>, u32, String), String> {

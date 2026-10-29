@@ -35,6 +35,9 @@ static DOWNLOADING: Mutex<()> = Mutex::new(());
 
 /// The turn under way; a newer turn or a stop makes the older one fall silent.
 static TURN: AtomicU64 = AtomicU64::new(0);
+/// What the learner had said when they paused, and its writing down under way (see `hear_early`).
+type Early = (Vec<f32>, thread::JoinHandle<Result<String, String>>);
+static EARLY: Mutex<Option<Early>> = Mutex::new(None);
 
 /// Silences the tutor at once.
 pub fn interrupt() {
@@ -65,7 +68,7 @@ pub fn turn(dir: &Path, t: Turn, post: impl Fn(Value)) -> Result<Value, String> 
     let me = TURN.fetch_add(1, Ordering::Relaxed) + 1;
     let zh = t.course == "zh";
     let typed = t.typed.trim();
-    let heard = if typed.is_empty() { hear(&speech::stop()?, dir)? } else { typed.to_owned() };
+    let heard = if typed.is_empty() { hear_said(dir)? } else { typed.to_owned() };
     // The sentence to repeat, said: the words that were not heard are the ones to work on. This Whisper gives no
     // confidence, so a sentence heard whole counts as said right.
     let check = (typed.is_empty() && !t.target.is_empty())
@@ -130,6 +133,39 @@ fn speak_all(dir: PathBuf, chosen: Option<voice::Voice>, accent: String, rate: f
         drop(to_play);
         player.join().unwrap_or_else(|_| Err("loa bị dừng đột ngột".into())).and(failed)
     })
+}
+
+/// Starts writing down what the learner has said so far, while the page waits out their pause to be sure they
+/// have finished: Whisper takes about half a second, which the wait then hides.
+pub fn hear_early(dir: &Path) -> Result<(), String> {
+    let said = speech::peek()?;
+    let (dir, copy) = (dir.to_path_buf(), said.clone());
+    let done = thread::spawn(move || hear(&copy, &dir));
+    *EARLY.lock().unwrap_or_else(|poisoned| poisoned.into_inner()) = Some((said, done));
+    Ok(())
+}
+
+/// What the learner said: what was written down in their pause if the recording is the same one and they said
+/// nothing more after it, or else the whole recording, written down now.
+fn hear_said(dir: &Path) -> Result<String, String> {
+    let pcm = speech::stop()?;
+    let early = EARLY.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).take();
+    if let Some((said, done)) = early
+        && let Some(after) = pcm.get(said.len()..)
+        && same_start(&pcm, &said)
+        && speech::silent(after)
+        && let Ok(Ok(text)) = done.join()
+    {
+        return Ok(text);
+    }
+    hear(&pcm, dir)
+}
+
+/// Whether `pcm` begins with `start`: both were made from one recording at 16 kHz, where only the last two samples
+/// of the shorter one can differ.
+fn same_start(pcm: &[f32], start: &[f32]) -> bool {
+    let n = start.len().saturating_sub(2);
+    n > 0 && pcm.get(..n) == Some(&start[..n])
 }
 
 fn file(dir: &Path, name: &str) -> PathBuf {
@@ -500,6 +536,17 @@ mod tests {
             println!("Kokoro: {:.1} s of speech in {:?}", samples.len() as f32 / rate as f32, start.elapsed());
         }
         assert!(!parse(&text).say.is_empty());
+    }
+
+    #[test]
+    fn what_was_heard_in_the_pause_is_the_start_of_the_recording() {
+        for rate in [48_000, 44_100] {
+            let full: Vec<f32> = (0..rate as usize).map(|i| (i as f32 * 0.01).sin()).collect();
+            let all = speech::resample(&full, rate, 16_000);
+            assert!(same_start(&all, &speech::resample(&full[..30_001], rate, 16_000)));
+            assert!(!same_start(&all, &speech::resample(&full[7..30_001], rate, 16_000)));
+        }
+        assert!(!same_start(&[0.1; 10], &[]));
     }
 
     #[test]
