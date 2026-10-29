@@ -2,7 +2,12 @@
   .beta { margin-left: auto; padding: 0 6px; border: 1px solid var(--amber-line); border-radius: 99px; background: var(--amber-soft); color: var(--text-2);
           font-size: 10.5px; font-weight: 700; letter-spacing: .04em; line-height: 17px; text-transform: uppercase; }
   .page-head h2 .beta { margin-left: 6px; vertical-align: middle; }
-  .vt { display: flex; flex-direction: column; max-width: 820px; margin: 0 auto; padding: 0; overflow: hidden; }
+  /* The talk fills the window below the title, its log taking what the bar above and the button below leave; the
+     study assistant's round button stays away, as it would sit on the line to type. */
+  #page-talk.active { display: flex; flex-direction: column; height: 100%; }
+  :root:has(#page-talk.active) main { padding-bottom: 20px; }
+  :root:has(#page-talk.active) .chat-fab { display: none; }
+  .vt { display: flex; flex: 1; flex-direction: column; min-height: 420px; margin: 0; padding: 0; overflow: hidden; }
 
   .vt-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 12px 14px 12px 18px; border-bottom: 1px solid var(--line); }
   .vt-who { display: flex; flex: 1; align-items: center; gap: 10px; min-width: 160px; }
@@ -11,30 +16,26 @@
   .vt-who span { color: var(--muted); font-size: 12.5px; }
   .vt-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 13px; }
   .vt-pick label { margin: 0; color: var(--muted); }
-  .vt-pick select { max-width: 200px; min-height: var(--h-sm); }
+  .vt-pick select { max-width: 170px; min-height: var(--h-sm); }
   #vt-model-box { display: contents; }
 
   /* What is missing before the talk goes well, each with what to do about it. */
   .vt-note { display: grid; gap: 1px; border-bottom: 1px solid var(--amber-line); background: var(--amber-line); }
   .vt-note[hidden] { display: none; }
-  .vt-note-row { display: flex; align-items: center; gap: 12px; padding: 10px 18px; background: var(--amber-soft); font-size: 13px; }
+  .vt-note-row { display: flex; align-items: center; gap: 12px; padding: 8px 18px; background: var(--amber-soft); font-size: 13px; }
   .vt-note-row b { display: block; color: var(--text); }
   .vt-note-row span { color: var(--text-2); }
   .vt-note-row .btn { flex: none; }
   .vt-note progress { display: block; width: 100%; max-width: 360px; height: 6px; margin-top: 6px; accent-color: var(--accent); }
   .vt-note progress[hidden] { display: none; }
 
-  .vt-log { display: flex; flex-direction: column; gap: 14px; min-height: 300px; max-height: calc(100vh - 440px); padding: 20px 18px; overflow-y: auto;
-            background: var(--surface-2); }
+  .vt-log { display: flex; flex: 1; flex-direction: column; gap: 14px; min-height: 120px; padding: 20px 18px; overflow-y: auto; background: var(--surface-2); }
   .vt-log .chat-msg { max-width: 88%; }
   .vt-empty { margin: auto; max-width: 560px; color: var(--muted); text-align: center; }
-  .vt-empty > .st { display: block; width: 84px; height: 84px; margin: 0 auto 6px; }
+  .vt-empty > .st { display: block; width: 56px; height: 56px; margin: 0 auto 2px; }
   .vt-empty > b { color: var(--text); font-size: 17px; }
-  .vt-empty p { margin: 14px 0 0; font-size: 13px; }
-  .vt-empty .chips { justify-content: center; margin: 8px 0 0; }
-  .vt-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; text-align: left; }
-  .vt-steps div { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); font-size: 12.5px; line-height: 1.45; }
-  .vt-steps b { display: block; margin-bottom: 2px; color: var(--text); font-size: 13px; }
+  .vt-empty p { margin: 4px 0 0; font-size: 13px; }
+  .vt-empty .chips { justify-content: center; margin: 10px 0 0; }
 
   /* The tutor's message: its face beside what it said, the sentence to say after it, and the corrections. */
   .vt-tutor { flex-direction: row; gap: 10px; }
@@ -59,13 +60,16 @@
   .vt-dots i:nth-child(2) { animation-delay: .2s; }
   .vt-dots i:nth-child(3) { animation-delay: .4s; }
 
-  /* The bottom of the talk: what the tutor is doing, the round button, and a line to type instead. */
-  .vt-dock { display: grid; justify-items: center; gap: 12px; padding: 14px 18px 12px; border-top: 1px solid var(--line); }
-  .vt-status { min-height: 20px; color: var(--muted); font-size: 13px; text-align: center; }
-  .vt-actions { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 16px; width: 100%; }
-  .vt-actions #vt-end { justify-self: end; }
+  /* The bottom of the talk: the round button in the middle, what the tutor is doing beside it, and a line to type instead. */
+  .vt-dock { display: grid; justify-items: center; gap: 10px; padding: 12px 18px; border-top: 1px solid var(--line); }
+  .vt-actions { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 18px; width: 100%; }
+  .vt-side { display: grid; grid-column: 3; gap: 4px; max-width: 300px; }
+  .vt-status { color: var(--text-2); font-size: 13px; line-height: 1.45; }
+  /* Placed by column, so that the button stays in the middle while Kết thúc is hidden. */
+  .vt-actions #vt-end { grid-column: 1; justify-self: end; }
   .vt-actions #vt-end[hidden] { display: none; }
-  .vt-mic { --lv: 0; --tone: var(--accent); position: relative; width: 84px; height: 84px; padding: 0; border: 0; border-radius: 50%; background: var(--tone);
+  .vt-actions .vt-mic { grid-column: 2; }
+  .vt-mic { --lv: 0; --tone: var(--accent); position: relative; width: 76px; height: 76px; padding: 0; border: 0; border-radius: 50%; background: var(--tone);
             color: var(--on-accent); font: inherit; font-size: 15px; font-weight: 700; cursor: pointer;
             box-shadow: 0 6px 18px color-mix(in srgb, var(--tone) 35%, transparent); transition: transform .12s, background .15s; }
   .vt-mic::before { content: ""; position: absolute; inset: -7px; border: 2px solid color-mix(in srgb, var(--tone) 35%, transparent); border-radius: 50%;
@@ -84,13 +88,22 @@
   @media (prefers-reduced-motion: reduce) { .vt-mic::before, .vt-dots i { animation: none !important; transition: none; } }
   .vt-type { display: flex; gap: 8px; width: 100%; max-width: 520px; }
   .vt-type input { flex: 1; min-width: 0; }
-  .vt-foot { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; color: var(--faint); font-size: 12px; }
+  .vt-foot { display: flex; flex-wrap: wrap; gap: 2px 12px; color: var(--faint); font-size: 12px; }
   .vt-foot a { color: var(--muted); }
+  #vt-mic-name:empty { display: none; }
 
   @media (max-width: 720px) {
     nav .nav .beta { position: absolute; top: 2px; right: 2px; padding: 0 4px; font-size: 9px; line-height: 14px; }
-    .vt-log { max-height: none; min-height: 240px; padding: 14px; }
+    :root:has(#page-talk.active) main { padding-bottom: 80px; }
+    .vt { min-height: 380px; }
+    .vt-log { padding: 14px; }
     .vt-head, .vt-note-row, .vt-dock { padding-left: 14px; padding-right: 14px; }
-    .vt-steps { grid-template-columns: 1fr; }
-    .vt-mic { width: 72px; height: 72px; }
+    .vt-mic { width: 68px; height: 68px; }
+  }
+  /* Narrow: the button on the left, what it is doing and Kết thúc beside it. */
+  @media (max-width: 560px) {
+    .vt-actions { grid-template-columns: auto 1fr; gap: 6px 14px; }
+    .vt-actions .vt-mic { grid-row: 1 / span 2; grid-column: 1; }
+    .vt-side { grid-row: 1; grid-column: 2; }
+    .vt-actions #vt-end { grid-row: 2; grid-column: 2; justify-self: start; }
   }

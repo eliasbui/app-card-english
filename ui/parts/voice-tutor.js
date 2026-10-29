@@ -19,24 +19,25 @@
   document.querySelector("main").insertAdjacentHTML("beforeend", `
     <section id="page-talk">
       <header class="page-head"><div class="grow"><h2>Gia sư nói <span class="beta">Beta</span></h2>
-        <p>Luyện nói 1 kèm 1 với gia sư AI: gia sư nghe, sửa phát âm và ngữ pháp, rồi trả lời bằng giọng đọc.</p></div></header>
+        <p>Gia sư AI nghe bạn nói, sửa lỗi và trả lời bằng giọng đọc.</p></div>
+        <button class="btn" id="vt-new">Cuộc mới</button></header>
       <div class="card vt" id="vt" data-phase="idle">
         <div class="vt-head">
           <div class="vt-who">${st("mascot")}<div><b>Gia sư AI</b><span id="vt-course"></span></div></div>
           <div class="vt-pick"><label for="vt-ai">AI</label><select id="vt-ai"></select><span id="vt-model-box"></span></div>
-          <button class="btn small ghost" id="vt-new">Cuộc mới</button>
         </div>
         <div class="vt-note" id="vt-note" hidden></div>
         <div class="vt-log" id="vt-log" role="log" aria-live="polite"></div>
         <div class="vt-dock">
-          <div class="vt-status" id="vt-status" aria-live="polite"></div>
           <div class="vt-actions">
             <button class="btn small" id="vt-end" hidden>Kết thúc</button>
             <button class="vt-mic" id="vt-mic"></button>
-            <span></span>
+            <div class="vt-side">
+              <div class="vt-status" id="vt-status" aria-live="polite"></div>
+              <div class="vt-foot"><span id="vt-mic-name"></span><a href="#" data-vt="delete" id="vt-delete" hidden>Xóa model nghe giọng</a></div>
+            </div>
           </div>
           <form class="vt-type" id="vt-type"><input id="vt-input" maxlength="500" placeholder="Hoặc gõ câu của bạn" aria-label="Gõ câu của bạn"><button class="btn">Gửi</button></form>
-          <div class="vt-foot"><span id="vt-mic-name"></span><a href="#" data-vt="delete" id="vt-delete" hidden>Xóa model nghe giọng</a></div>
         </div>
       </div>
     </section>`);
@@ -120,12 +121,7 @@
   }
   function empty() {
     log.innerHTML = `<div class="vt-empty">${st(zh() ? "mascot-zh" : "mascot-cheer")}<b>Sẵn sàng luyện nói?</b>
-      <div class="vt-steps">
-        <div><b>1. Bấm Nói</b>Nói tự nhiên, hỏi bằng tiếng Việt cũng được.</div>
-        <div><b>2. Ngừng một chút</b>Gia sư hiểu là bạn đã nói xong.</div>
-        <div><b>3. Nghe và nói theo</b>Gia sư sửa lỗi và đưa câu để bạn nói lại.</div>
-      </div>
-      <p>Hoặc chọn một chủ đề để gia sư mở lời:</p>
+      <p>Chọn một chủ đề để gia sư mở lời, hoặc bấm Nói và nói bất cứ điều gì.</p>
       <div class="chips">${TOPICS.map((t) => `<button type="button" data-topic="${esc(t)}">${esc(t)}</button>`).join("")}</div></div>`;
   }
   /// The learner's line, with how well the sentence to repeat went.
