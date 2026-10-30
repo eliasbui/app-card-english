@@ -176,6 +176,107 @@
     el.querySelectorAll("[data-run]").forEach((b) => (b.onclick = () => run(card.buttons[+b.dataset.run].run)));
   };
 
+  /// Runs one call of a `do`, `plan` or `guide` card through chat-tools.js: the line it answers, or the reason it failed.
+  async function perform(call) {
+    const tool = window.chatTools?.[call?.tool];
+    if (!tool) throw new Error("Trợ lý chưa làm được việc này");
+    return (await tool(call.args || {})) || "Xong";
+  }
+  cards.perform = perform;
+  /// The calls of a `do` card already started by an answer on screen, by message and position, so that drawing a card again
+  /// (a talk reloaded, a model switched) never runs them twice.
+  const started = new Set();
+
+  // A request the tutor understood as things to do: a button each, "Đồng ý" for those that change something, and
+  // "Chạy tất cả" for the card; those that only open a page run on their own when the answer has just arrived.
+  cards.do = (card, el, ctx = {}) => {
+    const calls = (card.calls || []).slice(0, 6), ask = calls.some((c) => c.confirm);
+    let running = false;
+    el.innerHTML = `<div class="ccard"><div class="ccard-head"><b>${esc(card.title || "Việc cần làm")}</b></div>
+      <div class="cdo-list">${calls.map((c, i) => `<div class="cdo" data-i="${i}">
+        <div class="cdo-main"><span class="cdo-label">${esc(c.label || c.tool)}</span><span class="cdo-status muted small" role="status"></span></div>
+        <button type="button" class="btn small${c.confirm ? " primary" : ""}" data-do="${i}">${c.confirm ? "Đồng ý" : "Chạy"}</button></div>`).join("")}</div>
+      ${calls.length > 1 ? `<div class="ccard-foot"><button type="button" class="btn small" data-do="all">${ask ? "Đồng ý và chạy tất cả" : "Chạy tất cả"}</button></div>` : ""}</div>`;
+    const row = (i) => el.querySelector(`.cdo[data-i="${i}"]`);
+    const buttons = () => el.querySelectorAll("[data-do]");
+    /// Runs the call at `i`; answers whether it went through.
+    async function one(i) {
+      const c = calls[i], r = row(i), status = r.querySelector(".cdo-status"), button = r.querySelector("button");
+      button.disabled = true;
+      status.classList.remove("error");
+      status.textContent = "Đang làm...";
+      try {
+        status.textContent = await perform(c);
+        r.classList.add("done");
+        // A call that opens something can be run again; one that changed something has been done.
+        if (!c.confirm) {
+          button.disabled = false;
+          button.textContent = "Chạy lại";
+        } else {
+          button.textContent = "Đã xong";
+        }
+        return true;
+      } catch (err) {
+        status.textContent = String(err?.message || err);
+        status.classList.add("error");
+        button.disabled = false;
+        button.textContent = "Thử lại";
+        return false;
+      }
+    }
+    async function many(list) {
+      if (running) return;
+      running = true;
+      buttons().forEach((b) => (b.disabled = true));
+      for (const i of list) if (!(await one(i))) break;
+      running = false;
+      calls.forEach((c, i) => {
+        const b = row(i).querySelector("button");
+        if (!row(i).classList.contains("done") || !c.confirm) b.disabled = false;
+      });
+      const all = el.querySelector('[data-do="all"]');
+      if (all) all.disabled = calls.every((c, i) => c.confirm && row(i).classList.contains("done"));
+    }
+    el.addEventListener("click", (e) => {
+      const b = e.target.closest("[data-do]");
+      if (!b || b.disabled) return;
+      many(b.dataset.do === "all" ? calls.map((_, i) => i).filter((i) => !(calls[i].confirm && row(i).classList.contains("done"))) : [+b.dataset.do]);
+    });
+    // Only an answer just received runs by itself, and only what opens a page: nothing that writes or deletes.
+    const key = ctx.message?.uid ? `${ctx.message.uid}:${calls.length}` : "";
+    if (ctx.fresh && key && !started.has(key)) {
+      started.add(key);
+      const safe = calls.map((c, i) => i).filter((i) => !calls[i].confirm);
+      if (safe.length) setTimeout(() => many(safe), 0);
+    }
+  };
+
+  /// A line of steps or tips, each with a button when it names something to open or start.
+  function steps(card, el, list, ordered, button) {
+    el.innerHTML = `<div class="ccard"><div class="ccard-head"><b>${esc(card.title)}</b></div>
+      <${ordered ? "ol" : "ul"} class="cdo-steps">${list.map((s, i) => `<li data-i="${i}"><span class="cdo-text">${esc(s.text)}</span>
+        ${s.run ? `<button type="button" class="btn small${ordered && !i ? " primary" : ""}" data-step="${i}">${button}</button>` : ""}
+        <span class="cdo-status muted small" role="status"></span></li>`).join("")}</${ordered ? "ol" : "ul"}>
+      ${card.note ? `<p class="muted small">${esc(card.note)}</p>` : ""}</div>`;
+    el.querySelectorAll("[data-step]").forEach((b) => (b.onclick = async () => {
+      const status = b.closest("li").querySelector(".cdo-status");
+      b.disabled = true;
+      status.classList.remove("error");
+      status.textContent = "";
+      try {
+        status.textContent = await perform(list[+b.dataset.step].run);
+      } catch (err) {
+        status.textContent = String(err?.message || err);
+        status.classList.add("error");
+      }
+      b.disabled = false;
+    }));
+  }
+  // Today's plan: steps in order, each started by its own button.
+  cards.plan = (card, el) => steps(card, el, card.steps || [], true, "Bắt đầu");
+  // How to use the app: tips, those that point at a page or a feature with a button to go there.
+  cards.guide = (card, el) => steps(card, el, card.items || [], false, "Mở");
+
   cards.stats = (card, el) => {
     el.innerHTML = `<div class="ccard"><div class="cs-grid">${card.items.map((x) => `<div><b>${esc(x.value)}</b><span>${esc(x.label)}</span></div>`).join("")}</div>
       ${card.note ? `<p class="muted small">${esc(card.note)}</p>` : ""}</div>`;

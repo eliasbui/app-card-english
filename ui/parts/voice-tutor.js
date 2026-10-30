@@ -353,6 +353,8 @@
     bar.value = data.done / data.total;
   });
 
+  // The drawing of a line, for the chat bubble's voice mode (chat-voice.js).
+  window.talkKit = { parts, tutorHtml, mine };
   setPhase("idle");
   hooks.page.push((page) => {
     if (page === "talk") { models(); if (!log.children.length) empty(); }

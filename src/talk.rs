@@ -147,7 +147,7 @@ pub fn hear_early(dir: &Path) -> Result<(), String> {
 
 /// What the learner said: what was written down in their pause if the recording is the same one and they said
 /// nothing more after it, or else the whole recording, written down now.
-fn hear_said(dir: &Path) -> Result<String, String> {
+pub fn hear_said(dir: &Path) -> Result<String, String> {
     let pcm = speech::stop()?;
     let early = EARLY.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).take();
     if let Some((said, done)) = early

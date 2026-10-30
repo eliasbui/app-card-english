@@ -125,6 +125,20 @@ Mới trong 0.5.0:
 - Hình ảnh cho thẻ từ: dán ảnh, kéo thả hoặc chọn file trong ô sửa từ hay cửa sổ của từ; app tự thu nhỏ và hiện ở mặt sau thẻ, đáp án khi ôn và cửa sổ của từ.
 - Đồng bộ Google Drive: Cài đặt, Đăng nhập Google, cho phép trong trình duyệt. Từ vựng, lịch ôn, lịch sử trả lời, XP của từng máy, hình ảnh, chủ đề, lộ trình, lịch sử trò chuyện và các cài đặt học tập được đồng bộ giữa các máy khi mở app, sau mỗi lần học hoặc sửa, mỗi 15 phút và khi bấm Đồng bộ ngay. Dữ liệu nằm trong thư mục ẩn dành riêng cho app trên Google Drive của chính bạn; token đăng nhập không bao giờ nằm trong bản sao lưu.
 
+## Trợ lý chat
+
+Khung chat không chỉ trả lời mà điều khiển được app. Gõ tự nhiên, có dấu hay không dấu:
+
+- Học và điều hướng: "Bắt đầu học", "Mở trang thống kê", "Kế hoạch hôm nay" (các bước kèm nút Bắt đầu), "Thi thử IELTS", "Tạo bài tập nối từ".
+- Từ vựng: "Gợi ý 20 từ chủ đề du lịch", "Nhập các từ: a, b, c", "Bỏ qua từ X", "Xóa từ X".
+- Cài đặt: "Nhắc tôi học lúc 20:00", "Nhắc tôi mỗi 2 giờ", "Tắt nhắc học", "Đổi sang giao diện tối", "Mỗi ngày học 15 từ mới", "Chuyển sang khóa tiếng Trung".
+- Lộ trình: "Tạo lộ trình IELTS 6.5 trong 3 tháng, mỗi ngày 30 phút".
+- Hướng dẫn: "Làm sao để thêm từ?", "Đồng bộ ở đâu?", "App này làm được gì?" trả về các bước lấy từ chính các tính năng của app, mỗi bước có nút mở đúng chỗ.
+
+Mọi thao tác ghi, xóa hoặc đổi cài đặt hiện thành thẻ việc cần làm với nút Đồng ý; chỉ khi bạn bấm app mới làm. Thao tác chỉ mở trang hay bắt đầu học thì chạy ngay.
+
+Cách hiểu yêu cầu có hai lớp. Lớp luật của app nhận ra các câu quen thuộc nên chạy được với mọi model, kể cả Qwen trên máy. Với model lớn (ChatGPT, Codex, Gemini, DeepSeek), câu chưa nhận ra được đưa cho một bước lập kế hoạch: AI đề xuất danh sách việc, app kiểm tra từng việc theo danh mục cố định (tên công cụ, giá trị hợp lệ, chỉ các cài đặt học tập) và bỏ việc không hợp lệ. Không có việc nào thì đó là câu hỏi bình thường cho gia sư.
+
 ## AI
 
 Chọn nguồn AI trong Cài đặt. Khi nguồn đang chọn lỗi hoặc hết hạn mức, app tự chuyển sang nguồn khác đã sẵn sàng và ghi rõ ai đã trả lời.

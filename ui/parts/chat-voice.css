@@ -1,0 +1,24 @@
+  /* Voice in the chat bubble: the mic beside the text box and the bar above it while the mode is on. */
+  .cv-mic.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
+  .cv-bar { border-top: 1px solid var(--line); background: var(--surface-2); }
+  .cv-bar[hidden] { display: none; }
+  .cv-note { display: flex; align-items: center; gap: 12px; padding: 8px 16px; border-bottom: 1px solid var(--amber-line); background: var(--amber-soft); font-size: 12.5px; }
+  .cv-note[hidden] { display: none; }
+  .cv-note b { display: block; color: var(--text); }
+  .cv-note span { color: var(--text-2); }
+  .cv-note .btn { flex: none; }
+  .cv-note progress { display: block; width: 100%; height: 6px; margin-top: 6px; accent-color: var(--accent); }
+  .cv-note progress[hidden] { display: none; }
+  .cv-row { display: flex; align-items: center; gap: 10px; padding: 8px 16px; }
+  .cv-status { flex: 1; min-width: 0; color: var(--text-2); font-size: 12.5px; line-height: 1.4; }
+  .cv-status .error { color: var(--red); }
+  /* The ring follows the loudness of the voice while listening. */
+  .cv-meter { flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--faint); transition: transform .08s ease-out; }
+  .cv-bar[data-phase="listening"] .cv-meter { background: var(--accent); transform: scale(calc(1 + var(--lv, 0) * 1.1)); }
+  .cv-bar[data-phase="speaking"] .cv-meter { background: var(--green); animation: bob 1.4s ease-in-out infinite; }
+  .cv-bar[data-phase="thinking"] .cv-meter, .cv-bar[data-phase="starting"] .cv-meter { background: var(--amber); }
+  .cv-line { align-self: center; max-width: 92%; padding: 3px 11px; border-radius: 99px; background: var(--surface-2); color: var(--muted); font-size: 12px; text-align: center; }
+  .cv-line.ask { background: var(--amber-soft); color: var(--text-2); }
+  .cv-line.done { background: var(--green-soft); color: var(--green); }
+  .cv-line.fail { background: var(--red-soft); color: var(--red); }
+  .chat-log .vt-tutor { max-width: 94%; }

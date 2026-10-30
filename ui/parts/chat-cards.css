@@ -37,3 +37,17 @@
     .cq-options { grid-template-columns: 1fr; }
     .cs-grid { grid-template-columns: repeat(2, 1fr); }
   }
+
+  .cdo-list { display: flex; flex-direction: column; }
+  .cdo { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 7px 0; border-top: 1px solid var(--line); }
+  .cdo:first-child { border-top: 0; }
+  .cdo-main { display: flex; flex: 1; flex-direction: column; min-width: 0; line-height: 1.35; }
+  .cdo-label { font-size: 13.5px; font-weight: 600; }
+  .cdo-status:empty { display: none; }
+  .cdo .btn, .cdo-steps .btn { flex: none; }
+  .cdo-steps { display: flex; flex-direction: column; gap: 6px; margin: 4px 0 0; padding-left: 20px; }
+  .cdo-steps li { padding-left: 2px; line-height: 1.4; }
+  .cdo-steps .cdo-text { margin-right: 8px; }
+  .cdo-steps .btn { min-height: 26px; padding: 0 9px; font-size: 12px; vertical-align: middle; }
+  .cdo-steps .cdo-status { display: block; }
+  .cdo-status.error { color: var(--red); }

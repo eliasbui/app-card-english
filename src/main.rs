@@ -673,12 +673,25 @@ impl App {
                 let history = history.split_off(history.len().saturating_sub(8));
                 let asked = now();
                 let start = day_start();
+                let voice = args["voice"].as_bool() == Some(true);
                 background(Box::new(move || {
                     let ai = ai::Ai::new(&settings, &dir);
                     let db = db::open(&dir.join("words.db")).map_err(|e| e.to_string())?;
-                    // A request the app answers with a feature of its own, or else a question to talk about.
-                    let result = match assistant::route(&question) {
-                        Some(intent) => assistant::act(&intent, &ai, &db, &course, asked, start),
+                    // A request the app answers with a feature of its own; else the planner, for a model that can follow
+                    // its catalog; else a question to talk about, or, by voice, a line for the speaking tutor.
+                    let routed = match assistant::route(&question) {
+                        Some(intent) => Some(assistant::act(&intent, &ai, &db, &course, asked, start)),
+                        None if !ai.small() && assistant::may_command(&question) => {
+                            assistant::plan(&ai, &db, &course, &question, &history, asked, start).ok().flatten().map(Ok)
+                        }
+                        None => None,
+                    };
+                    if routed.is_none() && voice {
+                        record_usage(&dir, &day, &ai.attempts.borrow());
+                        return Ok(json!({ "routed": false, "cards": [] }));
+                    }
+                    let result = match routed {
+                        Some(r) => r,
                         None => ai.tutor(&question, &words, &history, course == "zh", asked)
                             .map(|t| assistant::Act { text: t.text, cards: Vec::new(), by: Some(t.by) }),
                     };
@@ -1066,6 +1079,8 @@ impl App {
                     })
                 }));
             }
+            // Writes down what the learner just said, without a turn: the chat bubble routes the words first.
+            "talk_hear" => background(Box::new(move || talk::hear_said(&dir).map(|heard| json!(heard)))),
             "talk_download" => {
                 let proxy = self.proxy.clone();
                 background(Box::new(move || {

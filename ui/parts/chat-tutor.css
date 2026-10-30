@@ -60,7 +60,7 @@
   .chat-msg .thinking { padding: 2px 4px; font-size: 13px; }
   .chat-msg .thinking .st { width: 36px; height: 36px; }
 
-  .chat-starters { gap: 6px; margin: 0; padding: 10px 16px 0; }
+  .chat-starters { gap: 6px; margin: 0; padding: 10px 16px 0; max-height: 96px; overflow-y: auto; }
   .chat-starters button { min-height: 28px; padding: 0 11px; font-size: 12.5px; }
   .chat-compose { display: flex; align-items: flex-end; gap: 8px; padding: 10px 16px 14px; }
   .chat-compose textarea { flex: 1; min-height: var(--h); max-height: 140px; padding-top: 7px; padding-bottom: 7px; resize: none; }

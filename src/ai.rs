@@ -2,7 +2,7 @@
 //! machine, the user's ChatGPT plan, or Gemini and DeepSeek with an API key. The chosen one is asked first; when
 //! it fails, the others that are ready take over, and every call is kept for measuring usage.
 
-use crate::{chatgpt, cloud, codex, db, models, pron, roadmap};
+use crate::{assistant, chatgpt, cloud, codex, db, models, pron, roadmap};
 use candle_core::{Device, Tensor};
 use candle_transformers::{
     generation::LogitsProcessor, models::quantized_qwen2::ModelWeights, utils::apply_repeat_penalty,
@@ -495,6 +495,43 @@ pub struct Story {
     pub by: By,
 }
 
+const PLAN_SYSTEM: &str = "You turn one request of a Vietnamese learner into actions of the vocabulary app they are using. \
+Reply with one JSON object and nothing else: {\"say\": \"<one short sentence in Vietnamese>\", \"calls\": [{\"tool\": \"<name>\", \"args\": {}}]}. \
+At most 6 calls, run in order. Tools:\n\
+open_page {\"page\": \"home|words|practice|roadmap|stats|settings|talk\"}\n\
+start_study {\"topic\": \"optional topic name\"}\n\
+start_practice {\"exercise\": \"flash|fill|choice|dict|speak|write|match|order|shadow|smart|tone|hanzi\", \"source\": \"all|hard|recent|topic:<name>\"}\n\
+open_exam {\"stage\": optional number, -1 for the final mock test}\n\
+open_vocab_test {}\n\
+open_packs {}\n\
+open_word {\"word\": \"...\"}\n\
+add_words {\"words\": [\"...\"], \"topic\": \"optional\"}\n\
+skip_word {\"word\": \"...\"}\n\
+delete_word {\"word\": \"...\"}\n\
+set_reminder {\"at\": \"HH:MM or empty to turn off\", \"every_hours\": number or 0 to turn off, \"quiet_from\": \"HH:MM\", \"quiet_to\": \"HH:MM\"} (any of them)\n\
+set_setting {\"key\": one of new_per_day (words a day), daily_goal (XP), theme (system|light|dark), palette (blue|pink|purple|red), \
+accent (en-US|en-GB), speech_rate (0.5 to 1.5), desired_retention (0.7 to 0.97), streak_freeze (0|1), easy_days (weekdays 0 to 6, 0 is Sunday, like 0,6), \
+course (en|zh), tutor_ai; \"value\": \"...\"}\n\
+switch_course {\"course\": \"en|zh\"}\n\
+roadmap_create {\"purpose\": \"...\", \"deadline\": \"YYYY-MM-DD\", \"minutes\": minutes a day, \"level\": \"optional\"}\n\
+roadmap_activate {\"uid\": \"...\"}\n\
+roadmap_delete {\"uid\": \"...\"}\n\
+sync_now {}\n\
+Use only these tools and these argument names. Take a uid only from State, never invent one. Work out dates from Today in State. \
+Do only what the learner asked. If the request is a question, a chat about the language, or you are not sure, reply {\"say\": \"\", \"calls\": []}.";
+const PLAN_SHOT: (&str, &str) = (
+    "State:\nToday: 2026-03-01\nCourse: en\n\nRequest: Nhắc tôi học lúc 8 giờ tối và mở trang thống kê",
+    "{\"say\": \"Mình đặt nhắc học lúc 20:00 và mở thống kê.\", \"calls\": [{\"tool\": \"set_reminder\", \"args\": {\"at\": \"20:00\"}}, {\"tool\": \"open_page\", \"args\": {\"page\": \"stats\"}}]}",
+);
+
+/// What the planner decided: a line to say and the calls it asked for, checked against the catalog.
+#[derive(Debug)]
+pub struct Planned {
+    pub say: String,
+    pub calls: Vec<assistant::Call>,
+    pub by: By,
+}
+
 /// The tutor's answer.
 #[derive(Debug, Default, Serialize, PartialEq)]
 pub struct Tutor {
@@ -971,7 +1008,7 @@ impl<'a> Ai<'a> {
     }
 
     /// Whether the model on this machine is asked first: it reads slowly and loses its way in a long prompt.
-    fn small(&self) -> bool {
+    pub(crate) fn small(&self) -> bool {
         !PROVIDERS[1..].contains(&self.settings.provider.as_str())
     }
 
@@ -1014,6 +1051,23 @@ impl<'a> Ai<'a> {
         Ok(Tutor { text, refused, by })
     }
 
+    /// What a request asks the app to do, for a model that can follow the catalog of tools: `None` for a question to
+    /// talk about; calls that break the catalog's rules are dropped.
+    pub fn plan(&self, question: &str, state: &str, history: &[db::Message]) -> Result<Option<Planned>, String> {
+        let question = question.trim();
+        if question.is_empty() || question.chars().count() > 500 || off_limits(question) {
+            return Ok(None);
+        }
+        let mut asked = format!("State:\n{state}\n");
+        for m in talk(history, 4) {
+            asked.push_str(&format!("{}: {}\n", if m.role == "user" { "Learner" } else { "Tutor" }, cut(&m.text, 200)));
+        }
+        asked.push_str(&format!("\nRequest: {question}"));
+        let prompt = Prompt { system: PLAN_SYSTEM, example: PLAN_SHOT, question: &asked, max_tokens: 400, cjk: false };
+        let (text, by) = self.chat(&prompt)?;
+        Ok(parse_plan(&text).map(|(say, calls)| Planned { say, calls, by }))
+    }
+
     /// The AI's next line in a role-play of `scene`, its first when `history` has none: in the language of the course,
     /// at the learner's level, with some of the learner's `words`.
     pub fn roleplay(&self, scene: &Scene, words: &[db::Word], history: &[db::Message], zh: bool) -> Result<Line, String> {
@@ -1054,6 +1108,15 @@ impl<'a> Ai<'a> {
         out.by = by;
         Ok(out)
     }
+}
+
+/// The line and the valid calls of a planner's JSON answer, which may come in a code fence or with words around it.
+pub(crate) fn parse_plan(text: &str) -> Option<(String, Vec<assistant::Call>)> {
+    let (start, end) = (text.find('{')?, text.rfind('}')?);
+    let v: Value = serde_json::from_str(text.get(start..=end)?).ok()?;
+    let say = cut(v.get("say").and_then(Value::as_str).unwrap_or_default(), 300);
+    let calls = assistant::check_calls(v.get("calls")?.as_array()?);
+    Some((say, calls))
 }
 
 /// Text in lower case without Vietnamese marks, for matching phrases however they were typed.
@@ -2141,5 +2204,14 @@ mod tests {
         assert!(shot.story.starts_with("小美") && shot.story.contains("纪念品。飞机") && shot.translation.starts_with("Tiểu Mỹ"));
         let check = parse_check(CHECK_ZH_SHOT.1, "我喜欢很吃中国菜。");
         assert_eq!((check.ok, check.corrected.as_str()), (false, "我很喜欢吃中国菜。"));
+    }
+
+    #[test]
+    fn a_plan_is_read_from_json_with_or_without_a_fence() {
+        let fenced = "Sure:\n```json\n{\"say\": \"Xong\", \"calls\": [{\"tool\": \"open_page\", \"args\": {\"page\": \"stats\"}}, {\"tool\": \"rm\", \"args\": {}}]}\n```";
+        let (say, calls) = parse_plan(fenced).unwrap();
+        assert_eq!((say.as_str(), calls.len()), ("Xong", 1));
+        assert_eq!(parse_plan("{\"say\": \"\", \"calls\": []}").unwrap().1.len(), 0);
+        assert!(parse_plan("Không có JSON").is_none() && parse_plan("{\"say\": 1}").is_none());
     }
 }

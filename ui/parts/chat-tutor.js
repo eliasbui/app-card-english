@@ -5,8 +5,8 @@
   if (window.MINI) return;
   const FIRST = "tutor";
   /// Sent as they are, but the last, whose blanks the learner fills in.
-  const STARTERS = ["Gợi ý 10 từ chủ đề công nghệ", "Đố tôi 5 từ", "Tạo bài tập nối từ", "Tiến độ của tôi", "Giải thích từ tôi hay quên",
-                    "Khác nhau giữa ... và ..."];
+  const STARTERS = ["Hôm nay tôi nên học gì?", "Nhắc tôi học lúc 20:00 mỗi ngày", "Tạo lộ trình thi IELTS 6.5", "Gợi ý 10 từ chủ đề công nghệ", "Đố tôi 5 từ",
+                    "Tạo bài tập nối từ", "Tiến độ của tôi", "Đổi giao diện sang tối", "Hướng dẫn cách học từ mới", "Khác nhau giữa ... và ..."];
   /// The most messages kept on screen; older ones stay in the database.
   const SHOWN = 80;
 
@@ -74,14 +74,15 @@
       ${say || who ? `<div class="chat-by">${say ? `<button class="btn small chat-listen" data-say="${esc(say)}">Nghe</button>` : ""}${who}</div>` : ""}
       ${m.uid ? `<div class="chat-tools">${tool("copy", "Sao chép")}${tool("again", "Hỏi lại")}</div>` : ""}</div>`;
   }
-  /// The cards of an answer under its bubble, each drawn by the renderer of its type (chat-cards.js).
-  function drawCards(el, m) {
+  /// The cards of an answer under its bubble, each drawn by the renderer of its type (chat-cards.js); `fresh` is the
+  /// answer that has just arrived, whose safe actions run on their own, unlike those of a talk loaded from the history.
+  function drawCards(el, m, fresh = false) {
     const box = el?.querySelector(".chat-cards");
     if (!box) return;
     for (const card of m.cards || []) {
       const holder = document.createElement("div");
       box.append(holder);
-      window.chatCards?.[card.type]?.(card, holder, { message: m, course: courseOf() });
+      window.chatCards?.[card.type]?.(card, holder, { message: m, course: courseOf(), fresh });
     }
   }
   /// Only the last answer can be asked again.
@@ -106,7 +107,7 @@
   }
   function empty() {
     log.innerHTML = `<div class="chat-empty">${st(zh() ? "mascot-zh" : "mascot-think")}<b>Chào bạn!</b>
-      <p>Mình giúp bạn học và dùng tiếng ${zh() ? "Trung" : "Anh"}: gợi ý và thêm từ theo chủ đề, đố các từ của bạn, mở bài tập và bài thi, nhập danh sách từ, xem tiến độ, giải thích từ và ngữ pháp, dịch, viết và sửa email. Chọn một gợi ý bên dưới hoặc tự hỏi nhé.</p></div>`;
+      <p>Mình giúp bạn học và điều khiển cả ứng dụng bằng lời: lên kế hoạch học hôm nay, bắt đầu buổi học và bài tập, mở bài thi, tạo lộ trình, đặt nhắc học, đổi cài đặt, thêm, bỏ qua hay xóa từ, xem tiến độ và hướng dẫn cách dùng. Mình cũng gợi ý từ theo chủ đề, đố các từ của bạn, giải thích từ và ngữ pháp, dịch, viết và sửa email bằng tiếng ${zh() ? "Trung" : "Anh"}. Việc nào thay đổi dữ liệu, mình hỏi bạn đồng ý trước. Chọn một gợi ý bên dưới hoặc tự hỏi nhé.</p></div>`;
   }
   function add(html) {
     log.querySelector(".chat-empty")?.remove();
@@ -223,7 +224,7 @@
       wait.remove();
       mine.insertAdjacentHTML("afterend", bubble(r.user));
       mine.remove();
-      drawCards(add(bubble(r.reply, r.answer.source ? byHtml(r.answer) : "")), r.reply);
+      drawCards(add(bubble(r.reply, r.answer.source ? byHtml(r.answer) : "")), r.reply, true);
       markLast();
     } catch (e) {
       if (course !== courseOf()) return;
@@ -352,6 +353,9 @@
     // A dialog over the page closes first.
     if (e.key === "Escape" && !document.querySelector(".modal:not(.hidden)")) closeChat();
   });
+  // BEGIN voice hooks: what the voice mode (chat-voice.js) mounts on and draws with.
+  window.chatVoiceHost = { panel, form: $("chat-form"), log, thread: () => thread, busy: () => busy, bubble, drawCards, add, markLast };
+  // END voice hooks
   hooks.course.push(() => {
     labels();
     if (panel.hidden) return void (shown = "");
