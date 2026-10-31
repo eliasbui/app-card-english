@@ -566,9 +566,60 @@ impl Reader {
     }
 }
 
-/// The report at the end of a talk, in Vietnamese: what it was about, what went well, the mistakes with the right way
-/// to say them, words and phrases worth keeping, sounds to work on, and a last speaking exercise of a few sentences
-/// the learner can try aloud if they like.
+/// The report at the end of a talk, in Vietnamese.
+#[derive(Debug, Default, serde::Deserialize, serde::Serialize, PartialEq)]
+#[serde(default)]
+struct Report {
+    topic: String,
+    /// The level the talk showed, such as A2, and why.
+    level: String,
+    level_note: String,
+    good: Vec<String>,
+    /// The learner's lines that could be said better.
+    review: Vec<Review>,
+    phrases: Vec<Phrase>,
+    sounds: Vec<Sound>,
+    /// The last speaking exercise: sentences in the language of the course.
+    practice: Vec<String>,
+    next: String,
+}
+
+#[derive(Debug, Default, serde::Deserialize, serde::Serialize, PartialEq)]
+#[serde(default)]
+struct Review {
+    said: String,
+    better: String,
+    why: String,
+}
+
+#[derive(Debug, Default, serde::Deserialize, serde::Serialize, PartialEq)]
+#[serde(default)]
+struct Phrase {
+    phrase: String,
+    meaning: String,
+}
+
+#[derive(Debug, Default, serde::Deserialize, serde::Serialize, PartialEq)]
+#[serde(default)]
+struct Sound {
+    sound: String,
+    how: String,
+}
+
+/// The report from the AI's answer, which may come in a code fence or with words around it; none when it holds
+/// nothing to show.
+fn parse_report(text: &str) -> Option<Report> {
+    let (start, end) = (text.find('{')?, text.rfind('}')?);
+    let mut report: Report = serde_json::from_str(text.get(start..=end)?).ok()?;
+    let letters = |s: &str| s.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect::<String>();
+    report.review.retain(|r| !r.better.trim().is_empty() && letters(&r.said) != letters(&r.better));
+    report.practice.retain(|p| !p.trim().is_empty());
+    (!report.good.is_empty() || !report.review.is_empty() || !report.practice.is_empty()).then_some(report)
+}
+
+/// The report at the end of a talk: what it was about and the level it showed, what went well, each line of the
+/// learner that could be said better with how and why, words and phrases worth keeping, sounds to work on, a last
+/// speaking exercise of sentences the learner can try aloud if they like, and what to talk about next time.
 pub fn summary(dir: &Path, settings: &ai::Settings, course: &str, history: &[(String, String)], notes: &[String], day: &str) -> Result<Value, String> {
     let zh = course == "zh";
     if !history.iter().any(|(role, _)| role == "user") {
@@ -585,76 +636,69 @@ pub fn summary(dir: &Path, settings: &ai::Settings, course: &str, history: &[(St
         }
     }
     let system = summary_system(zh);
-    let prompt = ai::Prompt { system: &system, example: if zh { SUMMARY_SHOT_ZH } else { SUMMARY_SHOT }, question: &q, max_tokens: 600, cjk: zh };
+    let prompt = ai::Prompt { system: &system, example: if zh { SUMMARY_SHOT_ZH } else { SUMMARY_SHOT }, question: &q, max_tokens: 1000, cjk: zh };
     let ai = ai::Ai::new(settings, dir);
     let result = ai.chat(&prompt);
     crate::record_usage(dir, day, &ai.attempts.borrow());
     let (text, by) = result?;
-    let mut out = json!({ "topic": "", "good": "", "mistakes": [], "phrases": [], "sounds": [], "practice": [], "next": "", "by": by });
-    for line in text.lines().map(str::trim) {
-        let bare = line.trim_start_matches(['*', '#', '-', ' ']);
-        let Some((key, rest)) = bare.split_once(':') else { continue };
-        let rest = rest.trim_start_matches('*').trim();
-        let list = || Value::from(rest.split(" ; ").map(str::trim).filter(|s| !s.is_empty() && *s != "-").collect::<Vec<_>>());
-        match key.trim_end_matches('*').trim() {
-            "CHUDE" => out["topic"] = rest.into(),
-            "TOT" => out["good"] = rest.into(),
-            "LOI" => out["mistakes"] = list(),
-            "CAU" => out["phrases"] = list(),
-            "PHATAM" => out["sounds"] = list(),
-            "LUYEN" => out["practice"] = list(),
-            "TIEP" => out["next"] = rest.into(),
-            _ => {}
-        }
-    }
-    if out["good"] == "" && out["mistakes"].as_array().is_none_or(Vec::is_empty) {
-        return Err("AI chưa tổng kết được, hãy thử lại".into());
-    }
+    let report = parse_report(&text).ok_or("AI chưa viết được tổng kết, hãy thử lại")?;
+    let mut out = serde_json::to_value(report).map_err(|e| e.to_string())?;
+    out["by"] = json!(by);
     Ok(out)
 }
 
 fn summary_system(zh: bool) -> String {
     let language = if zh { "Chinese (simplified characters)" } else { "English" };
     format!(
-        "You are a kind {language} speaking tutor for a Vietnamese learner. You get a voice lesson you just had with \
-         them and the notes you took during it. Write the report you give at the end, in Vietnamese except for the \
-         {language} words, with exactly these lines and nothing else:\n\
-         CHUDE: <what the talk was about, a few words>\n\
-         TOT: <two sentences on what they did well, concrete, from the lesson>\n\
-         LOI: <the mistakes that matter most, at most six, grammar, word choice and pronunciation, each as: wrong words \
-         -> right words (short reason), separated by ' ; ', or - if there were none>\n\
-         CAU: <three to five useful {language} words or phrases that came up or that they needed, each as: phrase = \
-         Vietnamese meaning, separated by ' ; '>\n\
-         PHATAM: <sounds to work on, each with how to make it (tongue, lips, tone), separated by ' ; ', or - if none>\n\
-         LUYEN: <the last speaking exercise: three to five natural {language} sentences they could have said in this \
-         talk, with their mistakes put right, each a single sentence in {language} only, separated by ' ; '>\n\
-         TIEP: <one sentence suggesting what to talk about next time>"
+        "You are a kind, thorough {language} speaking tutor for a Vietnamese learner. You get the voice lesson you just \
+         had with them (their lines were written down by speech recognition, so a strange word was most likely \
+         mispronounced) and the notes you took during it. Write the report you give them at the end. Base everything on \
+         what they actually said; be concrete and quote their words. Write in Vietnamese, except the {language} words \
+         and sentences. Answer with one JSON object and nothing else, with these keys:\n\
+         \"topic\": what the talk was about, a few words;\n\
+         \"level\": the CEFR level the talk showed{}, and \"level_note\": one sentence on why;\n\
+         \"good\": two or three concrete things they did well;\n\
+         \"review\": for each of their lines that had a mistake or sounded unnatural, at most eight, an object with \
+         \"said\" (their words), \"better\" (how a native speaker would say it, in {language}) and \"why\" (short, in \
+         Vietnamese); leave out the lines that were fine and the lines in Vietnamese;\n\
+         \"phrases\": three to six useful {language} words or phrases that came up or that they needed, as objects with \
+         \"phrase\" and \"meaning\" (Vietnamese);\n\
+         \"sounds\": sounds{} they should work on, from the words that seemed misheard, as objects with \"sound\" (the \
+         sound and a word with it) and \"how\" (tongue, lips, tone, in Vietnamese); empty when none;\n\
+         \"practice\": the last speaking exercise, three to five natural {language} sentences they could use in this \
+         talk, built from what they wanted to say, mistakes put right, each a single sentence in {language} only;\n\
+         \"next\": one sentence suggesting what to talk about next time.",
+        if zh { " (or the HSK level)" } else { "" },
+        if zh { " or tones" } else { "" },
     )
 }
 
 const SUMMARY_SHOT: (&str, &str) = (
     "The lesson:\nTutor: Hi! What did you do last weekend?\nLearner: I go to the bitch with my family.\n\
      Tutor: Oh nice, you went to the beach with your family! Was the water warm?\nLearner: Yes, very warm. We eat many sea food.\n\
+     Learner: Mình muốn nói là đồ ăn rất tươi thì nói sao?\nTutor: You can say: the food was really fresh. What did you eat?\n\
      Notes the tutor took during the lesson:\n- \"I go\" -> \"I went\": chuyện đã xảy ra thì dùng quá khứ.\n\
      - \"bitch\" -> \"beach\": âm /iː/ kéo dài.\n- \"eat many sea food\" -> \"ate a lot of seafood\": seafood không đếm được.",
-    "CHUDE: Kỳ nghỉ cuối tuần ở biển\n\
-     TOT: Bạn kể chuyện tự nhiên và trả lời đúng ý câu hỏi. Bạn dám nói câu dài, đó là điều rất tốt.\n\
-     LOI: I go -> I went (chuyện đã qua dùng quá khứ) ; eat many sea food -> ate a lot of seafood (seafood không đếm được, dùng a lot of)\n\
-     CAU: seafood = hải sản ; the water was warm = nước ấm ; spend the weekend = dành cuối tuần\n\
-     PHATAM: beach /iː/: kéo dài âm i, căng môi như đang cười, khác hẳn bitch /ɪ/ ngắn\n\
-     LUYEN: I went to the beach with my family. ; The water was really warm. ; We ate a lot of seafood.\n\
-     TIEP: Lần tới thử kể về món ăn bạn thích nhất ở biển.",
+    r#"{"topic": "Kỳ nghỉ cuối tuần ở biển", "level": "A2", "level_note": "Bạn kể được chuyện đã qua bằng câu ngắn, nhưng còn quên chia thì quá khứ.",
+"good": ["Bạn trả lời đúng ý câu hỏi và kể thêm chi tiết về đồ ăn.", "Khi không biết nói, bạn chủ động hỏi bằng tiếng Việt thay vì im lặng."],
+"review": [{"said": "I go to the bitch with my family.", "better": "I went to the beach with my family.", "why": "Chuyện đã qua dùng quá khứ went; beach đọc /iː/ dài, nghe thành bitch."},
+{"said": "We eat many sea food.", "better": "We ate a lot of seafood.", "why": "Quá khứ của eat là ate; seafood là một từ, không đếm được nên dùng a lot of."}],
+"phrases": [{"phrase": "seafood", "meaning": "hải sản"}, {"phrase": "the food was really fresh", "meaning": "đồ ăn rất tươi"}, {"phrase": "spend the weekend", "meaning": "dành cuối tuần"}],
+"sounds": [{"sound": "/iː/ trong beach", "how": "Kéo dài âm i, căng môi sang hai bên như đang cười; /ɪ/ trong bitch ngắn và lỏng môi."}],
+"practice": ["I went to the beach with my family.", "The water was really warm.", "We ate a lot of seafood, and it was really fresh."],
+"next": "Lần tới thử kể về món ăn bạn thích nhất ở biển và vì sao."}"#,
 );
 const SUMMARY_SHOT_ZH: (&str, &str) = (
     "The lesson:\nTutor: 你好！你周末做了什么？\nLearner: 我去海边了，跟我的家人。\nTutor: 哇，你跟家人去海边了！海水凉不凉？\nLearner: 很凉。我们吃很多海鲜。\n\
      Notes the tutor took during the lesson:\n- \"去海边了，跟我的家人\" -> \"跟家人去海边了\": trạng ngữ đứng trước động từ.",
-    "CHUDE: Đi biển cuối tuần\n\
-     TOT: Bạn trả lời rõ ràng và dùng đúng 了 cho chuyện đã qua. Bạn nói tự tin, đủ ý.\n\
-     LOI: 去海边了，跟我的家人 -> 跟家人去海边了 (\"跟 ai\" đứng trước động từ) ; 吃很多海鲜 -> 吃了很多海鲜 (việc đã xong thêm 了)\n\
-     CAU: 海鲜 = hải sản ; 海水 = nước biển ; 周末 = cuối tuần\n\
-     PHATAM: 海 hǎi thanh 3: hạ giọng xuống thấp rồi mới lên\n\
-     LUYEN: 我跟家人去海边了。 ; 海水很凉。 ; 我们吃了很多海鲜。\n\
-     TIEP: Lần tới thử kể về một chuyến du lịch bạn nhớ nhất.",
+    r#"{"topic": "Đi biển cuối tuần", "level": "HSK 2", "level_note": "Bạn dùng được 了 cho chuyện đã qua, câu còn ngắn và trật tự từ chưa vững.",
+"good": ["Bạn trả lời rõ ràng và dùng đúng 了 cho chuyện đã qua.", "Bạn nói tự tin, đủ ý."],
+"review": [{"said": "我去海边了，跟我的家人。", "better": "我跟家人去海边了。", "why": "Trạng ngữ \"跟 ai\" đứng trước động từ."},
+{"said": "我们吃很多海鲜。", "better": "我们吃了很多海鲜。", "why": "Việc đã xong thêm 了 sau động từ."}],
+"phrases": [{"phrase": "海鲜", "meaning": "hải sản"}, {"phrase": "海水", "meaning": "nước biển"}, {"phrase": "周末", "meaning": "cuối tuần"}],
+"sounds": [{"sound": "Thanh 3 trong 海 hǎi", "how": "Hạ giọng xuống thấp rồi mới lên, đừng đọc thành thanh 4."}],
+"practice": ["我跟家人去海边了。", "海水很凉。", "我们吃了很多海鲜。"],
+"next": "Lần tới thử kể về một chuyến du lịch bạn nhớ nhất."}"#,
 );
 
 /// Where the first finished sentence of `text` ends: after a line break, or after a full stop, question or exclamation
@@ -806,7 +850,7 @@ mod tests {
         let notes = ["\"I am work\" -> \"I work\": không dùng am với động từ thường.".to_owned()];
         let report = summary(&dir, &settings, "en", &history, &notes, "").unwrap();
         println!("{report:#}");
-        assert!(!report["practice"].as_array().unwrap().is_empty());
+        assert!(!report["practice"].as_array().unwrap().is_empty() && !report["review"].as_array().unwrap().is_empty());
     }
 
     #[test]
@@ -852,6 +896,18 @@ mod tests {
         // A recording of one voice stays as it was.
         let one: Vec<f32> = voice(0.1, 200.0).collect();
         assert!((rms(&focus(&one)) - rms(&one)).abs() < 1e-4);
+    }
+
+    #[test]
+    fn the_report_reads_from_the_answer() {
+        let report = parse_report(&format!("Here it is:\n```json\n{}\n```", SUMMARY_SHOT.1)).unwrap();
+        assert_eq!((report.level.as_str(), report.review.len(), report.practice.len()), ("A2", 2, 3));
+        assert_eq!(report.phrases[0], Phrase { phrase: "seafood".into(), meaning: "hải sản".into() });
+        assert!(parse_report(SUMMARY_SHOT_ZH.1).is_some());
+        // A line "put right" into itself is no review, and an answer with nothing in it is no report.
+        let same = parse_report(r#"{"good": ["ok"], "review": [{"said": "I like it.", "better": "I like it", "why": ""}]}"#).unwrap();
+        assert!(same.review.is_empty());
+        assert!(parse_report(r#"{"topic": "x"}"#).is_none() && parse_report("TOT: tốt").is_none());
     }
 
     #[test]

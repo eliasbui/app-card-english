@@ -12,8 +12,9 @@
   /// that. START is low enough for a microphone that is not built in, such as a webcam's on a Mac mini. After
   /// `EARLY_MS` of the pause the app starts writing down what was said, so that the text is ready when it ends.
   const START = 0.01, VOICED = 3, PAUSE_MS = 600, EARLY_MS = 250, POLL_MS = 60;
-  /// The longest a turn listens.
-  const LISTEN_MS = 20000;
+  /// The longest a turn listens, and with the learner pressing the button to end it, a little under what the app
+  /// records.
+  const LISTEN_MS = 20000, MANUAL_MS = 55000;
   /// The learner talking over the tutor: louder than `BARGE` and than the tutor's own voice coming back from the
   /// speakers (by `OVER_ECHO`), for `BARGE_READS` readings in a row. What was recorded before then is dropped but
   /// for `BARGE_BACK_MS`, the start of the learner's words; when the tutor finishes on its own, `AFTER_MS`.
@@ -35,7 +36,9 @@
       <div class="card vt" id="vt" data-phase="idle">
         <div class="vt-head">
           <div class="vt-who">${st("mascot")}<div><b>Gia sư AI</b><span id="vt-course"></span></div></div>
-          <div class="vt-pick"><label for="vt-ai">AI</label><select id="vt-ai"></select><span id="vt-model-box"></span></div>
+          <div class="vt-pick"><label for="vt-ai">AI</label><select id="vt-ai"></select><span id="vt-model-box"></span>
+            <label for="vt-mode">Ghi âm</label><select id="vt-mode">
+              <option value="auto">Tự gửi khi ngừng nói</option><option value="manual">Tự bấm bắt đầu và kết thúc</option></select></div>
         </div>
         <div class="vt-note" id="vt-note" hidden></div>
         <div class="vt-log" id="vt-log" role="log" aria-live="polite"></div>
@@ -61,6 +64,8 @@
   /// next one runs), and the sentence of the report being tried aloud.
   const talk = { history: [], notes: [], phase: "idle", on: false, rec: false, poll: 0, turn: 0, bubbles: new Map(), trying: null };
   const zh = () => courseOf() === "zh";
+  /// Whether the learner ends each line with the button rather than with a pause; the tutor then waits to be spoken to.
+  const manual = () => state.settings?.talk_mode === "manual";
   /// The model that hears the learner (Whisper small, Vietnamese and the language of the course): { ready, size }.
   let hearing = { ready: false, size: 0 };
   /// The microphone the last recording used, named in the advice when it hears nothing.
@@ -74,8 +79,15 @@
     thinking: ["Chờ", "Gia sư đang nghĩ", "Gia sư đang suy nghĩ...", "mascot-think"],
     speaking: ["Ngắt", "Ngắt lời gia sư", "Gia sư đang nói. Cứ nói chen vào hoặc bấm Ngắt để nói luôn.", "tutor-speak"],
   };
+  /// What the line beside the face says instead when the learner ends each line with the button.
+  const MANUAL = {
+    idle: "Bấm Nói (hoặc phím cách) để bắt đầu ghi âm, nói xong bấm Xong để gửi.",
+    listening: "Đang ghi âm. Nói thoải mái, xong thì bấm Xong (hoặc phím cách) để gửi.",
+    speaking: "Gia sư đang nói. Bấm Ngắt để nói luôn.",
+  };
   function setPhase(phase, note = "", error = false) {
-    const [word, action, line, face] = PHASES[phase];
+    const [word, action, auto, face] = PHASES[phase];
+    const line = (manual() && MANUAL[phase]) || auto;
     talk.phase = card.dataset.phase = phase;
     $("vt-face").className = `st vt-face st-${face}`;
     mic.textContent = word;
@@ -83,7 +95,7 @@
     mic.disabled = phase === "thinking" || phase === "starting";
     card.style.setProperty("--lv", 0);
     endButton.hidden = !talk.on;
-    tell(note || (phase === "idle" && talk.on ? "" : line), error);
+    tell(note || (phase === "idle" && talk.on && !manual() ? "" : line), error);
   }
   const tell = (text, error = false) => (status.innerHTML = text ? `<span class="${error ? "error" : ""}">${esc(text)}</span>` : "");
 
@@ -91,6 +103,7 @@
   async function models() {
     $("vt-ai").innerHTML = window.chatChoices?.() || "";
     $("vt-course").textContent = zh() ? "Khóa tiếng Trung" : "Khóa tiếng Anh";
+    $("vt-mode").value = manual() ? "manual" : "auto";
     const source = window.chatAi?.() || "local:llm", box = $("vt-model-box");
     hearing = await app.call("talk_model").catch(() => hearing);
     const notes = [];
@@ -120,6 +133,13 @@
   $("page-talk").addEventListener("change", async (e) => {
     try {
       if (e.target.id === "vt-ai") state.settings = await app.call("set_setting", { key: "tutor_ai", value: e.target.value });
+      if (e.target.id === "vt-mode") {
+        state.settings = await app.call("set_setting", { key: "talk_mode", value: e.target.value });
+        // A listening under way goes on by the new rule.
+        if (talk.phase === "listening") listen(1);
+        else setPhase(talk.phase);
+        return;
+      }
       if (e.target.id === "vt-model") state.settings = await app.call("set_setting", { key: e.target.dataset.provider + "_model", value: e.target.value });
     } catch (err) {
       toast(String(err));
@@ -213,7 +233,7 @@
 
   /// While the tutor talks, the microphone listens for the learner talking over it, the way one cuts a person short.
   async function overhear(turn) {
-    if (!talk.on || !hearing.ready || talk.rec) return;
+    if (!talk.on || !hearing.ready || talk.rec || manual()) return;
     try {
       await openMic();
     } catch {
@@ -273,6 +293,11 @@
       // Speech is around 0.02 to 0.2 RMS; the curve lifts quiet voices so that they still show.
       card.style.setProperty("--lv", Math.min(1, Math.pow(level / 0.15, 0.6)).toFixed(2));
       const elapsed = Date.now() - started;
+      if (manual()) {
+        peak = Math.max(peak, level);
+        if (elapsed > MANUAL_MS) send();
+        return;
+      }
       // The room's own noise, learned in the first moments and whenever it is quieter.
       floor = Math.min(floor, Math.max(level, 0.002));
       peak = Math.max(peak, level);
@@ -315,6 +340,7 @@
   /// learner's bubble comes with the "heard" event, for a typed line too.
   async function send(typed = "") {
     const turn = ++talk.turn;
+    talk.started ||= Date.now();
     // At once, so that the listening's own timer cannot send the same turn again. The app stops a recording it hears.
     setPhase("thinking", typed ? "" : "Đang nghe lại câu bạn vừa nói...");
     talk.bubbles.set(turn, null);
@@ -334,6 +360,7 @@
       if (turn !== talk.turn) return heard?.remove();
       // Nothing made out of the sound: say so and listen again. Any other failure ends the talk.
       if (!heard && !typed && talk.on) {
+        if (manual()) return setPhase("idle", String(e), true);
         await listen();
         if (talk.phase === "listening") tell(String(e));
         return;
@@ -349,7 +376,7 @@
     // A turn cut short has already handed over to the next one.
     if (turn !== talk.turn) return;
     setPhase("idle");
-    listen();
+    if (!manual()) listen();
   }
 
   async function end() {
@@ -361,33 +388,61 @@
     setPhase("idle");
   }
 
-  /// The end of the talk and the report on it: what went well, what to say instead, words worth keeping, sounds to
-  /// work on, and a last exercise of sentences to say, each with its model and a try that is scored.
+  /// What the page itself knows of the talk, for the top of the report: how long it lasted, the learner's lines,
+  /// how many words they said in the language of the course, and how many lines were in Vietnamese.
+  const VIETNAMESE = /[ăâđêôơưạảấầẩẫậắằẳẵặẹẻẽếềểễệỉịọỏốồổỗộớờởỡợụủứừửữựỳỵỷỹ]/i;
+  function facts() {
+    const said = talk.history.filter((m) => m.role === "user").map((m) => m.text);
+    const vi = said.filter((t) => VIETNAMESE.test(t)).length;
+    const words = said.filter((t) => !VIETNAMESE.test(t))
+      .reduce((n, t) => n + (zh() ? (t.match(/[\u4e00-\u9fff]/g) || []).length : t.split(/\s+/).filter((w) => /[a-z]/i.test(w)).length), 0);
+    const minutes = Math.max(1, Math.round((Date.now() - (talk.started || Date.now())) / 60000));
+    return { said, vi, words, minutes };
+  }
+
+  /// The end of the talk and the report on it: how it went in numbers, the level it showed, what went well, each line
+  /// that could be said better, words worth keeping, sounds to work on, a last exercise of sentences to say, each with
+  /// its model and a try that is scored, and what to talk about next time. When the AI cannot write it, the notes the
+  /// tutor took still show.
   async function finish() {
     await end();
     if (!talk.history.some((m) => m.role === "user")) return;
-    const turns = talk.history.filter((m) => m.role === "user").length;
-    const box = add(`<div class="vt-report card"><b>Tổng kết buổi nói</b><p class="muted">Gia sư đang viết tổng kết...</p></div>`);
+    const f = facts();
+    const chips = [`${f.minutes} phút`, `${f.said.length} lượt nói`, `${f.words} ${zh() ? "chữ tiếng Trung" : "từ tiếng Anh"}`]
+      .concat(f.vi ? [`${f.vi} lượt nói tiếng Việt`] : []);
+    const head = (extra = "") => `<header><b>Tổng kết buổi nói</b>${extra}</header>
+      <div class="vt-facts">${chips.map((c) => `<span>${esc(c)}</span>`).join("")}</div>`;
+    const box = add(`<div class="vt-report card">${head()}<p class="muted">Gia sư đang xem lại cả buổi để viết tổng kết...</p></div>`);
     endButton.hidden = true;
+    const section = (title, body) => (body ? `<section><span class="vt-label">${title}</span>${body}</section>` : "");
+    const list = (items, line) => (items?.length ? `<ul>${items.map(line).join("")}</ul>` : "");
     try {
       const r = await app.call("talk_summary", { history: talk.history, notes: talk.notes, day: localDay() });
-      const list = (title, items, line = (x) => `<li>${esc(x)}</li>`) =>
-        items?.length ? `<section><span class="vt-label">${title}</span><ul>${items.map(line).join("")}</ul></section>` : "";
-      box.innerHTML = `<header><b>Tổng kết buổi nói</b><span>${r.topic ? `${esc(r.topic)}, ` : ""}${turns} lượt nói</span></header>
-        ${r.good ? `<section class="vt-good"><span class="vt-label">Làm tốt</span><p>${esc(r.good)}</p></section>` : ""}
-        ${list("Nên nói thế này", r.mistakes, fixLine)}
-        ${list("Từ và cụm từ đáng nhớ", r.phrases)}
-        ${list("Phát âm cần luyện", r.sounds)}
+      if (r.level) chips.push(`Trình độ ước tính ${r.level}`);
+      box.innerHTML = `${head(r.topic ? `<span>${esc(r.topic)}</span>` : "")}
+        ${r.level_note ? `<p class="muted">${esc(r.level_note)}</p>` : ""}
+        ${section("Làm tốt", list(r.good, (x) => `<li>${esc(x)}</li>`))}
+        ${section("Câu bạn đã nói và cách nói tự nhiên hơn", list(r.review, (x) => `<li class="vt-review">
+          <div><span class="vt-said">Bạn nói:</span> ${esc(x.said)}</div>
+          <div><span class="vt-said">Nên nói:</span> <b class="vt-right">${esc(x.better)}</b>
+            <button class="btn small" data-say="${esc(x.better)}">Nghe</button></div>
+          ${x.why ? `<div class="muted">${esc(x.why)}</div>` : ""}</li>`))}
+        ${section("Từ và cụm từ đáng nhớ", list(r.phrases, (x) => `<li><b>${esc(x.phrase)}</b>${x.meaning ? `: ${esc(x.meaning)}` : ""}
+          <button class="btn small" data-say="${esc(x.phrase)}">Nghe</button></li>`))}
+        ${section("Phát âm cần luyện", list(r.sounds, (x) => `<li><b>${esc(x.sound)}</b>${x.how ? `: ${esc(x.how)}` : ""}</li>`))}
         ${r.practice?.length ? `<section class="vt-final"><span class="vt-label">Bài luyện cuối buổi</span>
           <p class="muted">Nghe mẫu rồi bấm Nói thử nếu muốn, không bắt buộc.</p>
           <ol>${r.practice.map((x) => `<li><b>${esc(x)}</b><span class="vt-final-do">
             <button class="btn small" data-say="${esc(x)}">Nghe mẫu</button>
             <button class="btn small" data-try="${esc(x)}">Nói thử</button><span class="vt-result"></span></span></li>`).join("")}</ol></section>` : ""}
-        ${r.next ? `<section><span class="vt-label">Lần sau</span><p>${esc(r.next)}</p></section>` : ""}
+        ${section("Lần sau", r.next ? `<p>${esc(r.next)}</p>` : "")}
         <div class="chat-by">${byHtml(r.by)}</div>`;
       gainXp(5, box);
     } catch (e) {
-      box.innerHTML = `<b>Tổng kết buổi nói</b><p class="error">${esc(e)}</p><button class="btn small" data-vt="summary">Thử lại</button>`;
+      box.innerHTML = `${head()}<p class="error">${esc(e)}</p>
+        ${section("Gia sư ghi lại trong buổi", list(talk.notes, fixLine))}
+        ${section("Những câu bạn đã nói", list(f.said, (x) => `<li>${esc(x)}</li>`))}
+        <button class="btn small" data-vt="summary">Viết lại tổng kết</button>`;
     }
     log.scrollTop = log.scrollHeight;
   }
@@ -442,6 +497,13 @@
     listen();
   });
   endButton.addEventListener("click", finish);
+  // The space bar works the round button, unless a line is being typed.
+  document.addEventListener("keydown", (e) => {
+    if (e.code !== "Space" || e.repeat || !$("page-talk").classList.contains("active")) return;
+    if (e.target.closest?.("input, textarea, select, button, [contenteditable]")) return;
+    e.preventDefault();
+    if (!mic.disabled) mic.click();
+  });
   /// A new talk: the one under way ends, and an answer still coming is dropped.
   function reset() {
     if (talk.trying) {
@@ -452,6 +514,7 @@
     talk.bubbles.clear();
     talk.history = [];
     talk.notes = [];
+    talk.started = 0;
     empty();
   }
   $("vt-new").addEventListener("click", reset);

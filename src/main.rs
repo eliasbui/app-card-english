@@ -1597,6 +1597,7 @@ impl App {
             // The course's recognizer in use, by the same rule; none until one is downloaded.
             "stt_model": speech::chosen(&self.dir, &self.course(), &text("stt_model")).unwrap_or_default(),
             "tutor_ai": text("tutor_ai"),
+            "talk_mode": self.setting("talk_mode").unwrap_or_else(|| "auto".into()),
             "has_gemini_key": self.setting("gemini_key").is_some(),
             "has_deepseek_key": self.setting("deepseek_key").is_some(),
             "chatgpt_model": text("chatgpt_model"),
@@ -1698,6 +1699,8 @@ fn valid_setting(key: &str, value: &str) -> bool {
         "local_model" => matches!(value, "llm" | "llm15"),
         "stt_model" => matches!(value, "stt110m" | "stt06b" | "stt" | "sttsv" | "sttzh"),
         "tutor_ai" => matches!(value, "" | "local:llm" | "local:llm15") || ai::PROVIDERS[1..].contains(&value),
+        // The speaking tutor sends a line when the learner pauses, or when they press the button.
+        "talk_mode" => matches!(value, "auto" | "manual"),
         "desired_retention" => between(value, 0.7, 0.97),
         "speech_rate" => between(value, 0.5, 1.5),
         "streak_freeze" | "tray_count" => matches!(value, "0" | "1"),

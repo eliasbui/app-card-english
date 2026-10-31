@@ -17,6 +17,7 @@
   .vt-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: 13px; }
   .vt-pick label { margin: 0; color: var(--muted); }
   .vt-pick select { max-width: 170px; min-height: var(--h-sm); }
+  .vt-pick #vt-mode { max-width: 210px; }
   #vt-model-box { display: contents; }
 
   /* What is missing before the talk goes well, each with what to do about it. */
@@ -59,6 +60,12 @@
   .vt-report p { margin: 0; }
   .vt-report ul, .vt-report ol { display: grid; gap: 6px; margin: 0; padding-left: 20px; }
   .vt-report section .vt-label { color: var(--accent-text); }
+  .vt-facts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .vt-facts span { padding: 2px 10px; border-radius: 99px; background: var(--accent-soft); color: var(--accent-text); font-size: 12.5px; font-weight: 600; }
+  .vt-review { display: grid; gap: 2px; }
+  .vt-review .btn { margin-left: 6px; }
+  .vt-said { color: var(--muted); font-size: 12.5px; }
+  .vt-report li > .btn { margin-left: 6px; }
   .vt-final li b { display: block; color: var(--text); font-size: 15px; line-height: 1.4; }
   .vt-final-do { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 4px; }
   .vt-result { color: var(--muted); font-size: 12.5px; }
