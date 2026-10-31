@@ -1062,9 +1062,9 @@ impl App {
                     settings: self.chat_ai_settings(),
                     words: self.course_words(&course),
                     history,
-                    target: text("target"),
                     typed: text("text"),
                     voice: voice::for_lang(&dir, &self.voice_setting(&course), &course),
+                    vi_voice: self.vi_voice(),
                     accent: self.setting("accent").unwrap_or_default(),
                     rate: self.setting("speech_rate").and_then(|v| v.parse().ok()).unwrap_or(0.95),
                     day,
@@ -1080,7 +1080,31 @@ impl App {
                 }));
             }
             // Writes down what the learner just said, without a turn: the chat bubble routes the words first.
-            "talk_hear" => background(Box::new(move || talk::hear_said(&dir).map(|heard| json!(heard)))),
+            "talk_hear" => {
+                let course = self.course();
+                background(Box::new(move || talk::hear_said(&dir, &course).map(|heard| json!(heard))));
+            }
+            // The report at the end of a talk with the speaking tutor.
+            "talk_summary" => {
+                let (settings, course) = (self.chat_ai_settings(), self.course());
+                let history: Vec<(String, String)> = args["history"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|m| Some((m["role"].as_str()?.to_owned(), m["text"].as_str()?.to_owned())))
+                    .collect();
+                let notes: Vec<String> = args["notes"].as_array().into_iter().flatten().filter_map(|n| n.as_str().map(str::to_owned)).collect();
+                background(Box::new(move || talk::summary(&dir, &settings, &course, &history, &notes, &day)));
+            }
+            // A sentence of the report's last exercise, said: how close it came.
+            "talk_try" => {
+                let (target, course) = (text("target"), self.course());
+                background(Box::new(move || {
+                    let heard = talk::hear_said(&dir, &course)?;
+                    let check = if course == "zh" { speech::score_chinese(&target, &heard, 1.0) } else { speech::score(&target, &heard, 1.0) };
+                    Ok(json!(check))
+                }));
+            }
             "talk_download" => {
                 let proxy = self.proxy.clone();
                 background(Box::new(move || {
@@ -1409,7 +1433,9 @@ impl App {
                 }
                 Ok(Value::Null)
             }
-            "talk_hear_early" => talk::hear_early(&self.dir).map(|()| Value::Null),
+            "talk_hear_early" => talk::hear_early(&self.dir, &self.course()).map(|()| Value::Null),
+            // The learner talked over the tutor: what was recorded before, the tutor's own voice, is dropped.
+            "rec_mark" => speech::mark(args["back_ms"].as_u64().unwrap_or(400).min(3_000) as u32).map(|()| Value::Null),
             "talk_stop" => {
                 talk::interrupt();
                 Ok(Value::Null)
@@ -1547,6 +1573,12 @@ impl App {
     fn voice_setting(&self, lang: &str) -> String {
         let key = if lang == "vi" { "voice_vi".to_owned() } else { db::scoped("voice", lang) };
         db::setting(&self.db, &key).ok().flatten().unwrap_or_default()
+    }
+
+    /// The Vietnamese voice of the app: the one chosen, or the one downloaded when none was; none for a system voice.
+    fn vi_voice(&self) -> Option<voice::Voice> {
+        let setting = self.voice_setting("vi");
+        voice::chosen(&self.dir, &setting, "vi").or_else(|| setting.is_empty().then(|| voice::for_lang(&self.dir, "", "vi")).flatten())
     }
 
     fn setting(&self, key: &str) -> Option<String> {

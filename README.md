@@ -40,11 +40,13 @@ Phát âm:
 - Ghi âm và chấm điểm một từ hoặc cả câu ví dụ, chỉ ra những từ chưa nghe rõ.
 - Chấm điểm bằng model nhận giọng chạy trên máy (Parakeet).
 
-Gia sư nói (Beta, mục riêng trên thanh bên): nói chuyện 1 kèm 1 bằng giọng nói với gia sư AI.
+Gia sư nói (Beta, mục riêng trên thanh bên): trò chuyện 1 kèm 1 bằng giọng nói với gia sư AI, như nói chuyện với một giáo viên thật.
 
-- Bấm Bắt đầu nói rồi cứ nói, ngừng một chút là câu được gửi đi; gia sư trả lời xong thì app tự nghe tiếp. Ngắt lời gia sư bất cứ lúc nào, hoặc gõ câu thay cho nói.
-- Nghe được tiếng Việt, tiếng Anh và câu trộn cả hai bằng Whisper small chạy trên máy (tải 375 MB ngay trên trang, xóa được), nên hỏi "câu này nói thế nào" bằng tiếng Việt cũng được.
-- Mỗi lượt gia sư nói một đến ba câu bằng ngôn ngữ của khóa (sửa lỗi quan trọng nhất rồi hỏi tiếp), đưa một câu để bạn nói theo và ghi chú lỗi bằng tiếng Việt (sai thì sửa thế nào, đặt lưỡi và môi ra sao). Câu nói theo được chấm điểm và chỉ ra những từ chưa nghe rõ.
+- Bấm Bắt đầu nói rồi cứ nói, ngừng một chút là câu được gửi đi; gia sư trả lời xong thì app nghe tiếp ngay. Muốn chen ngang thì cứ nói, gia sư dừng lại và nghe bạn (đeo tai nghe thì nhạy nhất), hoặc bấm Ngắt. Gõ câu thay cho nói cũng được.
+- Gia sư trò chuyện tự nhiên, không bắt nói theo câu mẫu và không bắt bẻ phát âm hay ngữ pháp giữa chừng: câu sai thì gia sư dùng cách nói đúng ngay trong câu đáp rồi nói tiếp. Lỗi được ghi lại lặng lẽ cho phần tổng kết.
+- Nói tiếng Việt được: hỏi "câu này nói thế nào", hoặc bí thì nói tiếng Việt, gia sư đáp một câu ngắn bằng tiếng Việt (đọc bằng giọng tiếng Việt) và đưa cách nói bằng ngôn ngữ của khóa.
+- Kết thúc và tổng kết: chủ đề, điểm làm tốt, những câu nên nói lại cho đúng, từ và cụm từ đáng nhớ, âm cần luyện, gợi ý cho lần sau, và bài luyện cuối buổi gồm vài câu chuẩn để nghe mẫu và nói thử (có chấm điểm, không bắt buộc).
+- Nghe được tiếng Việt, tiếng Anh và câu trộn cả hai bằng Whisper small chạy trên máy (tải 375 MB ngay trên trang, xóa được). Khi có người khác nói xung quanh, app lấy giọng gần micro nhất (người học) và giảm giọng ở xa, coi tiếng nói chuyện nhỏ phía sau là lúc bạn đã ngừng; bỏ các câu Whisper hay tự bịa khi gặp tiếng ồn ("Thank you for watching", "Hãy subscribe kênh...") và nghe lại theo ngôn ngữ của khóa khi nó viết ra chữ của một ngôn ngữ khác. Âm thanh micro được lọc tiếng ù dưới 70 Hz và chống méo khi hạ tần số mẫu, giúp mọi phần chấm phát âm nghe rõ hơn.
 - Câu trả lời của ChatGPT (hoặc ChatGPT qua Codex) được đọc từng câu ngay khi viết xong, không suy luận trước, bằng giọng đọc đã chọn trong Cài đặt (chưa tải gói giọng nào thì giọng của máy). Chọn nguồn AI và model ngay trên trang; model nhỏ trả lời nhanh nhất.
 
 AI gợi ý từ mới: theo chủ đề, theo các từ đã học, hoặc chọn ra từ một đoạn văn dán vào.

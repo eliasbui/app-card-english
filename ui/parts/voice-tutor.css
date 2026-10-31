@@ -37,25 +37,33 @@
   .vt-empty p { margin: 4px 0 0; font-size: 13px; }
   .vt-empty .chips { justify-content: center; margin: 10px 0 0; }
 
-  /* The tutor's message: its face beside what it said, the sentence to say after it, and the corrections. */
+  /* The tutor's message: its face beside what it said, in Vietnamese first when it helped in Vietnamese, and its
+     notes for the report folded away. */
   .vt-tutor { flex-direction: row; gap: 10px; }
   .vt-tutor > .st { flex: none; width: 34px; height: 34px; margin-top: 2px; }
   .vt-body { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; min-width: 0; }
   .vt-body .chat-bubble { font-size: 15px; }
+  .vt-body .chat-bubble.vt-vi { background: var(--accent-soft); color: var(--text-2); font-size: 14px; }
   .vt-label { display: block; margin-bottom: 4px; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
-  .vt-try { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 10px 12px; border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
-            border-radius: var(--r-md); background: var(--accent-soft); }
-  .vt-try .vt-label { flex-basis: 100%; margin: 0; color: var(--accent-text); }
-  .vt-try b { color: var(--text); font-size: 16px; line-height: 1.4; }
-  .vt-fix { padding: 10px 12px; border: 1px solid var(--amber-line); border-radius: var(--r-md); background: var(--amber-soft); color: var(--text-2); font-size: 13.5px; }
-  .vt-fix .vt-label { display: flex; align-items: center; gap: 6px; color: var(--amber); }
-  .vt-fix .vt-label .st { width: 26px; height: 26px; }
-  .vt-fix ul { display: grid; gap: 6px; margin: 0; padding-left: 18px; }
+  .vt-notes { color: var(--muted); font-size: 12.5px; }
+  .vt-notes summary { cursor: pointer; }
+  .vt-notes ul { display: grid; gap: 4px; margin: 6px 0 0; padding-left: 18px; color: var(--text-2); }
   .vt-wrong { color: var(--red); text-decoration: line-through; }
   .vt-right { color: var(--green); font-weight: 600; }
-  .vt-check { margin-top: 4px; padding: 1px 9px; border-radius: 99px; background: var(--surface); color: var(--muted); font-size: 12px; }
-  .vt-check.ok { background: var(--green-soft); color: var(--green); }
-  .vt-check.low { background: var(--red-soft); color: var(--red); }
+
+  /* The report at the end of a talk. */
+  .vt-report { display: grid; gap: 12px; align-self: stretch; margin: 0; padding: 14px 16px; font-size: 14px; }
+  .vt-report header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+  .vt-report header b { font-size: 16px; }
+  .vt-report header span, .vt-report .muted { color: var(--muted); font-size: 12.5px; }
+  .vt-report p { margin: 0; }
+  .vt-report ul, .vt-report ol { display: grid; gap: 6px; margin: 0; padding-left: 20px; }
+  .vt-report section .vt-label { color: var(--accent-text); }
+  .vt-final li b { display: block; color: var(--text); font-size: 15px; line-height: 1.4; }
+  .vt-final-do { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 4px; }
+  .vt-result { color: var(--muted); font-size: 12.5px; }
+  .vt-result.ok { color: var(--green); }
+  .vt-result.low { color: var(--red); }
   .vt-dots { display: flex; gap: 4px; padding: 13px 14px; }
   .vt-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); animation: blink 1.2s infinite; }
   .vt-dots i:nth-child(2) { animation-delay: .2s; }

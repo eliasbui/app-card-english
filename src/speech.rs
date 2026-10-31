@@ -21,8 +21,9 @@ use std::{
 };
 use tokenizers::Tokenizer;
 
-/// A recording stops by itself after this, in case the stop never comes; long enough for an example sentence.
-const MAX_SECONDS: u64 = 16;
+/// A recording stops by itself after this, in case the stop never comes; long enough for the voice tutor, whose
+/// microphone opens while the tutor is still talking.
+const MAX_SECONDS: u64 = 60;
 /// Quieter than this (root mean square of the loudest tenth of a second) is taken as no voice at all.
 const SILENCE_RMS: f32 = 0.008;
 const MAX_TOKENS: usize = 64;
@@ -42,6 +43,9 @@ struct Recording {
     /// The sound so far and its rate, for a look at it before the end.
     samples: Arc<Mutex<Vec<f32>>>,
     rate: u32,
+    /// Where the part to hear begins, in samples at `rate`: the voice tutor drops what was recorded while it was
+    /// still talking itself.
+    from: usize,
 }
 
 static RECORDING: Mutex<Option<Recording>> = Mutex::new(None);
@@ -81,15 +85,24 @@ pub fn start() -> Result<String, String> {
         Ok((samples, rate))
     });
     let (name, samples, rate) = started.recv().map_err(|_| "Không mở được micro".to_owned())??;
-    *slot = Some(Recording { stop, done, samples, rate });
+    *slot = Some(Recording { stop, done, samples, rate, from: 0 });
     Ok(name)
+}
+
+/// Makes the recording begin `back_ms` before now, dropping what came earlier.
+pub fn mark(back_ms: u32) -> Result<(), String> {
+    let mut slot = RECORDING.lock().map_err(|_| "ghi âm đang lỗi")?;
+    let recording = slot.as_mut().ok_or("Chưa bắt đầu ghi âm")?;
+    let len = recording.samples.lock().map(|s| s.len()).unwrap_or(0);
+    recording.from = len.saturating_sub(recording.rate as usize * back_ms as usize / 1000);
+    Ok(())
 }
 
 /// The sound so far at 16 kHz, while the recording goes on.
 pub fn peek() -> Result<Vec<f32>, String> {
     let slot = RECORDING.lock().map_err(|_| "ghi âm đang lỗi")?;
     let recording = slot.as_ref().ok_or("Chưa bắt đầu ghi âm")?;
-    let samples = recording.samples.lock().map(|s| s.clone()).unwrap_or_default();
+    let samples = recording.samples.lock().map(|s| s.get(recording.from..).unwrap_or_default().to_vec()).unwrap_or_default();
     Ok(resample(&samples, recording.rate, w::SAMPLE_RATE as u32))
 }
 
@@ -103,11 +116,12 @@ fn open_microphone() -> Result<(cpal::Stream, Arc<Mutex<Vec<f32>>>, u32, String)
     let channels = usize::from(config.channels()).max(1);
     let samples = Arc::new(Mutex::new(Vec::new()));
     let sink = samples.clone();
+    let mut clean = Clean::new(rate);
     // Mixed down to mono as it arrives.
-    let push = move |data: &mut dyn Iterator<Item = f32>| {
+    let mut push = move |data: &mut dyn Iterator<Item = f32>| {
         if let Ok(mut s) = sink.lock() {
             let frame: Vec<f32> = data.collect();
-            let mono: Vec<f32> = frame.chunks(channels).map(|c| c.iter().sum::<f32>() / c.len() as f32).collect();
+            let mono: Vec<f32> = frame.chunks(channels).map(|c| clean.next(c.iter().sum::<f32>() / c.len() as f32)).collect();
             let rms = (mono.iter().map(|x| x * x).sum::<f32>() / mono.len().max(1) as f32).sqrt();
             LEVEL.store(rms.to_bits(), Ordering::Relaxed);
             s.extend(mono);
@@ -151,7 +165,54 @@ pub fn stop() -> Result<Vec<f32>, String> {
     let _ = recording.stop.send(());
     LEVEL.store(0, Ordering::Relaxed);
     let (samples, rate) = recording.done.join().map_err(|_| "ghi âm bị dừng đột ngột")??;
-    Ok(resample(&samples, rate, w::SAMPLE_RATE as u32))
+    Ok(resample(samples.get(recording.from..).unwrap_or_default(), rate, w::SAMPLE_RATE as u32))
+}
+
+/// A filter of the second order (the biquad of the Audio EQ Cookbook), run one sample at a time.
+#[derive(Clone, Copy, Default)]
+struct Biquad {
+    b: [f32; 3],
+    a: [f32; 2],
+    x: [f32; 2],
+    y: [f32; 2],
+}
+
+impl Biquad {
+    fn new(rate: u32, cutoff: f32, q: f32, high: bool) -> Self {
+        let w0 = 2.0 * std::f32::consts::PI * cutoff / rate as f32;
+        let (cos, alpha) = (w0.cos(), w0.sin() / (2.0 * q));
+        let a0 = 1.0 + alpha;
+        let b = if high { [(1.0 + cos) / 2.0, -(1.0 + cos), (1.0 + cos) / 2.0] } else { [(1.0 - cos) / 2.0, 1.0 - cos, (1.0 - cos) / 2.0] };
+        Biquad { b: b.map(|v| v / a0), a: [-2.0 * cos / a0, (1.0 - alpha) / a0], ..Default::default() }
+    }
+
+    fn next(&mut self, x: f32) -> f32 {
+        let y = self.b[0] * x + self.b[1] * self.x[0] + self.b[2] * self.x[1] - self.a[0] * self.y[0] - self.a[1] * self.y[1];
+        self.x = [x, self.x[0]];
+        self.y = [y, self.y[0]];
+        y
+    }
+}
+
+/// What the microphone sends, cleaned as it arrives: the hum and rumble under 70 Hz out, and above 16 kHz everything
+/// over 7 kHz too (a fourth-order Butterworth), which the linear resampling down to 16 kHz would otherwise fold back
+/// onto the voice as noise. Causal, so that the start of a recording is the same however much follows it.
+struct Clean {
+    stages: Vec<Biquad>,
+}
+
+impl Clean {
+    fn new(rate: u32) -> Self {
+        let mut stages = vec![Biquad::new(rate, 70.0, std::f32::consts::FRAC_1_SQRT_2, true)];
+        if rate > w::SAMPLE_RATE as u32 {
+            stages.extend([0.541_196, 1.306_563].map(|q| Biquad::new(rate, 7_000.0, q, false)));
+        }
+        Clean { stages }
+    }
+
+    fn next(&mut self, x: f32) -> f32 {
+        self.stages.iter_mut().fold(x, |v, stage| stage.next(v))
+    }
 }
 
 // shortcut: linear interpolation, plenty for speech recognition; use a windowed-sinc resampler if quality matters.
@@ -649,6 +710,20 @@ fn mel_filters(bins: usize) -> Vec<f32> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_microphone_keeps_the_voice_and_drops_hum_and_hiss() {
+        let rms = |hz: f32, offset: f32| {
+            let mut clean = Clean::new(48_000);
+            let out: Vec<f32> = (0..48_000).map(|i| clean.next(offset + (2.0 * std::f32::consts::PI * hz * i as f32 / 48_000.0).sin())).collect();
+            (out[24_000..].iter().map(|x| x * x).sum::<f32>() / 24_000.0).sqrt()
+        };
+        let voice = rms(1_000.0, 0.0);
+        assert!(voice > 0.68 && voice < 0.73, "{voice}");
+        assert!(rms(20.0, 0.0) < 0.1 && rms(15_000.0, 0.0) < 0.05);
+        // A microphone whose samples sit off zero sends a voice, not that offset.
+        assert!((rms(1_000.0, 0.3) - voice).abs() < 0.01);
+    }
 
     #[test]
     fn a_short_word_on_a_quiet_microphone_is_heard() {

@@ -99,9 +99,6 @@
     if (name !== "talk" || !v.bubbles.has(data.turn)) return;
     const slot = v.bubbles.get(data.turn);
     if (!slot) return;
-    if (data.kind === "heard" && data.check && slot.mine) {
-      slot.mine.outerHTML = window.talkKit.mine(data.text, data.check);
-    }
     if (data.kind === "text") {
       slot.tutor.innerHTML = window.talkKit.tutorHtml(window.talkKit.parts(data.text), "", "tutor-speak");
       host.log.scrollTop = host.log.scrollHeight;
@@ -297,11 +294,10 @@
     v.bubbles.set(turn, { mine, tutor: thinking });
     setPhase("thinking");
     try {
-      const r = await app.call("talk_turn", { history: v.history, target: v.target, text: heard, day: localDay(), turn });
+      const r = await app.call("talk_turn", { history: v.history, text: heard, day: localDay(), turn });
       if (!v.bubbles.has(turn)) return;
-      v.history.push({ role: "user", text: r.heard }, { role: "ai", text: r.say });
-      v.target = r.try || "";
-      v.bubbles.get(turn).tutor.innerHTML = window.talkKit.tutorHtml({ say: r.say, try: r.try, fix: r.fix }, byHtml(r.by));
+      v.history.push({ role: "user", text: r.heard }, { role: "ai", text: [r.vi, r.say].filter(Boolean).join(" ") });
+      v.bubbles.get(turn).tutor.innerHTML = window.talkKit.tutorHtml({ say: r.say, vi: r.vi, note: r.note }, byHtml(r.by));
       if (r.spoken && turn === v.turn) toast(r.spoken);
       gainXp(2, main);
     } catch (e) {

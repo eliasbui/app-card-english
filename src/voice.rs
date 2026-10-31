@@ -512,6 +512,9 @@ fn prepare(folder: &Path, voice: &Voice, text: &str) -> Option<String> {
     Some(if words == 1 && !out.ends_with(['.', '!', '?']) { format!("{out}.") } else { out })
 }
 
+/// The words whose "'s" is "is", not a possessive.
+const IS_AFTER: [&str; 13] = ["that", "what", "where", "who", "there", "here", "how", "it", "he", "she", "this", "when", "why"];
+
 /// A word as Kokoro can read it, or None when it has no pronunciation for it.
 fn kokoro_word(word: &str, known: &HashSet<String>) -> Option<String> {
     let lower = word.to_lowercase();
@@ -523,6 +526,17 @@ fn kokoro_word(word: &str, known: &HashSet<String>) -> Option<String> {
         && known.contains(&format!("{stem}s"))
     {
         return Some(format!("{stem}s"));
+    }
+    // A contraction it does not know read in full, as the tutor's spoken English is full of them: "that's" as "that
+    // is", "we'd" as "we would". Only after words that take "is", so that a name's "'s" is not read as "is".
+    let full = [("'s", " is"), ("'re", " are"), ("'ll", " will"), ("'ve", " have"), ("'d", " would")]
+        .into_iter()
+        .find_map(|(short, long)| lower.strip_suffix(short).map(|stem| (stem, short, long)));
+    if let Some((stem, short, long)) = full
+        && known.contains(stem)
+        && (short != "'s" || IS_AFTER.contains(&stem))
+    {
+        return Some(format!("{}{long}", &word[..stem.len()]));
     }
     // Kokoro looks up the parts of a hyphenated word it does not know on their own.
     if lower.contains('-') {
@@ -852,6 +866,10 @@ mod tests {
         let known: HashSet<String> = ["teachers"].iter().map(|s| s.to_string()).collect();
         assert_eq!(kokoro_word("teacher's", &known).as_deref(), Some("teachers"));
         assert_eq!(kokoro_word("teachers'", &known).as_deref(), Some("teachers"));
+        let known: HashSet<String> = ["that", "we", "john"].iter().map(|s| s.to_string()).collect();
+        assert_eq!(kokoro_word("That's", &known).as_deref(), Some("That is"));
+        assert_eq!(kokoro_word("we'd", &known).as_deref(), Some("we would"));
+        assert_eq!(kokoro_word("John's", &known), None);
     }
 
     #[test]
